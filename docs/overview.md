@@ -144,7 +144,6 @@ python training.py \
 cmi_mac/
 ├── models/
 │   ├── circmac.py          # CircMAC architecture (main)
-│   ├── tthymba.py          # TTHymba (comparison)
 │   ├── transformer.py      # Transformer (baseline)
 │   ├── mamba.py            # Mamba (baseline)
 │   ├── hymba.py            # Hymba (baseline)

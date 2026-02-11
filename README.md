@@ -17,25 +17,26 @@ A deep learning framework for predicting circRNA-miRNA binding sites using a nov
 cmi_mac/
 ├── models/              # Model architectures
 │   ├── circmac.py       # CircMAC (main model)
-│   ├── heads.py         # Task heads (UnifiedSiteHead)
-│   └── model.py         # ModelWrapper
+│   ├── heads.py         # Task heads (SiteHead, UnifiedSiteHead)
+│   ├── model.py         # ModelWrapper
+│   └── modules.py       # Embeddings, Attention, CrossAttention
 ├── trainer.py           # Training loop
-├── training.py          # Training CLI
+├── training.py          # Supervised training CLI
+├── pretraining.py       # Self-supervised pretraining CLI
 ├── scripts/             # Experiment scripts
 ├── docs/                # Documentation
-└── data/                # Datasets
+└── data/                # Datasets (not included in repo)
 ```
 
 ## Quick Start
 
-### Training with Unified Head (Site-First Approach)
+### Training
 
 ```bash
 python training.py \
     --model_name circmac \
     --task sites \
-    --use_unified_head \
-    --binding_pooling mean \
+    --interaction cross_attention \
     --d_model 128 \
     --n_layer 6 \
     --batch_size 128 \
@@ -43,10 +44,11 @@ python training.py \
     --device 0
 ```
 
-### Run All Experiments
+### Run Experiments
 
 ```bash
-bash scripts/run_all.sh 0  # GPU 0
+./scripts/exp1_pretrained_models.sh 0    # GPU 0
+./scripts/exp3_encoder_comparison.sh 1   # GPU 1
 ```
 
 ### Check Progress
@@ -59,10 +61,12 @@ python check_results.py --summary
 
 | Exp | Description | Script |
 |-----|-------------|--------|
-| 1 | Pretrained Model Comparison | `exp1_pretrained_comparison.sh` |
-| 2 | Encoder Architecture Comparison | `exp2_encoder_comparison.sh` |
-| 3 | Ablation Study | `exp3_ablation.sh` |
-| 4 | Pretraining Task Analysis | `exp4_pretraining_tasks.sh` |
+| 1 | Pretrained Model Comparison | `exp1_pretrained_models.sh` |
+| 2 | Pretraining Strategy | `exp2_pretraining.sh` |
+| 3 | Encoder Architecture Comparison | `exp3_encoder_comparison.sh` |
+| 4 | CircMAC Ablation Study | `exp4_ablation.sh` |
+| 5 | Interaction Mechanism | `exp5_interaction.sh` |
+| 6 | Site Head Structure | `exp6_site_head.sh` |
 
 ## Model Comparison
 
@@ -72,7 +76,6 @@ python check_results.py --summary
 | Transformer | O | X | X | X |
 | Mamba | X | O | X | X |
 | Hymba | O | O | X | X |
-| TTHymba | O | O | X | X |
 | **CircMAC** | **O** | **O** | **O** | **O** |
 
 ## Documentation
@@ -89,7 +92,3 @@ python check_results.py --summary
 - einops
 - transformers
 - multimolecule
-
-## License
-
-MIT License

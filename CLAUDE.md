@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-CMI-MAC is a deep learning project for predicting **circRNA-miRNA binding sites and interactions**. It supports multiple neural network architectures (Mamba variants, Transformer, LSTM/GRU) and both supervised training and self-supervised pretraining.
+CMI-MAC is a deep learning project for predicting **circRNA-miRNA binding sites and interactions**. It supports multiple neural network architectures (Mamba, Transformer, LSTM, Hymba, CircMAC) and both supervised training and self-supervised pretraining.
 
 ## Commands
 
 ### Supervised Training
 ```bash
 # Single run
-python training.py --model_name thymba --device 0 --task both --seed 1 --d_model 64 --batch_size 64 --is_cross_attention --verbose
+python training.py --model_name circmac --device 0 --task sites --seed 1 --d_model 128 --batch_size 128 --interaction cross_attention --verbose
 
 # Batch run (binding, sites, both tasks with seeds 1,2,3)
 ./run_training.sh <model_name> <device> <rc:True|False>
@@ -20,7 +20,7 @@ python training.py --model_name thymba --device 0 --task both --seed 1 --d_model
 ### Self-Supervised Pretraining
 ```bash
 # Task keys: mlm, ntp, ssp, ssl, sslm, cpcl, bsj_mlm, mlm_cpcl_bsj_pair, full, etc.
-./run_pretraining.sh <data_file:df_circ_ss|df_circ_ss_5> <model_name:thymba|tthymba|circmac> <task_key> <device> <exp_name>
+./run_pretraining.sh <data_file:df_circ_ss|df_circ_ss_5> <model_name:circmac> <task_key> <device> <exp_name>
 
 # Recommended for circRNA:
 ./run_pretraining.sh df_circ_ss circmac mlm_cpcl_bsj_pair 0 experiment_name
@@ -37,23 +37,23 @@ python training.py --model_name thymba --device 0 --task both --seed 1 --d_model
 data.py (KmerTokenizer, CircRNABindingSitesDataset, CircRNASelfDataset)
     ↓
 models/model.py (ModelWrapper)
-    ├─ Backbone: circmac, thymba, tthymba, mamba, transformer, lstm, gru, rnabert, etc.
-    ├─ Cross-Attention (optional, for circRNA-target interaction)
+    ├─ Backbone: circmac, mamba, transformer, hymba, lstm, rnabert, etc.
+    ├─ Interaction: concat, elementwise, cross_attention
     └─ Task Heads: BindingHead (binary), SiteHead (token-level), CircularPairingHead
     ↓
 trainer.py (train/pretrain loops, evaluation, checkpointing)
 ```
 
 ### Key Model Files
-- `models/circmac.py`: **CircMAC v3** - HyMBA + Circular CNN (circRNA 특화)
-- `models/thymba.py`, `models/tthymba.py`: Primary Mamba-based architectures
+- `models/circmac.py`: **CircMAC v3** - HyMBA + Circular CNN (circRNA specialized)
+- `models/hymba.py`: Hymba (Attention + Mamba hybrid)
 - `models/model.py`: ModelWrapper that combines backbone + heads
 - `models/modules.py`: Embeddings, attention, normalization components
 - `models/heads.py`: BindingHead, SiteHead, SSLHead, PairingHead, CircularPairingHead
 
 ### Tasks
 - **binding**: Binary classification (does the pair bind?)
-- **sites**: Token-level classification (which positions bind?)
+- **sites**: Token-level classification (which positions bind?) — **main focus**
 - **both**: Multi-task learning (binding + sites)
 
 ### Pretraining Objectives
@@ -62,8 +62,8 @@ trainer.py (train/pretrain loops, evaluation, checkpointing)
 - **SSP**: Secondary Structure Prediction
 - **ss_labels / ss_labels_multi**: Structure label prediction
 - **pairing**: Base pairing matrix reconstruction (CircularPairingHead for circmac)
-- **CPCL**: Circular Permutation Contrastive Learning (circRNA 특화)
-- **BSJ_MLM**: Back-Splice Junction focused MLM (circRNA 특화)
+- **CPCL**: Circular Permutation Contrastive Learning (circRNA specialized)
+- **BSJ_MLM**: Back-Splice Junction focused MLM (circRNA specialized)
 
 ## Data
 
@@ -79,7 +79,7 @@ Model configs are defined in `utils_config.py`:
 - `Transformer2Config`: d_model, n_layer, n_heads, d_head
 - `PretrainedConfig`: for RNABERT, RNAErnie, RNAFM wrappers
 
-Default hyperparameters: `d_model=64`, `batch_size=64`, `n_layer=4`, `max_len=1022`
+Default hyperparameters: `d_model=128`, `batch_size=128`, `n_layer=6`, `max_len=1022`
 
 ## CircMAC Ablation Flags
 ```bash
@@ -89,6 +89,16 @@ Default hyperparameters: `d_model=64`, `batch_size=64`, `n_layer=4`, `max_len=10
 --no_mamba              # Disable Mamba branch
 --no_conv               # Disable Conv branch
 ```
+
+## Experiments
+| Exp | Description | Script |
+|-----|-------------|--------|
+| 1 | Pretrained Model Comparison | `exp1_pretrained_models.sh` |
+| 2 | Pretraining Strategy | `exp2_pretraining.sh` |
+| 3 | Encoder Architecture Comparison | `exp3_encoder_comparison.sh` |
+| 4 | CircMAC Ablation Study | `exp4_ablation.sh` |
+| 5 | Interaction Mechanism | `exp5_interaction.sh` |
+| 6 | Site Head Structure | `exp6_site_head.sh` |
 
 ## Documentation
 - `docs/overview.md`: Project overview and architecture

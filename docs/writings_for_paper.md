@@ -173,7 +173,7 @@ This forces the model to learn BSJ-specific context.
 | RNN-based | LSTM |
 | Attention-based | Transformer |
 | SSM-based | Mamba |
-| Hybrid | Hymba, Tthymba |
+| Hybrid | Hymba |
 | Pretrained RNA | RNABERT, RNAFM, RNAErnie, RNAMSM |
 | **Ours** | CircMAC, CircMAC-PT |
 
@@ -210,7 +210,7 @@ This forces the model to learn BSJ-specific context.
 | Transformer | Attention | - | - | - | - | - |
 | Mamba | SSM | - | - | - | - | - |
 | Hymba | Hybrid | - | - | - | - | - |
-| Tthymba | Hybrid | - | - | - | - | - |
+
 | **CircMAC** | Ours | **-** | **-** | **-** | **-** | **-** |
 
 **Table 2: Encoder Architecture Comparison (Sites Task)**
@@ -221,7 +221,7 @@ This forces the model to learn BSJ-specific context.
 | Transformer | - | - | - | - | - |
 | Mamba | - | - | - | - | - |
 | Hymba | - | - | - | - | - |
-| Tthymba | - | - | - | - | - |
+
 | **CircMAC** | **-** | **-** | **-** | **-** | **-** |
 
 **Table 3: Comparison with Pretrained RNA Models**
