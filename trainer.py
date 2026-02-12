@@ -149,6 +149,9 @@ class Trainer:
             self.model_pt = RnaMsmModel.from_pretrained('multimolecule/rnamsm').to(self.device)
         else:
             raise ValueError(f"Pretrained model '{model_name}' not recognized.")
+        self.model_pt.eval()
+        for param in self.model_pt.parameters():
+            param.requires_grad = False
 
     def set_pretrained_target(self, target: str = 'mirna', rna_model: str = 'rnabert') -> None:
         if target.lower() in ['mirna', 'mirnas', 'micro']:
@@ -168,6 +171,9 @@ class Trainer:
             d_target = self.model_target.shared.weight.shape[1]
         else:
             raise ValueError(f"Target '{target}' not recognized.")
+        self.model_target.eval()
+        for param in self.model_target.parameters():
+            param.requires_grad = False
         # Set the target projection layer in the main model.
         self.model._set_proj_target(d_target)
         if self.verbose:
@@ -455,7 +461,7 @@ class Trainer:
 
             # Unified site-first approach: sites prediction is main, binding is derived
             if self.use_unified_head:
-                bind_mask = data['binding'].squeeze().bool().to(self.device)
+                bind_mask = data['binding'].squeeze(-1).bool().to(self.device)
 
                 if bind_mask.any():
                     emb_sites = emb[bind_mask]
@@ -507,7 +513,7 @@ class Trainer:
                     loss += self.alpha * loss_bind
 
                 if self.task in ['sites', 'both']:
-                    bind_mask = data['binding'].squeeze().bool().to(self.device)
+                    bind_mask = data['binding'].squeeze(-1).bool().to(self.device)
 
                     if bind_mask.any():
                         emb_sites = emb[bind_mask] if bind_mask.any() else emb
@@ -624,11 +630,12 @@ class Trainer:
         x, x_rc, x_mask, x_rc_mask = self.get_data(data)
 
         if self.model_name.lower() in ['rnabert', 'rnaernie', 'rnafm', 'rnamsm']:
-            x = self.model_target(x, x_mask)
-            x = x['last_hidden_state']
-            if self.rc:
-                x_rc = self.model_target(x_rc, x_rc_mask)
-                x_rc = x_rc['last_hidden_state']
+            with torch.no_grad():
+                x = self.model_pt(x, x_mask)
+                x = x['last_hidden_state']
+                if self.rc:
+                    x_rc = self.model_pt(x_rc, x_rc_mask)
+                    x_rc = x_rc['last_hidden_state']
 
         emb, emb_rc = self.model.forward(x, x_mask)
 
@@ -685,7 +692,8 @@ class Trainer:
     def forward_target(self, data):
         x_target = data['target'].to(self.device)
         target_mask = data['target_mask'].to(self.device)
-        target = self.model_target(x_target, target_mask)
+        with torch.no_grad():
+            target = self.model_target(x_target, target_mask)
         return target['last_hidden_state'], target_mask
 
     def forward_cross_attention(self, emb, target, target_mask=None):
