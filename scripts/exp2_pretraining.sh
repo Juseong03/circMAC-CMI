@@ -3,6 +3,7 @@
 # Experiment 2: Pretraining Strategy Comparison (Sites Prediction)
 #
 # Phase 1: Pretrain CircMAC with different task combinations
+#           x2 data variants (df_circ_ss, df_circ_ss_5)
 # Phase 2: Fine-tune on sites prediction
 #
 # Usage: ./scripts/exp2_pretraining.sh [GPU_ID]
@@ -14,6 +15,9 @@ set -e
 GPU=${1:-0}
 SEEDS=(1 2 3)
 TASK="sites"
+
+# Data variants: single SS vs 5x stochastic SS sampling
+DATA_FILES=("df_circ_ss" "df_circ_ss_5")
 
 # Pretraining hyperparameters
 PT_EPOCHS=300
@@ -41,6 +45,7 @@ echo "  Experiment 2: Pretraining Strategy"
 echo "=============================================="
 echo "GPU: $GPU"
 echo "Task: $TASK"
+echo "Data: ${DATA_FILES[*]}"
 echo "=============================================="
 
 #-----------------------------------------------
@@ -62,32 +67,43 @@ PT_CONFIGS["mlm_cpcl_bsj"]="--mlm --cpcl --bsj_mlm"
 PT_CONFIGS["mlm_cpcl_bsj_pair"]="--mlm --cpcl --bsj_mlm --pairing"
 PT_CONFIGS["full"]="--mlm --ntp --ssp --ss_labels_multi --pairing --cpcl --bsj_mlm"
 
-for CONFIG_NAME in "${!PT_CONFIGS[@]}"; do
-    CONFIG_FLAGS="${PT_CONFIGS[$CONFIG_NAME]}"
-    EXP_NAME="exp2_pt_${CONFIG_NAME}"
+for DATA_FILE in "${DATA_FILES[@]}"; do
+    # Short name for data variant (ss1 or ss5)
+    if [ "$DATA_FILE" == "df_circ_ss" ]; then
+        DATA_TAG="ss1"
+    else
+        DATA_TAG="ss5"
+    fi
 
-    echo "Pretraining: $CONFIG_NAME"
-    echo "  Flags: $CONFIG_FLAGS"
+    echo "--- Data: $DATA_FILE ($DATA_TAG) ---"
 
-    python pretraining.py \
-        --model_name circmac \
-        --data_file df_circ_ss \
-        --max_len "$MAX_LEN" \
-        --d_model "$D_MODEL" \
-        --n_layer "$N_LAYER" \
-        --batch_size "$PT_BATCH_SIZE" \
-        --num_workers "$NUM_WORKERS" \
-        --lr "$PT_LR" \
-        --epochs "$PT_EPOCHS" \
-        --earlystop "$PT_EARLYSTOP" \
-        --device "$GPU" \
-        --exp "$EXP_NAME" \
-        --verbose \
-        $CONFIG_FLAGS \
-        2>&1 | tee "logs/exp2/pretrain/${EXP_NAME}.log"
+    for CONFIG_NAME in "${!PT_CONFIGS[@]}"; do
+        CONFIG_FLAGS="${PT_CONFIGS[$CONFIG_NAME]}"
+        EXP_NAME="exp2_pt_${DATA_TAG}_${CONFIG_NAME}"
 
-    echo "Pretrain completed: $CONFIG_NAME"
-    echo ""
+        echo "Pretraining: $CONFIG_NAME (data=$DATA_TAG)"
+        echo "  Flags: $CONFIG_FLAGS"
+
+        python pretraining.py \
+            --model_name circmac \
+            --data_file "$DATA_FILE" \
+            --max_len "$MAX_LEN" \
+            --d_model "$D_MODEL" \
+            --n_layer "$N_LAYER" \
+            --batch_size "$PT_BATCH_SIZE" \
+            --num_workers "$NUM_WORKERS" \
+            --lr "$PT_LR" \
+            --epochs "$PT_EPOCHS" \
+            --earlystop "$PT_EARLYSTOP" \
+            --device "$GPU" \
+            --exp "$EXP_NAME" \
+            --verbose \
+            $CONFIG_FLAGS \
+            2>&1 | tee "logs/exp2/pretrain/${EXP_NAME}.log"
+
+        echo "Pretrain completed: $CONFIG_NAME ($DATA_TAG)"
+        echo ""
+    done
 done
 
 #-----------------------------------------------
@@ -121,38 +137,42 @@ for SEED in "${SEEDS[@]}"; do
         2>&1 | tee "logs/exp2/finetune/${EXP_NAME}.log"
 done
 
-# Then: With each pretrained model
-for CONFIG_NAME in "${!PT_CONFIGS[@]}"; do
-    PT_PATH="saved_models/circmac/exp2_pt_${CONFIG_NAME}/best.pt"
+# Then: With each pretrained model (both data variants)
+for DATA_TAG in "ss1" "ss5"; do
+    echo "--- Fine-tuning with $DATA_TAG pretrained models ---"
 
-    if [ ! -f "$PT_PATH" ]; then
-        echo "Skipping $CONFIG_NAME: pretrained model not found"
-        continue
-    fi
+    for CONFIG_NAME in "${!PT_CONFIGS[@]}"; do
+        PT_PATH="saved_models/circmac/exp2_pt_${DATA_TAG}_${CONFIG_NAME}/best.pt"
 
-    echo "Fine-tuning with pretrain: $CONFIG_NAME"
+        if [ ! -f "$PT_PATH" ]; then
+            echo "Skipping ${DATA_TAG}_${CONFIG_NAME}: pretrained model not found"
+            continue
+        fi
 
-    for SEED in "${SEEDS[@]}"; do
-        EXP_NAME="exp2_${CONFIG_NAME}_${TASK}_s${SEED}"
-        echo "  $EXP_NAME"
+        echo "Fine-tuning with pretrain: ${DATA_TAG}_${CONFIG_NAME}"
 
-        python training.py \
-            --model_name circmac \
-            --task "$TASK" \
-            --seed "$SEED" \
-            --d_model "$D_MODEL" \
-            --n_layer "$N_LAYER" \
-            --batch_size "$FT_BATCH_SIZE" \
-            --num_workers "$NUM_WORKERS" \
-            --lr "$FT_LR" \
-            --epochs "$FT_EPOCHS" \
-            --earlystop "$FT_EARLYSTOP" \
-            --device "$GPU" \
-            --exp "$EXP_NAME" \
-            --load_pretrained "$PT_PATH" \
-            --interaction cross_attention \
-            --verbose \
-            2>&1 | tee "logs/exp2/finetune/${EXP_NAME}.log"
+        for SEED in "${SEEDS[@]}"; do
+            EXP_NAME="exp2_${DATA_TAG}_${CONFIG_NAME}_${TASK}_s${SEED}"
+            echo "  $EXP_NAME"
+
+            python training.py \
+                --model_name circmac \
+                --task "$TASK" \
+                --seed "$SEED" \
+                --d_model "$D_MODEL" \
+                --n_layer "$N_LAYER" \
+                --batch_size "$FT_BATCH_SIZE" \
+                --num_workers "$NUM_WORKERS" \
+                --lr "$FT_LR" \
+                --epochs "$FT_EPOCHS" \
+                --earlystop "$FT_EARLYSTOP" \
+                --device "$GPU" \
+                --exp "$EXP_NAME" \
+                --load_pretrained "$PT_PATH" \
+                --interaction cross_attention \
+                --verbose \
+                2>&1 | tee "logs/exp2/finetune/${EXP_NAME}.log"
+        done
     done
 done
 

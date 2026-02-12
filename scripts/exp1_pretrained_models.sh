@@ -12,7 +12,7 @@ set -e
 
 # Configuration
 GPU=${1:-0}
-BEST_PT=${2:-"mlm_cpcl_bsj_pair"}  # Best config from Exp 2
+BEST_PT=${2:-"ss5_mlm_cpcl_bsj_pair"}  # Best config from Exp 2 (ss5 = 5x stochastic SS)
 TASK="sites"
 
 SEEDS=(1 2 3)
