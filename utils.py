@@ -59,18 +59,24 @@ def get_device(cuda_num: Optional[int] = None) -> str:
 def check_max_len(max_len: int, model_name: str) -> int:
     """
     Adjust maximum sequence length based on model constraints.
+    Takes the minimum of user-specified max_len and model's position embedding limit.
+    This allows fair comparison by passing a smaller max_len (e.g., --max_len 440).
     """
-    if model_name.lower() in ['rnabert']:
-        max_len = 438
-    elif model_name.lower() in ['rnaernie']:
-        max_len = 510
-    elif model_name.lower() in ['rnafm', 'rnamsm']:
-        max_len = 1022
-    else:
-        max_len = max_len - 2  # Account for special tokens
+    user_max = max_len - 2  # Account for special tokens
 
-    logger.info(f'Max length set to {max_len} for model {model_name}')
-    return max_len
+    if model_name.lower() in ['rnabert']:
+        model_max = 438
+    elif model_name.lower() in ['rnaernie']:
+        model_max = 510
+    elif model_name.lower() in ['rnafm', 'rnamsm']:
+        model_max = 1022
+    else:
+        logger.info(f'Max length set to {user_max} for model {model_name}')
+        return user_max
+
+    result = min(user_max, model_max)
+    logger.info(f'Max length set to {result} for model {model_name} (user={user_max}, model_limit={model_max})')
+    return result
 
 def count_parameters(module: nn.Module) -> int:
     """

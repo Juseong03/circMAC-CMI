@@ -140,10 +140,13 @@ def experiment(args_dict: dict) -> None:
         site_head_type=args_dict.get('site_head_type', 'conv1d'),
     )
 
-    # Step 4-1. Set Pretrained circRNA Encoder (when using pretrained RNA models)
+    # Step 4-1. Set Pretrained circRNA Encoder (only when frozen, i.e. not trainable)
     if args_dict['model_name'] in ['rnabert', 'rnaernie', 'rnafm', 'rnamsm']:
-        print(f'[Step 4-1] Loading pretrained circRNA encoder: {args_dict["model_name"]}')
-        trainer.define_pretrained_model(model_name=args_dict['model_name'])
+        if not args_dict.get('trainable_pretrained', False):
+            print(f'[Step 4-1] Loading pretrained circRNA encoder (frozen): {args_dict["model_name"]}')
+            trainer.define_pretrained_model(model_name=args_dict['model_name'])
+        else:
+            print(f'[Step 4-1] Pretrained model is trainable, using internal encoder')
 
     # Step 5. Set Pretrained Target Model (for target sequences such as miRNA or protein)
     print('[Step 5] Setting Pretrained Target (miRNA or RBP)')

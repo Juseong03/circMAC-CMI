@@ -629,7 +629,7 @@ class Trainer:
     def forward(self, data):
         x, x_rc, x_mask, x_rc_mask = self.get_data(data)
 
-        if self.model_name.lower() in ['rnabert', 'rnaernie', 'rnafm', 'rnamsm']:
+        if self.model_name.lower() in ['rnabert', 'rnaernie', 'rnafm', 'rnamsm'] and hasattr(self, 'model_pt'):
             with torch.no_grad():
                 x = self.model_pt(x, x_mask)
                 x = x['last_hidden_state']
