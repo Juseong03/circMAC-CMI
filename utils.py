@@ -302,41 +302,6 @@ def save_model(
     if verbose:
         print(f"Model state saved to {model_save_path}")
 
-def load_model(
-    model: nn.Module, 
-    dir_save: str, 
-    model_name: str, 
-    experiment_name: str, 
-    seed: int, 
-    device: str = 'cpu', 
-    pretrain: bool = False, 
-    save_name: Optional[str] = None, 
-    epoch: Optional[int] = None, 
-    verbose: bool = False
-) -> nn.Module:
-    # Construct the experiment directory.
-    experiment_dir = os.path.join(dir_save, model_name, experiment_name, str(seed))
-    subfolder = 'pretrain' if pretrain else 'train'
-    load_dir = os.path.join(experiment_dir, subfolder)
-    if save_name is not None:
-        load_dir = os.path.join(experiment_dir, save_name)
-    if epoch is not None:
-        load_dir = os.path.join(load_dir, "epoch", str(epoch))
-    
-    model_path = os.path.join(load_dir, "model.pth")
-    if verbose:
-        print(f"Loading model from: {model_path}")
-    
-    if os.path.exists(model_path):
-        state_dict = torch.load(model_path, map_location=device)
-        model.load_state_dict(state_dict)
-        if verbose:
-            print(f"Loaded model state from {model_path}")
-    else:
-        if verbose:
-            print(f"Warning: Model state file not found at {model_path}.")
-    return model
-
 def save_logs(
     logs: Dict, 
     log_dir: str, 

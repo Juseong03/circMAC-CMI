@@ -114,7 +114,7 @@ done
 # 1C: CircMAC-PT (fair)
 echo ""
 echo "--- 1C: CircMAC-PT (fair) ---"
-PT_PATH="saved_models/circmac/exp2_pt_${BEST_PT}/best.pt"
+PT_PATH="saved_models/circmac/exp2_pt_${BEST_PT}/42/pretrain/model.pth"
 if [ ! -f "$PT_PATH" ]; then
     echo "Warning: Pretrained model not found: $PT_PATH"
     echo "  Please run Experiment 2 first! Skipping CircMAC-PT (fair)..."

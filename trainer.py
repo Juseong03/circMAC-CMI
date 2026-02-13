@@ -259,6 +259,27 @@ class Trainer:
             verbose=verbose
         )
 
+    def load_model_from_path(self, model_path: str, verbose: bool = False) -> None:
+        """Load model weights from an explicit file path, skipping mismatched keys."""
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Model not found at {model_path}")
+
+        state_dict = torch.load(model_path, map_location=self.device)
+        model_state = self.model.state_dict()
+
+        # Filter: only load keys that exist in both and have matching shapes
+        filtered = {k: v for k, v in state_dict.items()
+                    if k in model_state and v.shape == model_state[k].shape}
+        skipped = [k for k in state_dict if k not in filtered]
+
+        model_state.update(filtered)
+        self.model.load_state_dict(model_state)
+
+        if verbose:
+            print(f"Loaded {len(filtered)}/{len(state_dict)} params from {model_path}")
+            if skipped:
+                print(f"  Skipped {len(skipped)} mismatched keys: {skipped[:5]}{'...' if len(skipped) > 5 else ''}")
+
     def update_best_model(self, score: float, epoch: int, pretrain: bool = False) -> bool:
         try:
             current_best = self.best_score

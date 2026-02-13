@@ -155,10 +155,10 @@ def experiment(args_dict: dict) -> None:
     # (Optionally, load trained or pretrained weights)
     if args_dict['load_trained']:
         print('[Step 5-1] Loading trained model weights')
-        trainer.load_model(pretrain=False, load_pretrain_name=args_dict['load_trained'])
+        trainer.load_model_from_path(args_dict['load_trained'], verbose=args_dict['verbose'])
     elif args_dict['load_pretrained']:
-        print('[Step 5-2] Loading pretrained model weights')
-        trainer.load_model(pretrain=True, load_pretrain_name=args_dict['load_pretrained'], verbose=args_dict['verbose'])
+        print(f'[Step 5-2] Loading pretrained model weights from: {args_dict["load_pretrained"]}')
+        trainer.load_model_from_path(args_dict['load_pretrained'], verbose=args_dict['verbose'])
 
     # Step 6. Set Optimizer
     print('[Step 6] Setting Optimizer')

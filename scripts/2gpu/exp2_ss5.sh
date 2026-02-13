@@ -120,11 +120,13 @@ done
 echo ""
 echo "=== Phase 2: Fine-tuning ($DATA_TAG) ==="
 
+PT_SEED=42  # Pretraining default seed
+
 for CONFIG_NAME in "${!PT_CONFIGS[@]}"; do
-    PT_PATH="saved_models/circmac/exp2_pt_${DATA_TAG}_${CONFIG_NAME}/best.pt"
+    PT_PATH="saved_models/circmac/exp2_pt_${DATA_TAG}_${CONFIG_NAME}/${PT_SEED}/pretrain/model.pth"
 
     if [ ! -f "$PT_PATH" ]; then
-        echo "Skipping ${DATA_TAG}_${CONFIG_NAME}: pretrained model not found"
+        echo "Skipping ${DATA_TAG}_${CONFIG_NAME}: pretrained model not found at $PT_PATH"
         continue
     fi
 

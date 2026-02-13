@@ -142,7 +142,7 @@ for DATA_TAG in "ss1" "ss5"; do
     echo "--- Fine-tuning with $DATA_TAG pretrained models ---"
 
     for CONFIG_NAME in "${!PT_CONFIGS[@]}"; do
-        PT_PATH="saved_models/circmac/exp2_pt_${DATA_TAG}_${CONFIG_NAME}/best.pt"
+        PT_PATH="saved_models/circmac/exp2_pt_${DATA_TAG}_${CONFIG_NAME}/42/pretrain/model.pth"
 
         if [ ! -f "$PT_PATH" ]; then
             echo "Skipping ${DATA_TAG}_${CONFIG_NAME}: pretrained model not found"
