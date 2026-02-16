@@ -43,12 +43,19 @@ TOTAL=$((${#MODELS[@]} * ${#SEEDS[@]}))
 COUNT=0
 
 for MODEL in "${MODELS[@]}"; do
+    # Transformer needs smaller batch size to avoid OOM
+    if [ "$MODEL" = "transformer" ]; then
+        BS=64
+    else
+        BS=$BATCH_SIZE
+    fi
+
     for SEED in "${SEEDS[@]}"; do
         COUNT=$((COUNT + 1))
         EXP_NAME="exp3_${MODEL}_${TASK}_s${SEED}"
 
         echo ""
-        echo "[$COUNT/$TOTAL] $EXP_NAME"
+        echo "[$COUNT/$TOTAL] $EXP_NAME (batch_size=$BS)"
         echo "----------------------------------------------"
 
         python training.py \
@@ -57,7 +64,7 @@ for MODEL in "${MODELS[@]}"; do
             --seed "$SEED" \
             --d_model "$D_MODEL" \
             --n_layer "$N_LAYER" \
-            --batch_size "$BATCH_SIZE" \
+            --batch_size "$BS" \
             --num_workers "$NUM_WORKERS" \
             --epochs "$EPOCHS" \
             --earlystop "$EARLYSTOP" \

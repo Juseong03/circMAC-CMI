@@ -39,9 +39,16 @@ echo "  GPU: $GPU | Runs: 15"
 echo "=============================================="
 
 for MODEL in "${MODELS[@]}"; do
+    # Transformer needs smaller batch size to avoid OOM
+    if [ "$MODEL" = "transformer" ]; then
+        BS=64
+    else
+        BS=$BATCH_SIZE
+    fi
+
     for SEED in "${SEEDS[@]}"; do
         EXP_NAME="exp3_${MODEL}_${TASK}_s${SEED}"
-        echo "  $EXP_NAME"
+        echo "  $EXP_NAME (batch_size=$BS)"
 
         python training.py \
             --model_name "$MODEL" \
@@ -49,7 +56,7 @@ for MODEL in "${MODELS[@]}"; do
             --seed "$SEED" \
             --d_model "$D_MODEL" \
             --n_layer "$N_LAYER" \
-            --batch_size "$BATCH_SIZE" \
+            --batch_size "$BS" \
             --num_workers "$NUM_WORKERS" \
             --epochs "$EPOCHS" \
             --earlystop "$EARLYSTOP" \
