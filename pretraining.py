@@ -150,6 +150,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_workers', type=int, default=4, help='DataLoader num_workers')
     parser.add_argument('--optimizer', type=str, default='adamw', help='Optimizer')
     parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate')
+    parser.add_argument('--w_decay', type=float, default=None, help='Weight decay')
     parser.add_argument('--epochs', type=int, default=300, help='Max pretraining epochs')
     parser.add_argument('--earlystop', type=int, default=15, help='Early stop patience')
     parser.add_argument('--freeze', action='store_true', help='Freeze encoder layers')

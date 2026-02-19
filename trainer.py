@@ -874,6 +874,13 @@ class Trainer:
         self.logger.info(str(self.info_pt['tasks']))
         self._set_loss_fn()
 
+        # Add uncertainty weighting parameters to optimizer if multi-task
+        if self.n_task > 1:
+            self.loss_uncertainty = self.loss_uncertainty.to(self.device)
+            self.optimizer.add_param_group({
+                'params': self.loss_uncertainty.parameters()
+            })
+
         for epoch in range(1, epochs + 1):
             self.logger.info('-' * 50)
             self.logger.info(f"[Epoch {epoch}/{epochs}]")
@@ -928,7 +935,7 @@ class Trainer:
             if self.info_pt['tasks']['mlm']:
                 t_mlm = time.time()
                 loss_mlm = self.forward_mlm(data, mask_ratio=self.info_pt['mask_ratio'])
-                losses_batch['mlm'] = loss_mlm.item()
+                losses_batch['mlm'] = loss_mlm
                 losses['mlm'] += loss_mlm.item()
                 times['mlm'] += time.time() - t_mlm
             else:
@@ -937,7 +944,7 @@ class Trainer:
             if self.info_pt['tasks']['ntp']:
                 t_ntp = time.time()
                 loss_ntp = self.forward_ntp(data)
-                losses_batch['ntp'] = loss_ntp.item()
+                losses_batch['ntp'] = loss_ntp
                 losses['ntp'] += loss_ntp.item()
                 times['ntp'] += time.time() - t_ntp
             else:
@@ -946,7 +953,7 @@ class Trainer:
             if self.info_pt['tasks']['ssp']:
                 t_ssp = time.time()
                 loss_ssp = self.forward_ssp(data)
-                losses_batch['ssp'] = loss_ssp.item()
+                losses_batch['ssp'] = loss_ssp
                 losses['ssp'] += loss_ssp.item()
                 times['ssp'] += time.time() - t_ssp
             else:
@@ -955,7 +962,7 @@ class Trainer:
             if self.info_pt['tasks']['ss_labels']:
                 t_ss_label = time.time()
                 loss_ss_labels = self.forward_ss_labels(data)
-                losses_batch['ss_labels'] = loss_ss_labels.item()
+                losses_batch['ss_labels'] = loss_ss_labels
                 losses['ss_labels'] += loss_ss_labels.item()
             else:
                 loss_ss_labels = 0.0
@@ -963,7 +970,7 @@ class Trainer:
             if self.info_pt['tasks']['ss_labels_multi']:
                 t_ss_label_multi = time.time()
                 loss_ss_labels_multi = self.forward_ss_labels_multi(data)
-                losses_batch['ss_labels_multi'] = loss_ss_labels_multi.item()
+                losses_batch['ss_labels_multi'] = loss_ss_labels_multi
                 losses['ss_labels_multi'] += loss_ss_labels_multi.item()
                 times['ss_labels_multi'] += time.time() - t_ss_label_multi
             else:
@@ -972,7 +979,7 @@ class Trainer:
             if self.info_pt['tasks']['pairing']:
                 t_pairing = time.time()
                 loss_pairing = self.forward_pairing(data)
-                losses_batch['pairing'] = loss_pairing.item()
+                losses_batch['pairing'] = loss_pairing
                 losses['pairing'] += loss_pairing.item()
                 times['pairing'] += time.time() - t_pairing
             else:
@@ -981,7 +988,7 @@ class Trainer:
             if self.info_pt['tasks']['cpcl']:
                 t_cpcl = time.time()
                 loss_cpcl = self.forward_cpcl(data)
-                losses_batch['cpcl'] = loss_cpcl.item()
+                losses_batch['cpcl'] = loss_cpcl
                 losses['cpcl'] += loss_cpcl.item()
                 times['cpcl'] += time.time() - t_cpcl
             else:
@@ -990,7 +997,7 @@ class Trainer:
             if self.info_pt['tasks']['bsj_mlm']:
                 t_bsj_mlm = time.time()
                 loss_bsj_mlm = self.forward_bsj_mlm(data, mask_ratio=self.info_pt['mask_ratio'])
-                losses_batch['bsj_mlm'] = loss_bsj_mlm.item()
+                losses_batch['bsj_mlm'] = loss_bsj_mlm
                 losses['bsj_mlm'] += loss_bsj_mlm.item()
                 times['bsj_mlm'] += time.time() - t_bsj_mlm
             else:
