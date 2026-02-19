@@ -65,16 +65,23 @@ done
 echo ""
 echo "--- 2B: Trainable Pretrained Models (max) ---"
 for MODEL in "${MAX_MODELS[@]}"; do
+    # rnafm/rnamsm need smaller batch size to avoid OOM in trainable mode
+    if [ "$MODEL" = "rnafm" ] || [ "$MODEL" = "rnamsm" ]; then
+        BS=16
+    else
+        BS=$BATCH_SIZE
+    fi
+
     for SEED in "${SEEDS[@]}"; do
         EXP_NAME="exp1_max_trainable_${MODEL}_s${SEED}"
-        echo "  $EXP_NAME"
+        echo "  $EXP_NAME (batch_size=$BS)"
 
         python training.py \
             --model_name "$MODEL" \
             --task "$TASK" \
             --seed "$SEED" \
             --d_model "$D_MODEL" \
-            --batch_size "$BATCH_SIZE" \
+            --batch_size "$BS" \
             --num_workers "$NUM_WORKERS" \
             --lr "$LR" \
             --epochs "$EPOCHS" \
