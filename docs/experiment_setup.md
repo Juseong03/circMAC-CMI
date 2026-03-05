@@ -1,6 +1,6 @@
 # Experiment Setup (Final — Paper Version)
 
-> Last updated: 2026-03-05
+> Last updated: 2026-03-05 (revised)
 > CircMAC final version: circular=False (no circular padding), circular_rel_bias=ON
 
 ---
@@ -11,11 +11,11 @@
 |-----|-----------------|-------------|------|--------|
 | **1** | RQ1: CircMAC vs other encoders | Encoder Architecture Comparison | **15** | `exp1_encoders.sh` |
 | **2** | RQ2: Best pretraining strategy | Pretraining Task Analysis | **27** | `exp2_s{N}_gpu{N}.sh` |
-| **3** | RQ3: CircMAC-PT vs pretrained RNA models | Pretrained Model Comparison (fair + max) | **48** | `exp3_fair.sh` + `exp3_max.sh` |
+| **3** | RQ3: CircMAC-PT vs pretrained RNA models | Pretrained Model Comparison (each model's max_len) | **27** | `exp3_pretrained.sh` |
 | **4** | RQ4: CircMAC component contributions | Ablation Study | **24** | `exp4_ablation.sh` |
 | **5** (supp) | RQ5: Best interaction mechanism | Interaction Mechanism Comparison | **9** | `exp5_interaction.sh` |
 | **6** (supp) | RQ6: Best site head | Site Head Structure Comparison | **6** | `exp6_site_head.sh` |
-| | | **Total** | **129** | |
+| | | **Total** | **108** | |
 
 All scripts in: `scripts/final/`
 
@@ -226,41 +226,62 @@ MLM + Pairing & & & & \\
 
 > Does CircMAC with circRNA-specific pretraining outperform general-purpose RNA models?
 
-### Models
+### Design: Each model at its maximum sequence length
 
-| Model | Source | Pretrain Data | Hidden | Max Len | Params |
-|-------|--------|---------------|--------|---------|--------|
-| RNABERT | multimolecule | RNAcentral | 120 | 440 | ~1M |
-| RNA-FM | multimolecule | RNAcentral | 640 | 1024 | ~95M |
-| RNAErnie | multimolecule | RNAcentral | 768 | 512 | ~86M |
-| RNA-MSM | multimolecule | RNAcentral | 768 | 1024 | ~96M |
-| **CircMAC-PT** | **Ours** | **circRNA** | 128 | 1022 | ~3M |
+| Model | Source | Hidden | max_len | Data Coverage | Params | batch_size |
+|-------|--------|:------:|:-------:|:-------------:|:------:|:----------:|
+| RNABERT† | multimolecule | 120 | 440 | 37.6% | ~0.5M | 32 |
+| RNAErnie†† | multimolecule | 768 | 510 | 48.2% | ~86M | 32 |
+| RNA-FM | multimolecule | 640 | 1024 | 100% | ~95M | 32 (frozen) / **16** (train) |
+| RNA-MSM | multimolecule | 768 | 1024 | 100% | ~96M | 32 (frozen) / **16** (train) |
+| **CircMAC-PT** | **Ours** | 128 | **1022** | **100%** | **~3M** | **128** |
 
-### Part 1 — Fair (max_len=440, identical data)
+† Limited by positional encoding (sees only 37.6% of sequences)
+†† Limited by positional encoding (sees only 48.2% of sequences)
 
-| Mode | Models | Runs |
-|------|--------|------|
-| Frozen | RNABERT, RNA-FM, RNAErnie, RNA-MSM | 12 |
-| Trainable | RNABERT, RNA-FM, RNAErnie, RNA-MSM | 12 |
-| Fine-tuned | CircMAC-PT | 3 |
-| **Subtotal** | | **27** |
+**Fair comparison**: CircMAC-PT vs RNA-FM vs RNA-MSM — all at 100% data coverage.
 
-### Part 2 — Max (model-specific max_len, skip RNABERT)
+### Run Count
 
-| Mode | Models | Runs |
-|------|--------|------|
-| Frozen | RNA-FM, RNAErnie, RNA-MSM | 9 |
-| Trainable | RNA-FM (bs=16), RNAErnie, RNA-MSM (bs=16) | 9 |
-| Fine-tuned | CircMAC-PT | 3 |
-| **Subtotal** | | **21** |
+| Mode | Models | batch_size | Runs |
+|------|--------|:----------:|:----:|
+| Frozen | RNABERT, RNAErnie, RNA-FM, RNA-MSM | 32 | 12 |
+| Trainable | RNABERT, RNAErnie | 32 | 6 |
+| Trainable | RNA-FM, RNA-MSM | **16** (OOM guard) | 6 |
+| Fine-tuned | CircMAC-PT | 128 | 3 |
+| **Total** | | | **27** |
 
-**Total Exp3: 48 runs**
-Note: Exp3 CircMAC-PT requires best PT config from Exp2.
+Note: Exp3 CircMAC-PT rows require best PT config from Exp2.
 
 ```bash
-./scripts/final/exp3_fair.sh [GPU_ID] [BEST_PT_CONFIG]  # 27 runs
-./scripts/final/exp3_max.sh  [GPU_ID] [BEST_PT_CONFIG]  # 21 runs
+./scripts/final/exp3_pretrained.sh [GPU_ID] [BEST_PT_CONFIG]
 # BEST_PT_CONFIG default: "mlm_ntp_cpcl_pair"
+# Non-CircMAC rows (24 runs) can start immediately.
+# CircMAC-PT rows (3 runs) auto-skip if pretrain model not found.
+```
+
+### Result Table (LaTeX)
+```latex
+\begin{table}
+\caption{Comparison with pretrained RNA models (each model at maximum sequence length)}
+\begin{tabular}{llcccccc}
+\toprule
+Model & Mode & max\_len & \% data & $F_1^{macro}$ & $F_1^{pos}$ & AUROC & $F_1^{span}$ \\
+\midrule
+RNABERT$^\dagger$   & Frozen     & 440  & 37.6 & & & & \\
+RNABERT$^\dagger$   & Trainable  & 440  & 37.6 & & & & \\
+RNAErnie$^{\dagger\dagger}$ & Frozen    & 510  & 48.2 & & & & \\
+RNAErnie$^{\dagger\dagger}$ & Trainable & 510  & 48.2 & & & & \\
+RNA-FM              & Frozen     & 1024 & 100  & & & & \\
+RNA-FM              & Trainable  & 1024 & 100  & & & & \\
+RNA-MSM             & Frozen     & 1024 & 100  & & & & \\
+RNA-MSM             & Trainable  & 1024 & 100  & & & & \\
+\midrule
+\textbf{CircMAC-PT} & Fine-tuned & 1022 & 100  & & & & \\
+\bottomrule
+\end{tabular}
+\footnotesize{$^\dagger$ Limited by positional encoding. $^{\dagger\dagger}$ Limited by positional encoding.}
+\end{table}
 ```
 
 ---
@@ -377,11 +398,7 @@ Immediately (independent):
   + Exp2 S1-G0 and S1-G1 somewhere
 
 After Exp2 completes (need best PT model):
-  Exp3 CircMAC-PT rows (exp3_fair.sh, exp3_max.sh)
-
-Exp3 non-CircMAC rows can run anytime:
-  exp3_fair.sh → skip CircMAC-PT if PT_PATH not ready (auto-warns)
-  exp3_max.sh  → same
+  Exp3 CircMAC-PT rows: re-run exp3_pretrained.sh (skips already-done rows)
 ```
 
 ---
@@ -394,8 +411,8 @@ Exp3 non-CircMAC rows can run anytime:
 | Exp2 PT | `exp2_pt_{config}` | `exp2_pt_mlm_cpcl` |
 | Exp2 FT | `exp2_{config}_{task}_s{seed}` | `exp2_mlm_cpcl_sites_s1` |
 | Exp2 base | `exp2_nopt_{task}_s{seed}` | `exp2_nopt_sites_s2` |
-| Exp3 fair | `exp3_fair_{mode}_{model}_s{seed}` | `exp3_fair_frozen_rnafm_s1` |
-| Exp3 max | `exp3_max_{mode}_{model}_s{seed}` | `exp3_max_trainable_rnamsm_s3` |
+| Exp3 | `exp3_{model}_{mode}_s{seed}` | `exp3_rnafm_frozen_s1` |
+| Exp3 CircMAC-PT | `exp3_circmac_pt_s{seed}` | `exp3_circmac_pt_s1` |
 | Exp4 | `exp4_{config}_s{seed}` | `exp4_no_attn_s2` |
 | Exp5 | `exp5_{interaction}_s{seed}` | `exp5_cross_attention_s1` |
 | Exp6 | `exp6_{head}_s{seed}` | `exp6_conv1d_s3` |
@@ -408,13 +425,12 @@ Exp3 non-CircMAC rows can run anytime:
 |------------|-----------|-------|
 | Exp1 Encoder | 15 | |
 | Exp2 Pretraining | 27 (6 PT + 21 FT) | |
-| Exp3 Fair | 27 | |
-| Exp3 Max | 21 | CircMAC-PT rows need Exp2 |
+| Exp3 Pretrained Models | 27 | CircMAC-PT rows need Exp2 |
 | Exp4 Ablation | 24 | |
-| **Main Total** | **114** | |
+| **Main Total** | **93** | |
 | Exp5 Interaction | 9 | Supplementary |
 | Exp6 Site Head | 6 | Supplementary |
-| **Grand Total** | **129** | |
+| **Grand Total** | **108** | |
 
 ---
 
