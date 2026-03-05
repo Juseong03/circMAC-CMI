@@ -45,7 +45,7 @@ class CircMACConfig(BasicConfig):
     d_conv: int = 4
     expand: int = 2
     n_heads: int = 8
-    circular: bool = True
+    circular: bool = False
     use_multiscale: bool = True
     conv_kernel_size: int = 7
     # Ablation flags

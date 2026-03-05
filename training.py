@@ -111,8 +111,6 @@ def experiment(args_dict: dict) -> None:
 
     # Apply CircMAC Ablation flags
     if args_dict['model_name'] == 'circmac':
-        if hasattr(config, 'circular'):
-            config.circular = not args_dict.get('no_circular_window', False)
         if hasattr(config, 'use_attn'):
             config.use_attn = not args_dict.get('no_attn', False)
         if hasattr(config, 'use_mamba'):
@@ -218,7 +216,6 @@ if __name__ == '__main__':
     parser.add_argument('--site_head_type', type=str, default='conv1d', choices=['conv1d', 'linear'], help='Site head classifier type')
 
     # CircMAC Ablation settings
-    parser.add_argument('--no_circular_window', action='store_true', help='Disable circular padding in CNN')
     parser.add_argument('--no_circular_rel_bias', action='store_true', help='Disable circular relative bias in attention')
     parser.add_argument('--no_attn', action='store_true', help='Disable Attention branch in CircMAC')
     parser.add_argument('--no_mamba', action='store_true', help='Disable Mamba branch in CircMAC')

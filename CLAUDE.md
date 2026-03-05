@@ -83,7 +83,6 @@ Default hyperparameters: `d_model=128`, `batch_size=128`, `n_layer=6`, `max_len=
 
 ## CircMAC Ablation Flags
 ```bash
---no_circular_window    # Disable circular padding in CNN
 --no_circular_rel_bias  # Disable circular relative bias in attention
 --no_attn               # Disable Attention branch
 --no_mamba              # Disable Mamba branch
