@@ -110,7 +110,7 @@ else
         python training.py \
             --model_name circmac --task "$TASK" --seed "$SEED" \
             --d_model "$D_MODEL" --n_layer "$N_LAYER" --max_len 1022 \
-            --batch_size 128 --num_workers "$NUM_WORKERS" \
+            --batch_size 32 --num_workers "$NUM_WORKERS" \
             --lr "$LR" --epochs "$EPOCHS" --earlystop "$EARLYSTOP" \
             --device "$GPU" --exp "$EXP_NAME" \
             --load_pretrained "$PT_PATH" \
