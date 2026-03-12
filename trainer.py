@@ -1202,46 +1202,60 @@ class Trainer:
         loss = self.loss_fn_pairing(pred_pairing.view(-1), pairing.view(-1).float())
         return loss
 
-    def forward_cpcl(self, data, temperature=0.1):
+    def forward_cpcl(self, data, temperature=0.1, n_sample=64):
         """
-        Circular Permutation Contrastive Learning (CPCL).
-        Creates circular permutations of circRNA and learns that they represent the same molecule.
+        Circular Permutation Contrastive Learning (CPCL) — token-level version.
+
+        Previous bug: mean pooling is permutation-invariant by definition,
+        so the model could trivially solve the task without learning anything.
+
+        Fix: position-aligned token-level contrastive learning.
+        - Encode original x and shifted x_perm separately.
+        - Align x_perm representations back to original positions:
+            x_perm[j] = x[(j + shift) % L]  →  out_perm_aligned[i] = out_perm[(i - shift) % L]
+        - Now out[i] and out_perm_aligned[i] are representations of the same nucleotide
+          from two different linearization starting points.
+        - InfoNCE on sampled positions: positive = (out[b,i], out_perm_aligned[b,i]),
+          negatives = all other (b', j) pairs in the batch.
         """
         x = data['circRNA'].to(self.device)
         mask = data['circRNA_mask'].to(self.device)
         B, L = x.shape
 
-        # Create circular permutation (shift by random amount)
+        # Create circular permutation (shift by random amount per sample)
         shift = torch.randint(1, L, (B,), device=self.device)
         x_perm = torch.stack([
             torch.cat([x[i, s:], x[i, :s]]) for i, s in enumerate(shift)
         ])
 
-        # Get embeddings for original and permuted
+        # Encode both sequences
         emb = self.model.embedding(x)
         emb_perm = self.model.embedding(x_perm)
+        out, _      = self.model.backbone(emb,      mask, None, None)  # [B, L, D]
+        out_perm, _ = self.model.backbone(emb_perm, mask, None, None)  # [B, L, D]
 
-        out, _ = self.model.backbone(emb, mask, None, None)
-        out_perm, _ = self.model.backbone(emb_perm, mask, None, None)
+        # Align perm back to original positions:
+        # x_perm[j] = x[(j+shift)%L]  →  representation of x[i] in perm = out_perm[(i-shift)%L]
+        idx = torch.arange(L, device=self.device).unsqueeze(0)          # [1, L]
+        aligned_idx = (idx - shift.unsqueeze(1)) % L                    # [B, L]
+        out_perm_aligned = out_perm.gather(
+            1, aligned_idx.unsqueeze(-1).expand(-1, -1, out_perm.size(-1))
+        )  # [B, L, D]
 
-        # Pool to get sequence-level representations
-        out_pooled = out.mean(dim=1)  # [B, D]
-        out_perm_pooled = out_perm.mean(dim=1)  # [B, D]
+        # Sample M random positions for memory efficiency
+        M = min(n_sample, L)
+        pos = torch.randperm(L, device=self.device)[:M]
+        z1 = out[:, pos]               # [B, M, D]
+        z2 = out_perm_aligned[:, pos]  # [B, M, D]
 
-        # Project for contrastive learning
-        z1 = self.model.proj_contrastive(out_pooled)
-        z2 = self.model.proj_contrastive(out_perm_pooled)
+        # Project (2-layer MLP) and normalize
+        z1 = F.normalize(self.model.proj_contrastive(z1).view(B * M, -1), dim=-1)
+        z2 = F.normalize(self.model.proj_contrastive(z2).view(B * M, -1), dim=-1)
 
-        # Normalize
-        z1 = F.normalize(z1, dim=-1)
-        z2 = F.normalize(z2, dim=-1)
-
-        # InfoNCE loss: positives are (z1[i], z2[i]), negatives are all other pairs
-        logits = torch.matmul(z1, z2.T) / temperature  # [B, B]
-        labels = torch.arange(B, device=self.device)
-
-        loss = F.cross_entropy(logits, labels)
-        return loss
+        # InfoNCE: (z1[k], z2[k]) is positive pair for k = b*M + m
+        logits = torch.matmul(z1, z2.T) / temperature  # [B*M, B*M]
+        labels = torch.arange(B * M, device=self.device)
+        return F.cross_entropy(logits, labels)
 
     def forward_bsj_mlm(self, data, mask_ratio=0.15, bsj_focus_ratio=0.5):
         """

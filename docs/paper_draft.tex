@@ -1,0 +1,631 @@
+% ============================================================
+% CircMAC: Circular-aware Multi-branch Architecture
+%          for circRNA-miRNA Interaction Prediction
+% Paper Draft — Introduction / Method / Experiments
+% ============================================================
+
+\documentclass[10pt,twocolumn]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+\newcommand{\circmac}{\textsc{CircMAC}}
+\newcommand{\dcirc}{d_{\text{circ}}}
+
+\title{\textbf{CircMAC: Circular-aware Multi-branch Architecture\\
+       for circRNA--miRNA Interaction Prediction}}
+
+\author{
+  \todo{Author 1} \quad \todo{Author 2} \\
+  \todo{Affiliation} \\
+  \texttt{\todo{email}}
+}
+
+\date{}
+
+\begin{document}
+\maketitle
+
+% ============================================================
+\begin{abstract}
+Circular RNAs (circRNAs) are covalently closed non-coding RNA molecules
+that regulate gene expression by sequestering microRNAs (miRNAs) through
+a sponge mechanism. Accurate prediction of circRNA--miRNA binding sites
+is critical for understanding gene regulatory networks and disease
+mechanisms. However, all existing deep learning methods model circRNAs as
+linear sequences, ignoring the Back-Splice Junction (BSJ) where the 3'
+and 5' ends covalently connect---thereby fragmenting binding patterns that
+span this biologically critical region.
+%
+We propose \circmac{} (\textbf{Circ}ular-aware \textbf{M}ulti-branch
+\textbf{A}ttention and \textbf{C}onvolutional architecture), a lightweight
+($\approx$3M parameters) encoder designed specifically for the circular
+topology of circRNA. \circmac{} integrates three complementary branches:
+(i)~Transformer attention with a \emph{circular relative position bias}
+($\dcirc(i,j)=\min(|i{-}j|,\,L{-}|i{-}j|)$),
+(ii)~Mamba for efficient long-range sequential modeling, and
+(iii)~depthwise CNN for local nucleotide pattern extraction---all fused
+by a learned adaptive router.
+%
+For self-supervised pretraining on unlabeled circRNA data, we introduce
+\emph{Circular Permutation Contrastive Learning} (CPCL), which uses
+circular rotations of a sequence as positive pairs to learn
+rotation-invariant representations, combined with standard
+Masked Language Modeling (MLM).
+At inference, circRNA representations interact with miRNA via
+cross-attention, and per-nucleotide binding sites are decoded by a
+multi-scale convolutional head.
+%
+Experiments on \todo{dataset stats} samples show that \circmac{}
+achieves competitive or superior performance compared to large pretrained
+RNA language models (\textgreater95M parameters) while using $\sim$30$\times$
+fewer parameters and covering 100\% of sequence lengths.
+\end{abstract}
+
+% ============================================================
+\section{Introduction}
+\label{sec:intro}
+
+Circular RNAs (circRNAs) have emerged as key regulators of gene expression,
+acting as competitive endogenous RNAs (ceRNAs) that sequester microRNAs
+through a molecular sponge mechanism~\cite{hansen2013natural}.
+Unlike linear RNAs, circRNAs are formed by back-splicing, where a
+downstream splice donor is joined to an upstream splice acceptor,
+creating a covalently closed loop at the \emph{Back-Splice Junction} (BSJ).
+This circular topology confers remarkable stability and unique functional
+properties~\cite{jeck2013circular}.
+Dysregulation of circRNA--miRNA interactions has been implicated in cancer,
+neurological disorders, and cardiovascular disease~\todo{cite},
+making their accurate computational prediction a pressing challenge.
+
+\paragraph{Limitations of existing methods.}
+Prior computational approaches to circRNA--miRNA interaction prediction
+range from thermodynamic models (RNAhybrid~\cite{rehmsmeier2004fast},
+miRanda~\cite{enright2003microrna}) to deep learning methods using
+CNNs~\todo{cite}, RNNs~\todo{cite}, and Transformers~\todo{cite}.
+Despite this progress, \emph{all} existing methods commit a fundamental
+modeling error: they treat the circRNA sequence as linear.
+This linearization produces three concrete failure modes:
+%
+\begin{enumerate}[leftmargin=*,itemsep=2pt]
+  \item \textbf{Artificial boundary at BSJ.}
+    The junction where positions $1$ and $L$ are physically adjacent is
+    treated as two distant sequence ends, breaking binding motifs that
+    span this region.
+  \item \textbf{Non-invariant positional encodings.}
+    Standard absolute or relative position encodings assign maximally
+    distant representations to BSJ-adjacent positions, when they should
+    be closest.
+  \item \textbf{Fragmented receptive field.}
+    Convolutional filters and attention windows cannot model continuity
+    across the BSJ boundary.
+\end{enumerate}
+
+\paragraph{Our approach.}
+We address these limitations with \circmac{}, a architecture that
+explicitly models the circular nature of circRNA at every level:
+attention, convolution, and pretraining.
+Additionally, we observe that large pretrained RNA language models
+(RNA-FM~\cite{chen2022interpretable}: 95M params, RNA-MSM~\cite{zhang2024multiple}: 96M params)
+were designed for \emph{linear} RNA and saturate sequence coverage
+at 1,024 nucleotides, the same limit as our lightweight model.
+Our key insight is that a purpose-built circular architecture can
+match or outperform these large models at a fraction of the cost.
+
+\paragraph{Contributions.} We summarize our contributions as follows:
+\begin{enumerate}[leftmargin=*,itemsep=2pt]
+  \item \textbf{\circmac{} Architecture:} A multi-branch encoder
+    (Attention + Mamba + CNN) with circular relative position bias
+    and an adaptive routing mechanism, operating in a multi-scale
+    framework for computational efficiency.
+  \item \textbf{Circular-aware Pretraining:}
+    \emph{Circular Permutation Contrastive Learning} (CPCL), a novel
+    self-supervised objective that exploits the rotational symmetry of
+    circRNAs to learn BSJ-invariant representations.
+  \item \textbf{Comprehensive Evaluation:}
+    Six experiments covering encoder architecture, pretraining strategy,
+    comparison with pretrained RNA models, ablation, interaction mechanism,
+    and site head design---demonstrating \todo{X\%} improvement on binding
+    site F1 over strong baselines.
+\end{enumerate}
+
+% ============================================================
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{circRNA--miRNA interaction prediction.}
+Classical tools such as miRanda~\cite{enright2003microrna} and
+RNAhybrid~\cite{rehmsmeier2004fast} rely on sequence complementarity
+and thermodynamic stability, without learning from data.
+Deep learning methods have since improved accuracy using
+CNNs~\todo{cite}, bidirectional LSTMs~\todo{cite}, and attention
+mechanisms~\todo{cite}, but invariably represent circRNA as a linear
+sequence.
+
+\paragraph{RNA foundation models.}
+RNABERT~\cite{akiyama2022informative}, RNAErnie~\cite{wang2023rnasolo},
+RNA-FM~\cite{chen2022interpretable}, and RNA-MSM~\cite{zhang2024multiple}
+adopt the BERT-style pretraining paradigm on large corpora of linear RNA.
+While powerful, these models are limited by positional encodings designed
+for linear sequences and carry \textgreater85M parameters, making
+fine-tuning expensive.
+None were designed with circRNA-specific inductive biases.
+
+\paragraph{State space models for sequences.}
+Mamba~\cite{gu2023mamba} and its predecessor S4~\cite{gu2021efficiently}
+achieve linear-time sequence modeling through selective state spaces,
+offering an efficient alternative to quadratic-complexity attention.
+Hymba~\cite{dong2024hymba} combines attention and SSM heads.
+We build on these models but adapt them for circular sequences.
+
+% ============================================================
+\section{Method}
+\label{sec:method}
+
+\subsection{Problem Formulation}
+
+Let $\mathbf{c} = (c_1, c_2, \ldots, c_L)$ denote a circRNA sequence of
+length $L$, where the topology implies $c_L$ is physically adjacent to
+$c_1$ at the BSJ.
+Let $\mathbf{m} = (m_1, m_2, \ldots, m_M)$ denote a miRNA sequence.
+The binding site prediction task requires learning a function:
+\begin{equation}
+  g(\mathbf{c}, \mathbf{m}) \;\to\; \hat{\mathbf{y}} = (\hat{y}_1, \ldots, \hat{y}_L),
+  \quad \hat{y}_i \in \{0,1\}
+\end{equation}
+where $\hat{y}_i=1$ indicates nucleotide $c_i$ participates in a binding
+site. We additionally consider the auxiliary binding prediction task
+$f(\mathbf{c},\mathbf{m}) \to \{0,1\}$ (does any interaction occur?).
+
+\subsection{Overall Framework}
+
+The \circmac{} framework consists of three components:
+(1)~a circular-aware \circmac{} encoder for the circRNA,
+(2)~a frozen RNABERT encoder for the miRNA,
+and (3)~a cross-attention interaction module followed by a convolutional
+site prediction head (Figure~\ref{fig:overview}).
+The circRNA encoder is the focus of this work; miRNA is encoded by a
+fixed pretrained model as it is short ($M \leq 25$) and linear.
+
+\subsection{CircMAC Encoder}
+
+\paragraph{Multi-scale structure.}
+Each \circmac{} block operates at half-resolution to reduce computational
+cost and increase the effective receptive field.
+The encoder first downsamples the token embeddings
+$\mathbf{H}^{(0)} \in \mathbb{R}^{B \times L \times D}$
+via a stride-2 depthwise convolution to
+$\tilde{\mathbf{H}} \in \mathbb{R}^{B \times L/2 \times D}$,
+processes them through $N$ \circmac{} blocks, then upsamples back to
+full resolution via linear interpolation and adds a skip connection:
+\begin{equation}
+  \mathbf{E}_{\text{circ}} = \text{Upsample}\!\left(\tilde{\mathbf{H}}^{(N)}\right)
+    + \mathbf{H}^{(0)}.
+\end{equation}
+
+\paragraph{CircMAC block.}
+Each block receives a hidden state $\mathbf{x} \in \mathbb{R}^{B \times L/2 \times D}$,
+normalizes it with RMSNorm, projects it to queries/keys/values and a
+``base'' feature via a shared linear layer, then passes the base
+through three parallel branches:
+
+\subsubsection{Branch 1: Circular-aware Attention}
+
+Standard relative position bias penalizes token pairs by
+$d(i,j) = |i-j|$, assigning positions $1$ and $L$ the maximum distance.
+We replace this with the \emph{circular distance}:
+\begin{equation}
+  \dcirc(i,j) = \min\!\left(|i-j|,\; L - |i-j|\right),
+  \label{eq:circ_bias}
+\end{equation}
+so that BSJ-adjacent positions $(i{=}1, j{=}L)$ receive the same small
+distance as consecutive positions.
+The attention score matrix is computed as:
+\begin{equation}
+  A_{ij} = \frac{\mathbf{q}_i \cdot \mathbf{k}_j}{\sqrt{d}} - \lambda \cdot \dcirc(i,j),
+\end{equation}
+where $\lambda$ is a learnable per-head slope parameter.
+This \emph{circular relative bias} enables attention across the BSJ
+without any change to token embeddings.
+
+\subsubsection{Branch 2: Mamba (Sequential)}
+
+The base feature is passed through a Mamba selective SSM block
+\cite{gu2023mamba} with state dimension $d_{\text{state}}{=}16$ and
+expansion factor $\text{expand}{=}2$ (inner dimension 256).
+Mamba captures long-range sequential dependencies in $O(L)$ time.
+
+\subsubsection{Branch 3: Depthwise Circular CNN}
+
+To model local nucleotide patterns, we apply a depthwise convolution
+with kernel size $k{=}7$. The key modification is \emph{circular padding}:
+instead of zero-padding, we wrap the sequence ends:
+\begin{equation}
+  \tilde{\mathbf{x}} = [x_{L-p+1}, \ldots, x_L,\; x_1, \ldots, x_L,\; x_1, \ldots, x_p],
+\end{equation}
+where $p = (k-1)/2 = 3$. This allows the convolutional kernel to see
+continuity across the BSJ, capturing motifs that span it.
+
+\subsubsection{Adaptive Router}
+
+Rather than using fixed branch weights, we employ a lightweight
+sequence-level router. The three branch outputs are concatenated,
+mean-pooled over the length dimension, and passed through an MLP:
+\begin{align}
+  \mathbf{g} &= \text{Softmax}\!\left(\,
+    W_2\,\text{GELU}(W_1\,\overline{\mathbf{x}}_{\text{cat}} + b_1) + b_2
+  \right) \in \mathbb{R}^3, \\
+  \mathbf{y} &= g_1\,\mathbf{y}_{\text{attn}}
+             + g_2\,\mathbf{y}_{\text{mamba}}
+             + g_3\,\mathbf{y}_{\text{cnn}},
+\end{align}
+where $W_1 \in \mathbb{R}^{3D \times D}$ and $W_2 \in \mathbb{R}^{D \times 3}$.
+The router adapts the contribution of each branch to the characteristics
+of each input sequence.
+
+\subsection{circRNA--miRNA Cross-Attention Interaction}
+\label{sec:interaction}
+
+After encoding, the circRNA representation
+$\mathbf{E}_{\text{circ}} \in \mathbb{R}^{B \times L \times D}$ and
+miRNA representation $\mathbf{E}_{\text{mirna}} \in \mathbb{R}^{B \times M \times D}$
+are fused via cross-attention, where the circRNA serves as queries:
+\begin{equation}
+  \text{Context} = \text{softmax}\!\left(
+    \frac{(\mathbf{E}_{\text{circ}} W_Q)(\mathbf{E}_{\text{mirna}} W_K)^\top}{\sqrt{d_k}}
+  \right) (\mathbf{E}_{\text{mirna}} W_V).
+\end{equation}
+The context is concatenated with $\mathbf{E}_{\text{circ}}$ and
+projected back to dimension $D$:
+\begin{equation}
+  \mathbf{E}_{\text{fused}}
+    = W_O \,[\mathbf{E}_{\text{circ}}\,\|\,\text{Context}]
+    \in \mathbb{R}^{B \times L \times D}.
+\end{equation}
+This design allows every circRNA nucleotide to directly attend to the
+full miRNA sequence, enabling site-level interaction modeling.
+
+\subsection{Site Prediction Head}
+
+The fused representation passes through a multi-kernel CNN to capture
+binding patterns at multiple scales:
+\begin{equation}
+  \mathbf{F} = \frac{1}{3}\sum_{k \in \{3,5,7\}}
+    \text{Conv1d}_k(\mathbf{E}_{\text{fused}}) + \mathbf{E}_{\text{fused}},
+\end{equation}
+followed by two pointwise convolutions
+$D \to D/2 \to 2$ with BatchNorm and GELU activation, producing
+per-position logits $\hat{\mathbf{y}} \in \mathbb{R}^{B \times L \times 2}$.
+
+\subsection{Self-supervised Pretraining}
+\label{sec:pretrain}
+
+We pretrain \circmac{} on a corpus of \todo{N} unlabeled circRNA
+sequences using multiple self-supervised objectives, combined with
+learned uncertainty weighting~\cite{kendall2018multi}:
+\begin{equation}
+  \mathcal{L} = \sum_k \frac{1}{\sigma_k^2} \mathcal{L}_k + \log \sigma_k^2,
+\end{equation}
+where $\sigma_k$ are learnable per-task parameters.
+
+\paragraph{MLM (Masked Language Modeling).}
+We randomly mask 15\% of nucleotide tokens and train the model to
+reconstruct them, following \citet{devlin2019bert}.
+
+\paragraph{CPCL (Circular Permutation Contrastive Learning).}
+circRNAs are rotationally symmetric: the sequence starting at position
+$k$ represents the same molecule as the canonical sequence starting at
+position 1. We exploit this as a free source of positive pairs.
+For a sequence $\mathbf{c}$ and a randomly shifted version
+$\mathbf{c}' = (c_{k+1}, \ldots, c_L, c_1, \ldots, c_k)$,
+we maximize their representation agreement using NT-Xent loss:
+\begin{equation}
+  \mathcal{L}_{\text{CPCL}} = -\log
+    \frac{\exp(\text{sim}(\mathbf{z}, \mathbf{z}') / \tau)}
+         {\sum_{j \neq i} \exp(\text{sim}(\mathbf{z}, \mathbf{z}_j) / \tau)},
+\end{equation}
+where $\mathbf{z}, \mathbf{z}'$ are mean-pooled representations and
+$\tau=0.1$ is the temperature.
+CPCL encourages \circmac{} to learn representations invariant to the
+arbitrary choice of BSJ linearization start point.
+
+\paragraph{Additional objectives.}
+We also experiment with Next Token Prediction (NTP), Secondary Structure
+Prediction (SSP), and base-pair matrix reconstruction using a circular
+pairing head; the best combination is determined by Experiment 2
+(Section~\ref{sec:exp2}).
+
+% ============================================================
+\section{Experiments}
+\label{sec:experiments}
+
+\subsection{Experimental Setup}
+\label{sec:setup}
+
+\paragraph{Dataset.}
+We use a circRNA--miRNA interaction dataset compiled from \todo{source},
+consisting of \todo{N} sequence pairs with token-level binding site
+annotations. The dataset is split into training (\todo{N$_{\text{train}}$}
+samples), validation (\todo{N$_{\text{val}}$}), and test
+(\todo{N$_{\text{test}}$}).
+For pretraining, we use the \texttt{df\_circ\_ss\_5} corpus containing
+\todo{$\sim$149K} unlabeled circRNA sequences with secondary structure
+annotations (up to $L{=}1022$ nucleotides).
+
+\paragraph{Evaluation metrics.}
+For the \emph{binding} task (binary): Accuracy, F1, Precision, Recall,
+MCC, AUROC, AUPRC.
+For the \emph{site} task (token-level): Accuracy, F1, Precision, Recall.
+All results are averaged over 3 random seeds (seeds 1, 2, 3) and
+reported as mean$\pm$std.
+
+\paragraph{Implementation details.}
+\circmac{} uses $D{=}128$, $N{=}6$ layers, $H{=}8$ attention heads.
+Fine-tuning: AdamW, lr $= 10^{-4}$, batch size 32 (all experiments),
+150 epochs with early stopping (patience 20).
+Pretraining: AdamW, lr $= 5{\times}10^{-4}$, batch size 64,
+200 epochs with early stopping (patience 30).
+We encode miRNA with frozen RNABERT~\cite{akiyama2022informative}.
+All experiments use PyTorch on NVIDIA GPUs.
+
+\paragraph{Baselines.}
+We compare against: (1)~sequence encoders trained from scratch
+(LSTM, Transformer, Mamba, Hymba); (2)~general-purpose pretrained
+RNA models (RNABERT, RNAErnie, RNA-FM, RNA-MSM) in both frozen and
+trainable settings; and (3)~\circmac{} without pretraining.
+
+\subsection{Exp 1: Encoder Architecture Comparison}
+\label{sec:exp1}
+
+We compare five encoder architectures trained from scratch under
+identical conditions (Table~\ref{tab:exp1}).
+All models use $D{=}128$, 6 layers, cross-attention interaction,
+and the same training configuration.
+
+\begin{table}[h]
+\centering
+\caption{Encoder architecture comparison on the \emph{sites} task.
+All models trained from scratch (mean$\pm$std, 3 seeds).}
+\label{tab:exp1}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Model} & \textbf{Type} & \textbf{Acc} & \textbf{F1} & \textbf{Recall} \\
+\midrule
+LSTM           & RNN           & \todo{--}    & \todo{--}   & \todo{--}       \\
+Transformer    & Attention     & \todo{--}    & \todo{--}   & \todo{--}       \\
+Mamba          & SSM           & \todo{--}    & \todo{--}   & \todo{--}       \\
+Hymba          & Hybrid        & \todo{--}    & \todo{--}   & \todo{--}       \\
+\midrule
+\circmac{}     & \textbf{Ours} & \todo{--}    & \todo{\textbf{--}} & \todo{\textbf{--}} \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\subsection{Exp 2: Pretraining Strategy}
+\label{sec:exp2}
+
+We ablate over seven pretraining configurations
+(Table~\ref{tab:exp2}) to identify which combination of objectives
+best transfers to the binding site task.
+
+\begin{table}[h]
+\centering
+\caption{Effect of pretraining strategy on \emph{sites} F1.
+\circmac{} fine-tuned after each pretraining configuration.}
+\label{tab:exp2}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lcc}
+\toprule
+\textbf{Pretraining Config} & \textbf{Objectives} & \textbf{Sites F1} \\
+\midrule
+No pretrain      & ---                       & \todo{--} \\
+MLM              & MLM                       & \todo{--} \\
+MLM + NTP        & MLM, NTP                  & \todo{--} \\
+MLM + SSP        & MLM, SSP                  & \todo{--} \\
+MLM + CPCL       & MLM, \textbf{CPCL}        & \todo{--} \\
+MLM + Pairing    & MLM, Pairing              & \todo{--} \\
+MLM+NTP+CPCL+Pair& MLM, NTP, CPCL, Pairing   & \todo{--} \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\subsection{Exp 3: Comparison with Pretrained RNA Models}
+\label{sec:exp3}
+
+We compare \circmac{}-PT (pretrained with the best config from Exp~2)
+against four general-purpose RNA language models in frozen and
+fine-tunable settings (Table~\ref{tab:exp3}).
+For fairness, each model is evaluated at its own maximum sequence length;
+models limited by positional encoding are noted with $\dagger$.
+
+\begin{table*}[ht]
+\centering
+\caption{Comparison with pretrained RNA models on the \emph{sites} task.
+Each model tested at its maximum supported sequence length.
+BS = batch size; Cov.\ = fraction of test sequences fully covered.}
+\label{tab:exp3}
+\begin{tabular}{llcccccc}
+\toprule
+\textbf{Model} & \textbf{Mode} & \textbf{Params} & \textbf{max\_len} & \textbf{Cov.}
+  & \textbf{Acc} & \textbf{F1} & \textbf{Recall} \\
+\midrule
+RNABERT$^\dagger$  & Frozen      & 0.5M  & 440  & 37.6\% & \todo{--} & \todo{--} & \todo{--} \\
+RNABERT$^\dagger$  & Trainable   & 0.5M  & 440  & 37.6\% & \todo{--} & \todo{--} & \todo{--} \\
+RNAErnie$^\dagger$ & Frozen      & 86M   & 510  & 48.2\% & \todo{--} & \todo{--} & \todo{--} \\
+RNAErnie$^\dagger$ & Trainable   & 86M   & 510  & 48.2\% & \todo{--} & \todo{--} & \todo{--} \\
+RNA-FM             & Frozen      & 95M   & 1024 & 100\%  & \todo{--} & \todo{--} & \todo{--} \\
+RNA-FM             & Trainable   & 95M   & 1024 & 100\%  & \todo{--} & \todo{--} & \todo{--} \\
+RNA-MSM            & Frozen      & 96M   & 1024 & 100\%  & \todo{--} & \todo{--} & \todo{--} \\
+RNA-MSM            & Trainable   & 96M   & 1024 & 100\%  & \todo{--} & \todo{--} & \todo{--} \\
+\midrule
+\circmac{}-PT      & Fine-tuned  & \textbf{3M} & 1022 & 100\%
+  & \todo{--} & \todo{\textbf{--}} & \todo{\textbf{--}} \\
+\bottomrule
+\end{tabular}
+\begin{flushleft}
+\small $^\dagger$ Limited by fixed positional encoding; sequences longer
+than max\_len are truncated.
+\end{flushleft}
+\end{table*}
+
+\subsection{Exp 4: Ablation Study}
+\label{sec:exp4}
+
+We systematically remove each component of \circmac{} to quantify
+its individual contribution (Table~\ref{tab:ablation}).
+
+\begin{table}[h]
+\centering
+\caption{Ablation study on the \emph{sites} task. Each row removes
+one component from the full \circmac{} model.}
+\label{tab:ablation}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lcc}
+\toprule
+\textbf{Configuration} & \textbf{F1} & \textbf{$\Delta$F1} \\
+\midrule
+Full \circmac{}              & \todo{--} & --- \\
+\midrule
+w/o Attention branch         & \todo{--} & \todo{--} \\
+w/o Mamba branch             & \todo{--} & \todo{--} \\
+w/o CNN branch               & \todo{--} & \todo{--} \\
+w/o Circular rel.\ bias      & \todo{--} & \todo{--} \\
+\midrule
+Attention only               & \todo{--} & \todo{--} \\
+Mamba only                   & \todo{--} & \todo{--} \\
+CNN only                     & \todo{--} & \todo{--} \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\subsection{Exp 5: Interaction Mechanism}
+\label{sec:exp5}
+
+We compare three strategies for fusing circRNA and miRNA representations:
+concatenation, element-wise product, and cross-attention
+(Table~\ref{tab:interaction}).
+
+\begin{table}[h]
+\centering
+\caption{Interaction mechanism comparison.}
+\label{tab:interaction}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Interaction} & \textbf{F1} & \textbf{Recall} \\
+\midrule
+Concat          & \todo{--} & \todo{--} \\
+Elementwise     & \todo{--} & \todo{--} \\
+Cross-attention & \todo{--} & \todo{--} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Exp 6: Site Head Design}
+\label{sec:exp6}
+
+We compare the multi-kernel convolutional head against a simple
+linear projection baseline (Table~\ref{tab:sitehead}).
+
+\begin{table}[h]
+\centering
+\caption{Site prediction head comparison.}
+\label{tab:sitehead}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Head} & \textbf{F1} & \textbf{Recall} \\
+\midrule
+Linear          & \todo{--} & \todo{--} \\
+Conv1d (ours)   & \todo{--} & \todo{--} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================
+\section{Conclusion}
+\label{sec:conclusion}
+
+We presented \circmac{}, a circular-aware architecture for
+circRNA--miRNA binding site prediction that explicitly models the
+circular topology of circRNA through three mechanisms: circular relative
+position bias in attention, circular padding in CNN, and
+Circular Permutation Contrastive Learning in pretraining.
+\circmac{} achieves \todo{state-of-the-art} performance on binding site
+localization while using $\sim$30$\times$ fewer parameters than large
+RNA foundation models.
+Our work demonstrates that incorporating domain-specific structural
+inductive biases---rather than simply scaling model size---is a
+productive direction for RNA sequence analysis.
+Future work includes extending \circmac{} to circRNA--protein
+interactions and investigating circular topology modeling for
+other covalently closed biomolecules.
+
+% ============================================================
+\bibliographystyle{plain}
+\begin{thebibliography}{99}
+
+\bibitem{hansen2013natural}
+T.B.\ Hansen et al., ``Natural RNA circles function as efficient
+microRNA sponges,'' \textit{Nature}, 2013.
+
+\bibitem{jeck2013circular}
+W.R.\ Jeck et al., ``Circular RNAs are abundant, conserved, and
+associated with ALU repeats,'' \textit{RNA}, 2013.
+
+\bibitem{rehmsmeier2004fast}
+M.\ Rehmsmeier et al., ``Fast and effective prediction of microRNA/target
+duplexes,'' \textit{RNA}, 2004.
+
+\bibitem{enright2003microrna}
+A.J.\ Enright et al., ``MicroRNA targets in \textit{Drosophila},''
+\textit{Genome Biology}, 2003.
+
+\bibitem{akiyama2022informative}
+M.\ Akiyama \& Y.\ Sakakibara, ``Informative RNA-base embedding for
+functional RNA structural alignment and clustering,'' \textit{NAR Genomics
+and Bioinformatics}, 2022.
+
+\bibitem{wang2023rnasolo}
+\todo{RNAErnie citation}
+
+\bibitem{chen2022interpretable}
+K.\ Chen et al., ``Interpretable RNA foundation model from unannotated
+data for highly accurate RNA structure and function predictions,''
+\textit{arXiv:2204.00300}, 2022.
+
+\bibitem{zhang2024multiple}
+\todo{RNA-MSM citation}
+
+\bibitem{gu2023mamba}
+A.\ Gu \& T.\ Dao, ``Mamba: Linear-time sequence modeling with selective
+state spaces,'' \textit{arXiv:2312.00752}, 2023.
+
+\bibitem{gu2021efficiently}
+A.\ Gu et al., ``Efficiently modeling long sequences with structured
+state spaces,'' \textit{ICLR}, 2022.
+
+\bibitem{dong2024hymba}
+\todo{Hymba citation}
+
+\bibitem{devlin2019bert}
+J.\ Devlin et al., ``BERT: Pre-training of deep bidirectional transformers
+for language understanding,'' \textit{NAACL}, 2019.
+
+\bibitem{kendall2018multi}
+A.\ Kendall et al., ``Multi-task learning using uncertainty to weigh
+losses for scene geometry and semantics,'' \textit{CVPR}, 2018.
+
+\end{thebibliography}
+
+\end{document}

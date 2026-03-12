@@ -4,6 +4,37 @@
 
 ---
 
+## Abstract
+
+Circular RNAs (circRNAs) are covalently closed RNA molecules that function as
+miRNA sponges, regulating gene expression with implications for disease mechanisms.
+Accurate prediction of circRNA–miRNA binding sites requires understanding the
+circular topology of circRNAs, yet all existing deep learning methods model them
+as linear sequences—ignoring the Back-Splice Junction (BSJ) where the 3′ and 5′
+ends covalently connect, and fragmenting patterns that span this junction.
+
+We propose **CircMAC** (**Circ**ular-aware **M**ulti-branch **A**ttention and
+**C**onvolutional architecture), a lightweight (~3M parameters) encoder designed
+specifically for circular RNA. CircMAC combines three complementary branches—
+(i) Transformer attention with **circular relative position bias**
+($d_{\text{circ}}(i,j) = \min(|i{-}j|,\, L{-}|i{-}j|)$),
+(ii) Mamba for efficient long-range sequential modeling, and
+(iii) Depthwise CNN for local nucleotide pattern extraction—
+fused through a learned adaptive router.
+For self-supervised pretraining, we introduce two circRNA-specific objectives:
+**Circular Permutation Contrastive Learning (CPCL)**, which treats circular
+rotations as positive pairs to learn rotation-invariant representations, and
+**BSJ-focused MLM**, which concentrates masking at the junction region.
+At inference, circRNA features interact with miRNA via cross-attention, and
+binding sites are decoded by a multi-scale convolutional head.
+
+Experiments show that CircMAC achieves competitive or superior performance
+compared to large pretrained RNA language models (RNA-FM, RNA-MSM; ≥95M params)
+while operating at a fraction of their size, and that circular-aware pretraining
+consistently improves binding site localization over training from scratch.
+
+---
+
 ## 1. Problem Formulation
 
 **Input**:

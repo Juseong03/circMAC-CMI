@@ -162,8 +162,12 @@ class ModelWrapper(nn.Module):
         ).to(self.device)
 
     def _set_proj_contrastive(self) -> None:
-        self.proj_contrastive = nn.Linear(
-            self.config.d_model, self.config.d_model
+        # 2-layer MLP projection head (SimCLR-style)
+        d = self.config.d_model
+        self.proj_contrastive = nn.Sequential(
+            nn.Linear(d, d),
+            nn.GELU(),
+            nn.Linear(d, d),
         ).to(self.device)
     
     def _set_token_dropout(
