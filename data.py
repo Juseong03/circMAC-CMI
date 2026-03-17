@@ -279,13 +279,14 @@ class CircRNABindingSitesDataset(BaseCircRNADataset):
 
 class CircRNASelfDataset(BaseCircRNADataset):
     def __init__(
-            self, 
-            df: Any, 
-            max_len: int = 512, 
+            self,
+            df: Any,
+            max_len: int = 512,
             padding_value: int = -100,
-            target_type: str = 'mirna', 
-            k: int = 1, 
-            k_ss: Optional[int] = None
+            target_type: str = 'mirna',
+            k: int = 1,
+            k_ss: Optional[int] = None,
+            pair_mode: bool = False,
         ):
 
         super().__init__(df, max_len, padding_value, target_type, k)
@@ -293,6 +294,60 @@ class CircRNASelfDataset(BaseCircRNADataset):
         self.ss_vocab = self._generate_ss_vocab(self.k_ss)
         self.ss_vocab_size = len(self.ss_vocab)
         self.ss_inverse_vocab = {v: k for k, v in self.ss_vocab.items()}
+
+        self.pair_mode = pair_mode
+        if pair_mode:
+            self._build_pair_groups()
+
+    def _build_pair_groups(self):
+        """Group records by circRNA_id for SS-pair contrastive learning.
+        Each group contains indices of the same sequence with different SS predictions.
+        """
+        groups: Dict[str, List[int]] = defaultdict(list)
+        for idx in range(len(self.df)):
+            cid = self.df.iloc[idx].get('circRNA_id', str(idx))
+            groups[cid].append(idx)
+        self.pair_groups = list(groups.values())  # List[List[int]]
+
+    def __len__(self) -> int:
+        if self.pair_mode:
+            return len(self.pair_groups)
+        return len(self.df)
+
+    def _get_single_item(self, idx: int) -> Dict[str, Any]:
+        row = self.df.iloc[idx]
+        seq = str(row.get("circRNA", ""))
+        structure = str(row.get("structure", "." * len(seq)))[:len(seq)]
+        length = int(row.get("length", len(seq)))
+
+        ss_labels = self._safe_parse_list(row.get("ss_labels", []))
+        ss_labels_multi = row.get("ss_labels_multi", [])
+
+        seq_tokens = self._tokenize_sequence(self.circrna_tokenizer, seq, self.max_len_circrna, self.k)
+        seq_rc = self._reverse_complement(seq)
+        seq_rc_tokens = self._tokenize_sequence(self.circrna_tokenizer, seq_rc, self.max_len_circrna, self.k)
+
+        ss_tokens = self._encode_ss(structure, self.max_len_circrna)
+
+        pairing = self._dotbracket_to_pairing_matrix(structure)
+        pairing = F.pad(pairing, (0, self.max_len_circrna - pairing.shape[1], 0, self.max_len_circrna - pairing.shape[0]))
+        pairing = pairing[:self.max_len_circrna, :self.max_len_circrna]
+
+        mask = seq_tokens["attention_mask"].unsqueeze(1)
+        pairing_masked = pairing * mask * mask.transpose(0, 1)
+
+        return {
+            "circRNA": seq_tokens["input_ids"],
+            "circRNA_mask": seq_tokens["attention_mask"],
+            "circRNA_rc": seq_rc_tokens["input_ids"],
+            "circRNA_rc_mask": seq_rc_tokens["attention_mask"],
+            "structure": ss_tokens["input_ids"],
+            "length": torch.tensor(length, dtype=torch.float32),
+            "pairing": pairing,
+            "pairing_masked": pairing_masked,
+            "ss_labels": self._pad_or_truncate_label(ss_labels, self.max_len_circrna),
+            "ss_labels_multi": self._pad_or_truncate_label(ss_labels_multi, self.max_len_circrna)
+        }
 
     def _generate_ss_vocab(self, k: int) -> Dict[str, int]:
         bases = ['(', ')', '.']
@@ -355,40 +410,16 @@ class CircRNASelfDataset(BaseCircRNADataset):
             return []
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
-        row = self.df.iloc[idx]
-        seq = str(row.get("circRNA", ""))
-        structure = str(row.get("structure", "." * len(seq)))[:len(seq)]
-        length = int(row.get("length", len(seq)))
-
-        ss_labels = self._safe_parse_list(row.get("ss_labels", []))
-        # ss_labels_multi = self._safe_parse_list(row.get("ss_labels_multi", []))
-        ss_labels_multi = row.get("ss_labels_multi", [])
-
-        seq_tokens = self._tokenize_sequence(self.circrna_tokenizer, seq, self.max_len_circrna, self.k)
-        seq_rc = self._reverse_complement(seq)
-        seq_rc_tokens = self._tokenize_sequence(self.circrna_tokenizer, seq_rc, self.max_len_circrna, self.k)
-
-        ss_tokens = self._encode_ss(structure, self.max_len_circrna)
-
-        pairing = self._dotbracket_to_pairing_matrix(structure)
-        pairing = F.pad(pairing, (0, self.max_len_circrna - pairing.shape[1], 0, self.max_len_circrna - pairing.shape[0]))
-        pairing = pairing[:self.max_len_circrna, :self.max_len_circrna]
-
-        mask = seq_tokens["attention_mask"].unsqueeze(1)
-        pairing_masked = pairing * mask * mask.transpose(0, 1)
-        
-        return {
-            "circRNA": seq_tokens["input_ids"],
-            "circRNA_mask": seq_tokens["attention_mask"],
-            "circRNA_rc": seq_rc_tokens["input_ids"],
-            "circRNA_rc_mask": seq_rc_tokens["attention_mask"],
-            "structure": ss_tokens["input_ids"],
-            "length": torch.tensor(length, dtype=torch.float32),
-            "pairing": pairing,
-            "pairing_masked": pairing_masked,
-            "ss_labels": self._pad_or_truncate_label(ss_labels, self.max_len_circrna),
-            "ss_labels_multi": self._pad_or_truncate_label(ss_labels_multi, self.max_len_circrna)
-        }
+        if self.pair_mode:
+            group = self.pair_groups[idx]
+            idx1 = group[0]
+            idx2 = group[random.randint(1, len(group) - 1)] if len(group) > 1 else group[0]
+            item = self._get_single_item(idx1)
+            item2 = self._get_single_item(idx2)
+            item['structure_1'] = item['structure']
+            item['structure_2'] = item2['structure']
+            return item
+        return self._get_single_item(idx)
 
 
 

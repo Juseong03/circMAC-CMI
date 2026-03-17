@@ -144,15 +144,15 @@ def prepare_datasets(
     return train_dataset, valid_dataset, test_dataset, extra_dataset 
 
 
-def prepare_self_datasets(df, max_len=1024, seed=42, kmer=1, is_test=False):
+def prepare_self_datasets(df, max_len=1024, seed=42, kmer=1, is_test=False, pair_mode=False):
     if is_test:
         train_df, valid_df, test_df = split_train_valid_test(df, seed=seed)
     else:
         train_df, valid_df = split_train_valid(df, seed=seed)
         test_df = df
-    train_dataset = CircRNASelfDataset(train_df, max_len=max_len, k=kmer)
-    valid_dataset = CircRNASelfDataset(valid_df, max_len=max_len, k=kmer)
-    test_dataset = CircRNASelfDataset(test_df, max_len=max_len, k=kmer)
+    train_dataset = CircRNASelfDataset(train_df, max_len=max_len, k=kmer, pair_mode=pair_mode)
+    valid_dataset = CircRNASelfDataset(valid_df, max_len=max_len, k=kmer, pair_mode=pair_mode)
+    test_dataset  = CircRNASelfDataset(test_df,  max_len=max_len, k=kmer, pair_mode=pair_mode)
     return train_dataset, valid_dataset, test_dataset 
 
 

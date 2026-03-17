@@ -161,6 +161,15 @@ class ModelWrapper(nn.Module):
             vocab_size=self.config.vocab_size
         ).to(self.device)
 
+    def _set_ss_embedding(self, ss_vocab_size: int = 4) -> None:
+        """SS token embedding for SS-pair contrastive learning.
+        Adds structure information to sequence embeddings.
+        ss_vocab: 0=PAD, 1=(, 2=), 3=.
+        """
+        self.ss_embedding = nn.Embedding(
+            ss_vocab_size, self.config.d_model, padding_idx=0
+        ).to(self.device)
+
     def _set_proj_contrastive(self) -> None:
         # 2-layer MLP projection head (SimCLR-style)
         d = self.config.d_model

@@ -809,6 +809,7 @@ class Trainer:
             pairing=False,
             cpcl=False,
             bsj_mlm=False,
+            ss_cl=False,
             icl=False,
             icl_mlm=False,
             mcl=False,
@@ -817,7 +818,7 @@ class Trainer:
             verbose=True,
             ssp_vocab_size: Optional[int] = None
         ):
-        self.patience = 0       
+        self.patience = 0
         self.patience_max = earlystop
         self.best_epoch = 0
         self.best_score = float('inf')  # Lower loss is better in pretraining.
@@ -827,7 +828,13 @@ class Trainer:
             if ssp_vocab_size is None:
                 ssp_vocab_size = 4
 
-        self.n_task = sum([mlm, ntp, ssp, icl, icl_mlm, mcl, pairing, ss_labels, ss_labels_multi, cpcl, bsj_mlm])
+        if ss_cl:
+            # SS-pair CL requires SS embedding and contrastive projection head
+            ss_vocab_size = 4  # PAD, (, ), .
+            self.model._set_ss_embedding(ss_vocab_size)
+            self.model._set_proj_contrastive()
+
+        self.n_task = sum([mlm, ntp, ssp, icl, icl_mlm, mcl, pairing, ss_labels, ss_labels_multi, cpcl, bsj_mlm, ss_cl])
 
         self.task_masking_config = {
             'ss_labels': {'use_masking': False, 'mask_ratio': 0.0},
@@ -858,10 +865,11 @@ class Trainer:
                 'ss_labels_multi': ss_labels_multi,
                 'pairing': pairing,
                 'cpcl': cpcl,
-                'bsj_mlm': bsj_mlm
+                'bsj_mlm': bsj_mlm,
+                'ss_cl': ss_cl,
             },
             'type': {
-                'self': mlm or ntp or mcl or ssp or ss_labels or ss_labels_multi or pairing or cpcl or bsj_mlm,
+                'self': mlm or ntp or mcl or ssp or ss_labels or ss_labels_multi or pairing or cpcl or bsj_mlm or ss_cl,
             },
             'mask_ratio': mask_ratio,
             'ssp_vocab_size': ssp_vocab_size,
@@ -920,9 +928,9 @@ class Trainer:
         save_logs(logs=self.logs_pretrain, log_dir=self.log_dir, log_file=log_name, verbose=self.verbose)
 
     def epoch_self_pretrain(self, is_train=True, phase=None):
-        losses = {'mlm': 0.0, 'ntp': 0.0, 'ssp': 0.0, 'ss_labels': 0.0, 'ss_labels_multi': 0.0, 'pairing': 0.0, 'cpcl': 0.0, 'bsj_mlm': 0.0, 'total': 0.0}
+        losses = {'mlm': 0.0, 'ntp': 0.0, 'ssp': 0.0, 'ss_labels': 0.0, 'ss_labels_multi': 0.0, 'pairing': 0.0, 'cpcl': 0.0, 'bsj_mlm': 0.0, 'ss_cl': 0.0, 'total': 0.0}
         losses_batch = {}
-        times = {'mlm': 0.0, 'ntp': 0.0, 'ssp': 0.0, 'ss_labels': 0.0, 'ss_labels_multi': 0.0, 'pairing': 0.0, 'cpcl': 0.0, 'bsj_mlm': 0.0, 'total': 0.0}
+        times = {'mlm': 0.0, 'ntp': 0.0, 'ssp': 0.0, 'ss_labels': 0.0, 'ss_labels_multi': 0.0, 'pairing': 0.0, 'cpcl': 0.0, 'bsj_mlm': 0.0, 'ss_cl': 0.0, 'total': 0.0}
         dataloader = self.train_self if is_train else self.valid_self
 
         phase = phase if phase is not None else 'TRAIN' if is_train else 'VALID'
@@ -1002,6 +1010,15 @@ class Trainer:
                 times['bsj_mlm'] += time.time() - t_bsj_mlm
             else:
                 loss_bsj_mlm = 0.0
+
+            if self.info_pt['tasks']['ss_cl']:
+                t_ss_cl = time.time()
+                loss_ss_cl = self.forward_ss_cl(data)
+                losses_batch['ss_cl'] = loss_ss_cl
+                losses['ss_cl'] += loss_ss_cl.item()
+                times['ss_cl'] += time.time() - t_ss_cl
+            else:
+                loss_ss_cl = 0.0
 
             # total_loss = loss_mlm + loss_ntp + loss_ssp + loss_ss_labels + loss_ss_labels_multi + loss_pairing
             # total_loss = total_loss / self.n_task if self.n_task > 0 else total_loss
@@ -1256,6 +1273,44 @@ class Trainer:
         logits = torch.matmul(z1, z2.T) / temperature  # [B*M, B*M]
         labels = torch.arange(B * M, device=self.device)
         return F.cross_entropy(logits, labels)
+
+    def forward_ss_cl(self, data, temperature=0.07):
+        """
+        SS-pair Contrastive Learning (SS-CL).
+
+        Positive pair: same circRNA sequence with two different secondary structure predictions.
+        Negative pair: different circRNA sequences.
+
+        Requires pair_mode=True in CircRNASelfDataset (df_circ_ss_5 with ~5 SS per sequence).
+        The model encodes sequence + SS via: emb = seq_embedding(x) + ss_embedding(ss_tokens).
+        """
+        x    = data['circRNA'].to(self.device)       # [B, L]
+        mask = data['circRNA_mask'].to(self.device)   # [B, L]
+        ss1  = data['structure_1'].to(self.device)    # [B, L] — SS view 1
+        ss2  = data['structure_2'].to(self.device)    # [B, L] — SS view 2
+
+        # Encode: sequence embedding + SS embedding (additive conditioning)
+        emb1 = self.model.embedding(x) + self.model.ss_embedding(ss1)  # [B, L, D]
+        emb2 = self.model.embedding(x) + self.model.ss_embedding(ss2)  # [B, L, D]
+
+        out1, _ = self.model.backbone(emb1, mask, None, None)  # [B, L, D]
+        out2, _ = self.model.backbone(emb2, mask, None, None)  # [B, L, D]
+
+        # Sequence-level pooling: mean over non-padded positions
+        mask_f = mask.float().unsqueeze(-1)            # [B, L, 1]
+        z1 = (out1 * mask_f).sum(1) / mask_f.sum(1)   # [B, D]
+        z2 = (out2 * mask_f).sum(1) / mask_f.sum(1)   # [B, D]
+
+        # Project (shared 2-layer MLP) and normalize
+        z1 = F.normalize(self.model.proj_contrastive(z1), dim=-1)  # [B, D]
+        z2 = F.normalize(self.model.proj_contrastive(z2), dim=-1)  # [B, D]
+
+        # Symmetric InfoNCE: (z1[b], z2[b]) are positive pairs
+        B = z1.size(0)
+        logits = torch.matmul(z1, z2.T) / temperature  # [B, B]
+        labels = torch.arange(B, device=self.device)
+        loss = (F.cross_entropy(logits, labels) + F.cross_entropy(logits.T, labels)) / 2
+        return loss
 
     def forward_bsj_mlm(self, data, mask_ratio=0.15, bsj_focus_ratio=0.5):
         """

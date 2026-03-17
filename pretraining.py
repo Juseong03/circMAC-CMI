@@ -50,7 +50,8 @@ def experiment(args_dict: dict) -> None:
         max_len=args_dict['max_len'] + 2,
         seed=args_dict['seed'],
         kmer=args_dict['kmer'],
-        is_test=False # Set to False for pretraining
+        is_test=False,  # Set to False for pretraining
+        pair_mode=args_dict.get('ss_cl', False),
     )
 
     if args_dict['verbose']:
@@ -106,6 +107,7 @@ def experiment(args_dict: dict) -> None:
         pairing=args_dict['pairing'],
         cpcl=args_dict.get('cpcl', False),
         bsj_mlm=args_dict.get('bsj_mlm', False),
+        ss_cl=args_dict.get('ss_cl', False),
         rc=args_dict['rc'],
         log_name='pretrain',
         verbose=args_dict['verbose'],
@@ -132,6 +134,7 @@ if __name__ == '__main__':
     parser.add_argument('--pairing', action='store_true', help='Use pairing matrix prediction task')
     parser.add_argument('--cpcl', action='store_true', help='Use Circular Permutation Contrastive Learning')
     parser.add_argument('--bsj_mlm', action='store_true', help='Use BSJ-focused MLM')
+    parser.add_argument('--ss_cl', action='store_true', help='Use SS-pair Contrastive Learning (requires df_circ_ss_5 with pair_mode)')
     parser.add_argument('--ssp_vocab_size', type=int, default=4, help='SSP vocab size (e.g., 4 for 1-mer dot-bracket)')
 
     # Model settings
