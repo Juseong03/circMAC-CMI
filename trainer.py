@@ -889,27 +889,34 @@ class Trainer:
                 'params': self.loss_uncertainty.parameters()
             })
 
+        # Cosine LR scheduler: decays lr to 0 over training → forces convergence
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            self.optimizer, T_max=epochs, eta_min=1e-6
+        )
+
         for epoch in range(1, epochs + 1):
             self.logger.info('-' * 50)
             self.logger.info(f"[Epoch {epoch}/{epochs}]")
-            self.logs_pretrain['train'][epoch] = {} 
+            self.logs_pretrain['train'][epoch] = {}
 
             if self.info_pt['type']['self']:
                 losses_self, times_self = self.epoch_self_pretrain(is_train=True)
                 self.log_epoch_results(epoch, losses_self, times_self, 'train')
-            
+
+            scheduler.step()
+            self.logger.info(f"LR: {scheduler.get_last_lr()[0]:.2e}")
+
             with torch.no_grad():
                 loss_valid = 0.0
                 self.logs_pretrain['valid'][epoch] = {}
                 if self.info_pt['type']['self']:
                     losses_self_valid, times_self_valid = self.epoch_self_pretrain(is_train=False)
                     self.log_epoch_results(epoch, losses_self_valid, times_self_valid, 'valid')
-                    
+
                     loss_valid += losses_self_valid['total']
                     del losses_self_valid, times_self_valid
                     torch.cuda.empty_cache()
                     import gc; gc.collect()
-
 
             if self.update_best_model(loss_valid, epoch, pretrain=True):
                 self.best_epoch = epoch

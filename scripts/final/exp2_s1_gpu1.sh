@@ -9,7 +9,7 @@ SEEDS=(1 2 3)
 TASK="sites"; PT_SEED=42; PREFIX="exp2"
 
 DATA_FILE="df_circ_ss_5"; D_MODEL=128; N_LAYER=6; MAX_LEN=1022; NUM_WORKERS=4
-PT_BS=64; PT_LR=5e-4; PT_WD=0.01; PT_EP=200; PT_ES=30
+PT_BS=64; PT_LR=5e-4; PT_WD=0.01; PT_EP=500; PT_ES=50
 FT_BS=32; FT_LR=1e-4; FT_EP=150; FT_ES=20
 
 mkdir -p logs/exp2/pretrain logs/exp2/finetune saved_models
