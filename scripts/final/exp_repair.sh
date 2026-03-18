@@ -45,7 +45,7 @@ declare -a EXP4_REPAIRS=(
 for entry in "${EXP4_REPAIRS[@]}"; do
     CFG=$(echo "$entry" | awk '{print $1}')
     SEED=$(echo "$entry" | awk '{print $2}')
-    FLAGS=$(echo "$entry" | cut -d' ' -f3-)
+    FLAGS=$(echo "$entry" | awk '{for(i=3;i<=NF;i++) printf $i" "; print ""}')
 
     TOTAL=$((TOTAL + 1))
     EXP_NAME="exp4_${CFG}_s${SEED}"
