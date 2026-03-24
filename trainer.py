@@ -1078,10 +1078,10 @@ class Trainer:
         mask = data['circRNA_mask'].to(self.device)
         x_rc = data['circRNA_rc'].to(self.device)
         mask_rc = data['circRNA_rc_mask'].to(self.device)
-        x_mlm, y_mlm = create_mlm_inputs_and_labels(x, mask_ratio, device=self.device)
+        x_mlm, y_mlm = create_mlm_inputs_and_labels(x, mask_ratio, device=self.device, attention_mask=mask)
 
         if self.rc:
-            x_mlm_rc, y_mlm_rc = create_mlm_inputs_and_labels(x_rc, mask_ratio, device=self.device)
+            x_mlm_rc, y_mlm_rc = create_mlm_inputs_and_labels(x_rc, mask_ratio, device=self.device, attention_mask=mask_rc)
         else:
             x_mlm_rc, y_mlm_rc = None, None
         emb = self.model.embedding(x_mlm)

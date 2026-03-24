@@ -928,12 +928,14 @@ def batched_focal_loss(
 # Pretraining Utilities
 #--------------------------
 
-def create_mlm_inputs_and_labels(inputs, mask_ratio=0.15, device='cpu', mask_token_id=4) -> Tuple[torch.Tensor, torch.Tensor]:
+def create_mlm_inputs_and_labels(inputs, mask_ratio=0.15, device='cpu', mask_token_id=4, attention_mask=None) -> Tuple[torch.Tensor, torch.Tensor]:
     if not isinstance(inputs, torch.Tensor):
         raise ValueError("Inputs must be a torch.Tensor.")
-    inputs = inputs.to(device)
+    inputs = inputs.clone().to(device)
     labels = inputs.clone()
     mask = torch.bernoulli(torch.full(labels.shape, mask_ratio)).bool().to(device)
+    if attention_mask is not None:
+        mask = mask & attention_mask.bool().to(device)  # PAD 위치 마스킹 제외
     inputs[mask] = mask_token_id
     labels[~mask] = -100  # CrossEntropyLoss 무시
     return inputs, labels
