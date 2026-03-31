@@ -18,9 +18,9 @@ if [ -z "$data_file" ] || [ -z "$task_key" ]; then
 fi
 
 # 3. data_file 유효성 체크
-if [[ "$data_file" != "df_circ_ss" && "$data_file" != "df_circ_ss_5" ]]; then
+if [[ "$data_file" != "df_circ_ss" && "$data_file" != "df_circ_ss_5" && "$data_file" != "df_pretrain" ]]; then
     echo "❌ 지원되지 않는 data_file: '$data_file'"
-    echo "지원되는 값: df_circ_ss, df_circ_ss_5"
+    echo "지원되는 값: df_circ_ss, df_circ_ss_5, df_pretrain"
     exit 1
 fi
 
