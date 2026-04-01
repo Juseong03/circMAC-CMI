@@ -1204,26 +1204,20 @@ class Trainer:
 
     def forward_pairing(self, data):
         x = data['circRNA'].to(self.device)
-        mask = data['circRNA_mask'].to(self.device)
-        pairing = data['pairing'].to(self.device)
+        mask = data['circRNA_mask'].to(self.device).float()   # [B, L]
+        pairing = data['pairing_masked'].to(self.device)      # [B, L, L], PAD zeroed
 
         emb = self.model.embedding(x)
         emb = self.model.token_dropout(emb, x)
 
         out, _ = self.model.backbone(emb, mask, None, None)
 
-        # Check if using CircularPairingHead (returns scores directly)
-        # or PairingHead (returns embeddings for matmul)
-        pairing_out = self.model.pairing_head(out)
+        pairing_out = self.model.pairing_head(out)            # [B, L, L] raw logits
 
-        if hasattr(self.model.pairing_head, 'use_circular_bias'):
-            # CircularPairingHead: output is already [B, L, L] score
-            pred_pairing = torch.sigmoid(pairing_out)
-        else:
-            # Legacy PairingHead: output is [B, L, L], normalize and sigmoid
-            pred_pairing = torch.sigmoid(pairing_out)
-
-        loss = self.loss_fn_pairing(pred_pairing.view(-1), pairing.view(-1).float())
+        # Mask out PAD positions — only compute loss over real sequence positions
+        mask_2d = mask.unsqueeze(2) * mask.unsqueeze(1)       # [B, L, L]
+        loss_raw = F.binary_cross_entropy_with_logits(pairing_out, pairing, reduction='none')
+        loss = (loss_raw * mask_2d).sum() / mask_2d.sum().clamp(min=1)
         return loss
 
     def forward_cpcl(self, data, temperature=0.1, n_sample=64):
