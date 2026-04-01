@@ -115,63 +115,125 @@ ax.set_xlim(-0.5, 7.5); ax.set_ylim(-1.8, 2.0); ax.axis('off')
 panel_label(ax, '(c) SSP')
 
 struct_str = ['(','(','(', '.', '.',')', ')', ')']
-ss_colors = [C['paired'] if s in ('(',')') else C['unpaired'] for s in struct_str]
+# 3-class labels: '.'→0  '('→1  ')'→2
+SSP_LABEL_MAP = {'.': 0, '(': 1, ')': 2}
+SSP_COLOR = {0: C['unpaired'], 1: '#8E44AD', 2: '#3498DB'}
+SSP_TEXT_COLOR = {0: '#555555', 1: 'white', 2: 'white'}
+ssp_labels = [SSP_LABEL_MAP[s] for s in struct_str]
+
 xs = draw_seq(ax, SEQ, 0, 1.1)
 
-# dot-bracket 표시
+# dot-bracket 기호 표시
 for i, (x, s) in enumerate(zip(xs, struct_str)):
-    ax.text(x, 0.5, s, ha='center', va='center', fontsize=15,
-            color=C['paired'] if s!='.' else '#AAA', fontweight='bold')
+    color = '#8E44AD' if s=='(' else ('#3498DB' if s==')' else '#AAAAAA')
+    ax.text(x, 0.50, s, ha='center', va='center', fontsize=16,
+            color=color, fontweight='bold')
 
-# 레이블 0/1
-for i, (x, v) in enumerate(zip(xs, SS)):
-    fc = C['paired'] if v == 1 else C['unpaired']
+# 3-class 레이블 박스
+for i, (x, lbl) in enumerate(zip(xs, ssp_labels)):
+    fc = SSP_COLOR[lbl]
     rect = FancyBboxPatch((x-0.30, -0.42), 0.60, 0.52,
                            boxstyle="round,pad=0.04",
                            facecolor=fc, edgecolor='white', linewidth=1, zorder=3)
     ax.add_patch(rect)
-    ax.text(x, -0.16, str(v), ha='center', va='center',
-            fontsize=12, fontweight='bold', color='white', zorder=4)
+    ax.text(x, -0.16, str(lbl), ha='center', va='center',
+            fontsize=12, fontweight='bold', color=SSP_TEXT_COLOR[lbl], zorder=4)
 
-ax.text(1.3, -0.16, '→', ha='center', fontsize=12, color='#aaa')
-ax.text(3.5, -0.90, 'Binary: paired(1) / unpaired(0)\nUsing RNAsubopt --circ labels',
-        ha='center', va='center', fontsize=10, color='#555',
-        bbox=dict(boxstyle='round,pad=0.3', facecolor=C['box'], edgecolor='#ccc'))
-ax.text(3.5, 1.65, 'Loss:  BinaryCrossEntropy (per position)',
+# 범례: 0 / 1 / 2 설명
+legend_x = 0.0
+for lbl, sym, desc in [(1, '(', 'opening'), (2, ')', 'closing'), (0, '.', 'unpaired')]:
+    fc = SSP_COLOR[lbl]
+    rect = FancyBboxPatch((legend_x-0.25, -1.05), 0.50, 0.38,
+                           boxstyle="round,pad=0.03",
+                           facecolor=fc, edgecolor='white', zorder=3)
+    ax.add_patch(rect)
+    ax.text(legend_x, -0.86, str(lbl), ha='center', va='center',
+            fontsize=10, fontweight='bold', color=SSP_TEXT_COLOR[lbl], zorder=4)
+    ax.text(legend_x, -1.20, f"'{sym}'\n{desc}", ha='center', va='top',
+            fontsize=8, color='#555')
+    legend_x += 2.5
+
+ax.text(3.5, 1.65, 'Loss:  CrossEntropy  (3 classes per position)',
         ha='center', fontsize=9.5, color='#777', style='italic')
 
 # ═══════════════════════════════════════════════════════════════════
 # (d) Pairing
 # ═══════════════════════════════════════════════════════════════════
 ax = fig.add_subplot(gs[1, 0])
-ax.set_xlim(-0.5, 7.5); ax.set_ylim(-2.0, 2.0); ax.axis('off')
+ax.set_xlim(-0.5, 8.5); ax.set_ylim(-2.2, 2.2); ax.axis('off')
 panel_label(ax, '(d) Pairing')
 
-xs = draw_seq(ax, SEQ, 0, 1.1)
+SEQ_P = ['A', 'U', 'G', 'C', 'G', 'C']   # shorter for clarity
+PAIRS_P = [(0,5),(1,4),(2,3)]
+gap = 0.85
+xs_p = [0.3 + i * gap for i in range(len(SEQ_P))]
+seq_y = 1.3
 
-# arc for each pair
-arc_colors = ['#8E44AD', '#3498DB', '#E67E22']
-for k, (i, j) in enumerate(PAIRS):
-    xi, xj = xs[i], xs[j]
+# 시퀀스 박스
+for i, (x, tok) in enumerate(zip(xs_p, SEQ_P)):
+    fc = C.get(tok, '#AAB7B8')
+    rect = FancyBboxPatch((x-0.33, seq_y-0.28), 0.66, 0.56,
+                           boxstyle="round,pad=0.05",
+                           facecolor=fc, edgecolor='white', linewidth=1.5, zorder=3)
+    ax.add_patch(rect)
+    ax.text(x, seq_y, tok, ha='center', va='center', fontsize=13,
+            fontweight='bold', color='white', zorder=4)
+    ax.text(x, seq_y-0.55, str(i), ha='center', va='top', fontsize=9, color='#888')
+
+# arc (아래쪽) — 반원형 염기쌍 연결
+arc_cols = ['#8E44AD', '#3498DB', '#E67E22']
+for k, (i, j) in enumerate(PAIRS_P):
+    xi, xj = xs_p[i], xs_p[j]
     xm = (xi + xj) / 2
-    height = 0.55 + k * 0.25
-    arc = Arc((xm, 1.1), xj-xi, height*2, angle=0,
-              theta1=0, theta2=180, color=arc_colors[k], lw=2.5, zorder=5)
+    width = xj - xi
+    depth = 0.55 + k * 0.20
+    arc = Arc((xm, seq_y - 0.28), width, depth * 2, angle=0,
+              theta1=180, theta2=360, color=arc_cols[k], lw=2.5, zorder=5)
     ax.add_patch(arc)
-    # endpoints
     for xp in [xi, xj]:
-        ax.plot(xp, 1.1+height/2 - height/2, 'o',
-                color=arc_colors[k], ms=5, zorder=6)
+        ax.plot(xp, seq_y - 0.28, 'o', color=arc_cols[k], ms=5, zorder=6)
 
-# unpaired markers
-for i, v in enumerate(SS):
-    if v == 0:
-        ax.plot(xs[i], 1.1, 'x', color='#AAA', ms=8, mew=2, zorder=5)
+# ── 오른쪽: 6×6 매트릭스 인셋 ──────────────────────────────────────
+mat_x0 = 4.8; mat_y0 = -0.25
+cell = 0.38
+L_p = len(SEQ_P)
+pair_set = set()
+for (i, j) in PAIRS_P:
+    pair_set.add((i, j)); pair_set.add((j, i))
 
-ax.text(3.5, -0.70, 'L×L pairing matrix reconstruction\nLong-range base-pair dependencies',
+ax.text(mat_x0 + (L_p * cell)/2, mat_y0 + L_p * cell + 0.25,
+        'Pairing matrix\n(L × L)', ha='center', fontsize=9, color='#555', style='italic')
+
+for r in range(L_p):
+    for c2 in range(L_p):
+        x = mat_x0 + c2 * cell
+        y = mat_y0 + (L_p - 1 - r) * cell
+        val = 1 if (r, c2) in pair_set else 0
+        fc = '#8E44AD' if val == 1 else '#F0F0F0'
+        rect = plt.Rectangle((x, y), cell*0.92, cell*0.92,
+                              facecolor=fc, edgecolor='white', linewidth=1.2, zorder=3)
+        ax.add_patch(rect)
+        if val == 1:
+            ax.text(x + cell*0.46, y + cell*0.46, '1',
+                    ha='center', va='center', fontsize=8, color='white',
+                    fontweight='bold', zorder=4)
+
+# 행/열 인덱스
+for k2 in range(L_p):
+    ax.text(mat_x0 + k2*cell + cell*0.46, mat_y0 + L_p*cell + 0.05,
+            str(k2), ha='center', fontsize=8, color='#888')
+    ax.text(mat_x0 - 0.12, mat_y0 + (L_p-1-k2)*cell + cell*0.46,
+            str(k2), ha='right', fontsize=8, color='#888')
+
+# 화살표: arc → matrix
+ax.annotate('', xy=(mat_x0 - 0.08, mat_y0 + 1.0),
+            xytext=(3.0, seq_y - 0.8),
+            arrowprops=dict(arrowstyle='->', color='#AAA', lw=1.5, linestyle='dashed'))
+
+ax.text(3.5, -1.75, 'Predict L×L binary pairing matrix\n(which position pairs with which)',
         ha='center', va='center', fontsize=10, color='#555',
         bbox=dict(boxstyle='round,pad=0.3', facecolor=C['box'], edgecolor='#ccc'))
-ax.text(3.5, 1.75, 'Loss:  BCEWithLogits (L×L matrix)',
+ax.text(3.5, 2.0, 'Loss:  BCEWithLogits (L×L matrix)',
         ha='center', fontsize=9.5, color='#777', style='italic')
 
 # ═══════════════════════════════════════════════════════════════════
@@ -247,7 +309,7 @@ headers = ['Method', 'Objective', 'circRNA\nspecific', 'Key branch']
 rows = [
     ['MLM',     'Token recovery',       '✗', 'Attn, CNN'],
     ['NTP',     'Next token',           '✗', 'Mamba'],
-    ['SSP',     'Binary structure',     '△', 'Attn, CNN'],
+    ['SSP',     '3-class structure',    '△', 'Attn, CNN'],
     ['Pairing', 'Pairing matrix',       '△', 'Attn'],
     ['CPCL',    'Rotation invariance',  'Yes*', 'All'],
 ]
