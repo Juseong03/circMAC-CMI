@@ -1,55 +1,64 @@
 #!/bin/bash
 #===============================================================================
-# Server2 GPU1: CircMAC-PT — exp2v4 완료 후 best PT 모델로 finetune
-#
-# exp2v4 A/B/C 전부 완료된 후 실행
-# best PT exp 결정 방법:
-#   logs/exp2v4/finetune/ 의 F1 결과 비교 → 가장 높은 전략 선택
-#
-# Usage: ./scripts/final/run_s2_gpu1.sh [GPU_ID] [BEST_PT_EXP]
-#   BEST_PT_EXP: default exp2v4_pt_ntp
-#                ex) exp2v4_pt_ssp, exp2v4_pt_pair, exp2v4_pt_mlm_ntp, exp2v4_pt_all
+# Server2 GPU1: ALL Combined (MLM+NTP+SSP+Pairing+CPCL)
+# PT_BS=64 (2× from 32, 5 objectives 동시 계산으로 메모리 보수적 유지)
+# PT_LR=7e-4 (moderate LR scale for BS 32→64)
+# Usage: ./scripts/final/run_s2_gpu1.sh [GPU_ID]
 #===============================================================================
 set -e
 
 GPU=${1:-1}
-BEST_PT_EXP=${2:-"exp2v4_pt_ntp"}
 SEEDS=(1 2 3)
-TASK="sites"
-D_MODEL=128; N_LAYER=6; LR=1e-4; EPOCHS=150; EARLYSTOP=20; BS=32; NUM_WORKERS=4
+TASK="sites"; PT_SEED=42; PREFIX="exp2v4"
 
-mkdir -p logs/exp3 saved_models
+DATA_FILE="df_pretrain"; D_MODEL=128; N_LAYER=6; MAX_LEN=1022; NUM_WORKERS=4
+PT_BS=64;  PT_LR=7e-4; PT_WD=0.01; PT_EP=1000; PT_ES=100
+FT_BS=32;  FT_LR=1e-4; FT_EP=150;  FT_ES=20
+
+mkdir -p logs/exp2v4/pretrain logs/exp2v4/finetune saved_models
 TOTAL=0; SKIPPED=0; RAN=0
 
-echo "=== Server2 GPU1: CircMAC-PT ($BEST_PT_EXP, GPU $GPU) ==="
+echo "=== S2 GPU${GPU}: ALL Combined  (PT_BS=${PT_BS}, LR=${PT_LR}) ==="
+echo "    → 5 objectives: MLM + NTP + SSP + Pairing + CPCL"
 
-PT_PATH="saved_models/circmac/${BEST_PT_EXP}/42/pretrain/model.pth"
-if [ ! -f "$PT_PATH" ]; then
-    echo "[ERROR] Pretrain model not found: $PT_PATH"
-    echo "  사용 가능한 exp2v4 pretrain 목록:"
-    ls saved_models/circmac/ 2>/dev/null | grep exp2v4_pt || echo "  (없음)"
-    echo ""
-    echo "  → exp2v4 A/B/C 완료 후 재실행:"
-    echo "    ./scripts/final/run_s2_gpu1.sh $GPU <best_pt_exp>"
-    exit 1
-fi
-echo "  Pretrained model: $PT_PATH"
+run_pretrain() {
+    local PT_EXP=$1; shift
+    TOTAL=$((TOTAL+1))
+    PT_MODEL="saved_models/circmac/${PT_EXP}/${PT_SEED}/pretrain/model.pth"
+    if [ -f "$PT_MODEL" ]; then echo "[SKIP] pretrain: $PT_EXP"; SKIPPED=$((SKIPPED+1)); return 0; fi
+    RAN=$((RAN+1)); echo "[RUN]  pretrain: $PT_EXP  (bs=$PT_BS)"
+    python pretraining.py \
+        --model_name circmac --data_file $DATA_FILE --max_len $MAX_LEN \
+        --d_model $D_MODEL --n_layer $N_LAYER \
+        --batch_size $PT_BS --num_workers $NUM_WORKERS \
+        --optimizer adamw --lr $PT_LR --w_decay $PT_WD \
+        --epochs $PT_EP --earlystop $PT_ES \
+        --device $GPU --exp "$PT_EXP" --seed $PT_SEED --verbose "$@" \
+        2>&1 | tee "logs/exp2v4/pretrain/${PT_EXP}.log"
+}
 
-for SEED in "${SEEDS[@]}"; do
-    TOTAL=$((TOTAL + 1))
-    EXP_NAME="exp3_circmac_pt_s${SEED}"
-    if find "saved_models/circmac/${EXP_NAME}" -name "training.json" 2>/dev/null | grep -q .; then
-        echo "[DONE] $EXP_NAME"; SKIPPED=$((SKIPPED + 1)); continue; fi
-    RAN=$((RAN + 1)); echo "[RUN]  $EXP_NAME (bs=$BS)"
-    python training.py \
-        --model_name circmac --task "$TASK" --seed "$SEED" \
-        --d_model "$D_MODEL" --n_layer "$N_LAYER" --max_len 1022 \
-        --batch_size "$BS" --num_workers "$NUM_WORKERS" \
-        --lr "$LR" --epochs "$EPOCHS" --earlystop "$EARLYSTOP" \
-        --device "$GPU" --exp "$EXP_NAME" \
-        --load_pretrained "$PT_PATH" \
-        --interaction cross_attention --verbose \
-        2>&1 | tee "logs/exp3/${EXP_NAME}.log"
-done
+run_finetune() {
+    local PT_NAME=$1; local PT_PATH=$2
+    for SEED in "${SEEDS[@]}"; do
+        TOTAL=$((TOTAL+1))
+        EXP="${PREFIX}_${PT_NAME}_${TASK}_s${SEED}"
+        if find "saved_models/circmac/${EXP}" -name "training.json" 2>/dev/null | grep -q .; then
+            echo "[SKIP] finetune: $EXP"; SKIPPED=$((SKIPPED+1)); continue; fi
+        RAN=$((RAN+1)); echo "[RUN]  finetune: $EXP"
+        python training.py \
+            --model_name circmac --task $TASK --seed $SEED \
+            --d_model $D_MODEL --n_layer $N_LAYER --max_len $MAX_LEN \
+            --batch_size $FT_BS --num_workers $NUM_WORKERS \
+            --lr $FT_LR --epochs $FT_EP --earlystop $FT_ES \
+            --device $GPU --exp $EXP --interaction cross_attention \
+            --load_pretrained "$PT_PATH" --verbose \
+            2>&1 | tee "logs/exp2v4/finetune/${EXP}.log"
+    done
+}
 
-echo "=== Server2 GPU1 Complete: $RAN ran, $SKIPPED skipped / $TOTAL total ==="
+echo "--- [1/1] ALL Combined ---"
+run_pretrain "${PREFIX}_pt_all" --mlm --ntp --ssp --pairing --cpcl
+PT_PATH="saved_models/circmac/${PREFIX}_pt_all/${PT_SEED}/pretrain/model.pth"
+[ -f "$PT_PATH" ] && run_finetune "all" "$PT_PATH"
+
+echo "=== S2 GPU${GPU} Done: $RAN ran, $SKIPPED skipped / $TOTAL total ==="
