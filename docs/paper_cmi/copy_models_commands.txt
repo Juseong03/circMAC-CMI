@@ -1,0 +1,73 @@
+================================================================
+  model.pth 복사 명령어 (소스 서버에서 실행)
+  목적: BSJ Analysis + Case Study 시각화용 모델 9개 수집
+================================================================
+
+[STEP 1] 소스 서버에서 — 모을 디렉토리 생성 후 복사
+---------------------------------------------------------
+
+mkdir -p ~/models_for_viz
+
+cp --parents saved_models/circmac/exp1_circmac_s3/3/train/model.pth ~/models_for_viz/
+cp --parents saved_models/mamba/exp1_mamba_s2/2/train/model.pth ~/models_for_viz/
+cp --parents saved_models/hymba/exp1_hymba_s1/1/train/model.pth ~/models_for_viz/
+cp --parents saved_models/lstm/exp1_lstm_s2/2/train/model.pth ~/models_for_viz/
+cp --parents saved_models/transformer/exp1_transformer_s2/2/train/model.pth ~/models_for_viz/
+cp --parents saved_models/rnaernie/exp1_fair_frozen_rnaernie_s1/1/train/model.pth ~/models_for_viz/
+cp --parents saved_models/rnamsm/exp1_fair_frozen_rnamsm_s2/2/train/model.pth ~/models_for_viz/
+cp --parents saved_models/rnafm/exp1_fair_frozen_rnafm_s2/2/train/model.pth ~/models_for_viz/
+cp --parents saved_models/rnabert/exp1_fair_frozen_rnabert_s3/3/train/model.pth ~/models_for_viz/
+
+
+[STEP 2] 소스 서버에서 — 확인
+---------------------------------------------------------
+
+find ~/models_for_viz -name "model.pth" | sort
+# 9개 출력되면 OK
+
+
+[STEP 3] 소스 서버에서 — tar로 묶기
+---------------------------------------------------------
+
+tar -czf ~/models_for_viz.tar.gz -C ~ models_for_viz/
+
+
+[STEP 4] 이 서버로 전송
+---------------------------------------------------------
+
+# scp 사용 시:
+scp ~/models_for_viz.tar.gz [user]@[this_server_ip]:/workspace/volume/cmi_mac/
+
+# rsync 사용 시:
+rsync -avz ~/models_for_viz.tar.gz [user]@[this_server_ip]:/workspace/volume/cmi_mac/
+
+
+[STEP 5] 이 서버에서 — 풀고 복사 (/workspace/volume/cmi_mac 에서 실행)
+---------------------------------------------------------
+
+tar -xzf models_for_viz.tar.gz
+cp -r models_for_viz/saved_models/ ./
+rm -rf models_for_viz/ models_for_viz.tar.gz
+
+
+[STEP 6] 이 서버에서 — 최종 확인
+---------------------------------------------------------
+
+find saved_models -name "model.pth" | sort
+
+
+================================================================
+  복사 대상 파일 목록 (총 9개)
+================================================================
+
+  circmac     s3  F1=0.7435  saved_models/circmac/exp1_circmac_s3/3/train/model.pth
+  mamba       s2  F1=0.7101  saved_models/mamba/exp1_mamba_s2/2/train/model.pth
+  hymba       s1  F1=0.6995  saved_models/hymba/exp1_hymba_s1/1/train/model.pth
+  lstm        s2  F1=0.6503  saved_models/lstm/exp1_lstm_s2/2/train/model.pth
+  transformer s2  F1=0.6166  saved_models/transformer/exp1_transformer_s2/2/train/model.pth
+  rnaernie    s1  F1=0.6104  saved_models/rnaernie/exp1_fair_frozen_rnaernie_s1/1/train/model.pth
+  rnamsm      s2  F1=0.6068  saved_models/rnamsm/exp1_fair_frozen_rnamsm_s2/2/train/model.pth
+  rnafm       s2  F1=0.6063  saved_models/rnafm/exp1_fair_frozen_rnafm_s2/2/train/model.pth
+  rnabert     s3  F1=0.5957  saved_models/rnabert/exp1_fair_frozen_rnabert_s3/3/train/model.pth
+
+================================================================

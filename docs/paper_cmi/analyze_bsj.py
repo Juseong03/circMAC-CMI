@@ -18,11 +18,12 @@ binding site 예측에서 얼마나 효과적인지 정량적으로 검증합니
   # Part 1만 (모델 없이)
   python docs/paper_cmi/analyze_bsj.py --data_only
 
-  # Part 1 + 2 (모델 있을 때)
+  # Part 1 + 2 (모델 있을 때) — seed 3 기준 (models_for_viz)
   python docs/paper_cmi/analyze_bsj.py \\
-    --models circmac mamba transformer \\
-    --exps exp1_circmac_s1 exp1_mamba_s1 exp1_transformer_s1 \\
-    --seeds 1 1 1 \\
+    --models circmac mamba hymba lstm transformer rnabert rnaernie rnafm rnamsm \\
+    --exps exp1_circmac_s3 exp1_mamba_s3 exp1_hymba_s3 exp1_lstm_s3 exp1_transformer_s3 \\
+           exp3_rnabert_frozen_s3 exp3_rnaernie_frozen_s3 exp3_rnafm_frozen_s3 exp3_rnamsm_frozen_s3 \\
+    --seeds 3 3 3 3 3 3 3 3 3 \\
     --device 0
 
 [BSJ-Proximal 정의]
@@ -195,18 +196,19 @@ def analyze_data_distribution(df_test: pd.DataFrame, bsj_window: int, out_dir: P
 # ════════════════════════════════════════════════════════════════════════════
 
 def build_trainer(model_name: str, exp_name: str, seed: int, device_id: int,
-                  best_epoch: int, d_model: int = 128, n_layer: int = 6,
-                  max_len: int = 1022, verbose: bool = False):
+                  d_model: int = 128, n_layer: int = 6,
+                  max_len: int = 1022, vocab_size: int = 11, verbose: bool = False):
     """
     Trainer를 초기화하고 best checkpoint를 로드한다.
-    best_epoch: 저장된 epoch 번호 (training.json에서 읽거나 직접 지정)
+    epoch=None → saved_models/{model}/{exp}/{seed}/train/model.pth 로드
+    vocab_size: dataset.vocab_size에서 가져온 값 (default 11 = k=1 KmerTokenizer)
     """
     from trainer import Trainer
     from utils import get_device
     from utils_config import get_model_config
 
     device = get_device(device_id)
-    config = get_model_config(model_name, d_model=d_model, n_layer=n_layer, verbose=verbose)
+    config = get_model_config(model_name, d_model=d_model, n_layer=n_layer, vocab_size=vocab_size, verbose=verbose)
 
     trainer = Trainer(seed=seed, device=device, experiment_name=exp_name, verbose=verbose)
     trainer.define_model(
@@ -220,9 +222,15 @@ def build_trainer(model_name: str, exp_name: str, seed: int, device_id: int,
     )
     trainer.set_pretrained_target(target='mirna', rna_model='rnabert')
     trainer.task = 'sites'
+    trainer.rc = False  # trainer.forward에서 self.rc 참조 필요
 
-    # checkpoint 로드 (path: saved_models/{model}/{exp}/{seed}/train/epoch/{epoch}/model.pth)
-    trainer.load_model(epoch=best_epoch, pretrain=False, verbose=verbose)
+    # frozen pretrained 모델(rnabert/rnaernie/rnafm/rnamsm)은 circRNA 인코딩에
+    # trainer.model_pt가 별도로 필요 (trainer.forward에서 pre-embedding에 사용)
+    if model_name in ['rnabert', 'rnaernie', 'rnafm', 'rnamsm']:
+        trainer.define_pretrained_model(model_name)
+
+    # epoch=None → saved_models/{model}/{exp}/{seed}/train/model.pth (최신 best 모델)
+    trainer.load_model(epoch=None, pretrain=False, verbose=verbose)
     trainer.model.eval()
     return trainer
 
@@ -279,7 +287,7 @@ def run_inference(trainer, test_dataset, batch_size: int = 32):
     """
     from torch.utils.data import DataLoader
 
-    loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=2)
+    loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
     trainer.model.eval()
 
     results = []
@@ -374,8 +382,7 @@ def run_model_analysis(df_pos: pd.DataFrame, test_dataset,
     """
     여러 모델에 대해 BSJ-proximal / BSJ-distal F1을 계산하고 시각화.
 
-    model_cfgs: [{'name': 'circmac', 'exp': '...', 'seed': 1,
-                   'device': 0, 'best_epoch': 145}, ...]
+    model_cfgs: [{'name': 'circmac', 'exp': '...', 'seed': 1, 'device': 0}, ...]
     """
     print("\n" + "="*60)
     print("PART 2: Model Inference + BSJ-Group F1")
@@ -390,30 +397,56 @@ def run_model_analysis(df_pos: pd.DataFrame, test_dataset,
 
     results_table = []
 
+    # pretrained 모델 max_len (multimolecule 모델별 position embedding 한계)
+    PRETRAINED_MAX_LEN = {
+        'rnabert': 438, 'rnaernie': 511, 'rnafm': 1022, 'rnamsm': 1022
+    }
+
     for cfg in model_cfgs:
         mname = cfg['name']
         print(f"\n[{mname}] Loading model: {cfg['exp']} seed={cfg['seed']}")
         try:
+            # pretrained 모델은 max_len이 다를 수 있어 별도 dataset으로 필터링
+            model_max_len = PRETRAINED_MAX_LEN.get(mname, test_dataset.max_len_circrna)
+            if model_max_len < test_dataset.max_len_circrna:
+                from data import CircRNABindingSitesDataset
+                import numpy as np
+                # test_dataset.df의 positional index 기반으로 필터링
+                keep_mask_arr = test_dataset.df['circRNA'].str.len() <= model_max_len
+                keep_indices  = keep_mask_arr[keep_mask_arr].index.tolist()
+                df_filtered   = test_dataset.df.loc[keep_indices].reset_index(drop=True)
+                cur_dataset   = CircRNABindingSitesDataset(df_filtered, max_len=model_max_len, k=1, k_target=1)
+                # prox/distal mask: test_dataset.df 순서 = df_pos 순서 (둘 다 positive only, reset index)
+                cur_prox_mask   = [prox_mask[i]  for i in keep_indices]
+                cur_distal_mask = [distal_mask[i] for i in keep_indices]
+                cur_df_pos = df_pos.iloc[keep_indices].reset_index(drop=True)
+                print(f"  (filtered to max_len={model_max_len}: {len(cur_df_pos)} positive samples)")
+            else:
+                cur_dataset     = test_dataset
+                cur_df_pos      = df_pos
+                cur_prox_mask   = prox_mask
+                cur_distal_mask = distal_mask
+
             trainer = build_trainer(
                 model_name=mname,
                 exp_name=cfg['exp'],
                 seed=cfg['seed'],
                 device_id=cfg['device'],
-                best_epoch=cfg['best_epoch'],
+                vocab_size=cur_dataset.vocab_size,
                 verbose=False,
             )
-            inference_results = run_inference(trainer, test_dataset, batch_size=batch_size)
-            assert len(inference_results) == len(df_pos), \
-                f"Mismatch: {len(inference_results)} predictions vs {len(df_pos)} samples"
+            inference_results = run_inference(trainer, cur_dataset, batch_size=batch_size)
+            assert len(inference_results) == len(cur_df_pos), \
+                f"Mismatch: {len(inference_results)} predictions vs {len(cur_df_pos)} samples"
 
             # threshold sweep on all samples
-            all_mask = [True] * len(inference_results)
-            thresh = find_best_threshold(inference_results, all_mask)
+            all_mask_cur = [True] * len(inference_results)
+            thresh = find_best_threshold(inference_results, all_mask_cur)
             print(f"  Best threshold: {thresh:.2f}")
 
-            overall  = compute_group_f1(inference_results, all_mask,         threshold=thresh)
-            proximal = compute_group_f1(inference_results, prox_mask,        threshold=thresh)
-            distal   = compute_group_f1(inference_results, distal_mask,      threshold=thresh)
+            overall  = compute_group_f1(inference_results, all_mask_cur,    threshold=thresh)
+            proximal = compute_group_f1(inference_results, cur_prox_mask,   threshold=thresh)
+            distal   = compute_group_f1(inference_results, cur_distal_mask, threshold=thresh)
 
             results_table.append({
                 'model':     mname,
@@ -640,8 +673,6 @@ def main():
                         help='Experiment names (same order as --models)')
     parser.add_argument('--seeds',   nargs='+', type=int, default=[1, 1, 1],
                         help='Seeds (same order as --models)')
-    parser.add_argument('--best_epochs', nargs='+', type=int, default=None,
-                        help='Best epoch per model (auto-detected if not given)')
     parser.add_argument('--device',  type=int, default=0)
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--max_len', type=int, default=1022)
@@ -674,24 +705,9 @@ def main():
     assert len(args.models) == len(args.exps) == len(args.seeds), \
         "--models, --exps, --seeds must have same length"
 
-    # best epochs 처리
-    if args.best_epochs is None:
-        best_epochs = []
-        for mname, exp, seed in zip(args.models, args.exps, args.seeds):
-            try:
-                ep = get_best_epoch(mname, exp, seed)
-                print(f"  Auto-detected best_epoch for {mname}: {ep}")
-            except FileNotFoundError as e:
-                print(f"  WARNING: {e}. Using epoch=150 as fallback.")
-                ep = 150
-            best_epochs.append(ep)
-    else:
-        assert len(args.best_epochs) == len(args.models)
-        best_epochs = args.best_epochs
-
     model_cfgs = [
-        {'name': m, 'exp': e, 'seed': s, 'device': args.device, 'best_epoch': ep}
-        for m, e, s, ep in zip(args.models, args.exps, args.seeds, best_epochs)
+        {'name': m, 'exp': e, 'seed': s, 'device': args.device}
+        for m, e, s in zip(args.models, args.exps, args.seeds)
     ]
 
     # test dataset 준비 (positive only, sites task)
