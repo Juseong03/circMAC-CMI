@@ -299,11 +299,13 @@ def main(with_pred=False, model_dir=None, data_path=None, circ_id=None, mirna_id
     df = load_data(data_path)
 
     cases = select_cases(df, circ_id=circ_id, mirna_id=mirna_id)
+    n_cases = len(cases)
+    n_cols = max(n_cases, 3)  # 최소 3열
 
-    fig = plt.figure(figsize=(18, 13))
+    fig = plt.figure(figsize=(6 * n_cols, 13))
     fig.patch.set_facecolor('white')
     from matplotlib.gridspec import GridSpec
-    gs = GridSpec(2, 3, figure=fig, hspace=0.50, wspace=0.30,
+    gs = GridSpec(2, n_cols, figure=fig, hspace=0.50, wspace=0.30,
                   top=0.92, bottom=0.06, left=0.05, right=0.97)
 
     # ── Row 0: Circular diagrams ─────────────────────────────────────────────
@@ -315,13 +317,12 @@ def main(with_pred=False, model_dir=None, data_path=None, circ_id=None, mirna_id
         draw_circular_binding(ax, seq, sites, title=ttl,
                               pred=pred if with_pred else None)
 
-    # ── Row 1: Linear heatmap for Cases A and B ───────────────────────────────
+    # ── Row 1: Linear heatmap (앞 2개 케이스) ────────────────────────────────
     for col, (row, ttl) in enumerate(cases[:2]):
         ax = fig.add_subplot(gs[1, col])
         seq   = row['circRNA']
         sites = np.array(row['sites'])
         pred_c = get_predictions(row, model_dir if with_pred else None)
-        # 선형 모델 시뮬: BSJ 근처 예측을 낮게
         pred_l = pred_c.copy()
         bsj_win = 25
         decay = np.ones(len(pred_l))
@@ -331,8 +332,8 @@ def main(with_pred=False, model_dir=None, data_path=None, circ_id=None, mirna_id
         draw_linear_heatmap(ax, seq, sites, pred_c, pred_l,
                             title=f'Linear view: {ttl.split(chr(10))[0]}')
 
-    # ── Row 1 Col 2: BSJ statistics ───────────────────────────────────────────
-    ax = fig.add_subplot(gs[1, 2])
+    # ── Row 1 마지막 열: BSJ statistics ──────────────────────────────────────
+    ax = fig.add_subplot(gs[1, n_cols - 1])
     ax.set_facecolor('white')
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
