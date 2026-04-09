@@ -3,6 +3,8 @@
 출력: pretraining_figure.pdf / pretraining_figure.png
 """
 
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.patheffects as pe

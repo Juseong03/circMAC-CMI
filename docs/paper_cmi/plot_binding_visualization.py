@@ -17,6 +17,8 @@ Figure 구성:
 
 import os, sys, argparse
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
@@ -35,8 +37,9 @@ PRED_CMAP   = LinearSegmentedColormap.from_list('pred', ['#EBF5FB', '#1A5276'])
 DATA_PATH = '/workspace/volume/circRNA/data/FL-circAS/extracted_data/df_test_final.pkl'
 
 # ── 데이터 로드 ───────────────────────────────────────────────────────────────
-def load_data():
-    df = pickle.load(open(DATA_PATH, 'rb'))
+def load_data(data_path=None):
+    path = data_path or DATA_PATH
+    df = pickle.load(open(path, 'rb'))
     return df
 
 # ── Model Inference (서버용) ──────────────────────────────────────────────────
@@ -215,9 +218,9 @@ def draw_linear_heatmap(ax, seq, sites, pred_circmac, pred_linear=None,
 # ══════════════════════════════════════════════════════════════════════════════
 # Main Figure
 # ══════════════════════════════════════════════════════════════════════════════
-def main(with_pred=False, model_dir=None):
+def main(with_pred=False, model_dir=None, data_path=None):
     np.random.seed(42)
-    df = load_data()
+    df = load_data(data_path)
 
     # ── 케이스 선택 ──────────────────────────────────────────────────────────
     # Case A: BSJ 직전 binding (3' end)
@@ -335,5 +338,7 @@ if __name__ == '__main__':
     parser.add_argument('--with_pred', action='store_true',
                         help='Run model inference (requires saved model on server)')
     parser.add_argument('--model_dir', type=str, default=None)
+    parser.add_argument('--data_path', type=str, default=None,
+                        help='Path to df_test_final.pkl (default: hardcoded DATA_PATH)')
     args = parser.parse_args()
-    main(with_pred=args.with_pred, model_dir=args.model_dir)
+    main(with_pred=args.with_pred, model_dir=args.model_dir, data_path=args.data_path)
