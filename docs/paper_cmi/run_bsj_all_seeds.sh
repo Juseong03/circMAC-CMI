@@ -44,7 +44,7 @@ run_seed() {
     python docs/paper_cmi/analyze_bsj.py \
         --models $MODELS \
         --exps \
-            exp1_circmac_s${S}          exp1_mamba_s${S} \
+            exp4_full_s${S}             exp1_mamba_s${S} \
             exp1_hymba_s${S}            exp1_lstm_s${S} \
             exp1_transformer_s${S} \
             exp3_rnabert_frozen_s${S}   exp3_rnaernie_frozen_s${S} \
