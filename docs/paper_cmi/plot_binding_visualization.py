@@ -16,6 +16,7 @@ Figure 구성:
 """
 
 import os, sys, argparse
+from pathlib import Path
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -34,7 +35,7 @@ NOBIND_COLOR = '#BDC3C7'
 BSJ_COLOR   = '#F39C12'
 PRED_CMAP   = LinearSegmentedColormap.from_list('pred', ['#EBF5FB', '#1A5276'])
 
-DATA_PATH = '/workspace/volume/circRNA/data/FL-circAS/extracted_data/df_test_final.pkl'
+DATA_PATH = str(Path(__file__).parent.parent.parent / 'data' / 'df_test_final.pkl')
 
 # ── 데이터 로드 ───────────────────────────────────────────────────────────────
 def load_data(data_path=None):

@@ -16,10 +16,11 @@ from matplotlib.patches import Wedge, FancyArrowPatch, FancyBboxPatch
 from matplotlib.gridspec import GridSpec
 from scipy.ndimage import gaussian_filter1d
 import pickle
+from pathlib import Path
 
 # ── 데이터 로드 ────────────────────────────────────────────────────────────
-df = pickle.load(open(
-    '/workspace/volume/circRNA/data/FL-circAS/extracted_data/df_test_final.pkl', 'rb'))
+_DATA = Path(__file__).parent.parent.parent / 'data' / 'df_test_final.pkl'
+df = pickle.load(open(_DATA, 'rb'))
 row  = df.iloc[766]
 SEQ  = row['circRNA']
 GT   = np.array(row['sites'], dtype=float)
