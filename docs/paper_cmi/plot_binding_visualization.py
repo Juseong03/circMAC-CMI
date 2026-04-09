@@ -259,26 +259,44 @@ def draw_linear_heatmap(ax, seq, sites, pred_circmac, pred_linear=None,
 # ══════════════════════════════════════════════════════════════════════════════
 # Main Figure
 # ══════════════════════════════════════════════════════════════════════════════
-def main(with_pred=False, model_dir=None, data_path=None):
-    np.random.seed(42)
-    df = load_data(data_path)
+def select_cases(df, circ_id=None, mirna_id=None):
+    """
+    circ_id / mirna_id가 주어지면 해당 row들을 케이스로 사용.
+    없으면 기본 케이스 3개(iloc 기반) 사용.
+    """
+    if circ_id is not None or mirna_id is not None:
+        mask = pd.Series([True] * len(df), index=df.index)
+        if circ_id is not None:
+            mask &= df['circRNA_ID'].astype(str) == str(circ_id)
+        if mirna_id is not None:
+            mask &= df['miRNA_ID'].astype(str) == str(mirna_id)
+        matched = df[mask]
+        if len(matched) == 0:
+            raise ValueError(f"No rows found for circ_id={circ_id}, mirna_id={mirna_id}")
+        print(f"Found {len(matched)} matching row(s).")
+        cases = []
+        for i, (_, row) in enumerate(matched.iterrows()):
+            label = f"circRNA: {row.get('circRNA_ID', '?')} | miRNA: {row.get('miRNA_ID', '?')}"
+            cases.append((row, label))
+        return cases
 
-    # ── 케이스 선택 ──────────────────────────────────────────────────────────
-    # Case A: BSJ 직전 binding (3' end)
-    row_a = df.iloc[766]   # L=153, sites at 130-152
-    # Case B: BSJ 직후 binding (5' end)
-    row_b = df.iloc[32]    # L=250, sites at 0-27
-    # Case C: 중간 binding (comparison)
-    row_c = df[
-        (df['binding'] == 1) &
-        (df['length'].between(150, 200))
-    ].iloc[5]   # 적당한 중간 케이스
-
-    cases = [
+    # 기본 케이스
+    row_a = df.iloc[766]
+    row_b = df.iloc[32]
+    row_c = df[(df['binding'] == 1) & (df['length'].between(150, 200))].iloc[5]
+    return [
         (row_a, "Case A: Binding site at 3' end\n(adjacent to BSJ in circular form)"),
         (row_b, "Case B: Binding site at 5' end\n(adjacent to BSJ in circular form)"),
         (row_c, "Case C: Binding site in the middle\n(not near BSJ)"),
     ]
+
+
+def main(with_pred=False, model_dir=None, data_path=None, circ_id=None, mirna_id=None):
+    np.random.seed(42)
+    import pandas as pd
+    df = load_data(data_path)
+
+    cases = select_cases(df, circ_id=circ_id, mirna_id=mirna_id)
 
     fig = plt.figure(figsize=(18, 13))
     fig.patch.set_facecolor('white')
@@ -364,10 +382,11 @@ def main(with_pred=False, model_dir=None, data_path=None):
                  '(CircRNA shown as circular topology; BSJ = sequence start/end junction)',
                  fontsize=14, fontweight='bold', y=0.97, color='#2C3E50')
 
+    id_tag  = f'_{circ_id}' if circ_id else ''
     suffix  = '_with_pred' if with_pred else '_gt_only'
     out_dir = Path(__file__).parent
-    out_pdf = out_dir / f'binding_visualization{suffix}.pdf'
-    out_png = out_dir / f'binding_visualization{suffix}.png'
+    out_pdf = out_dir / f'binding_visualization{id_tag}{suffix}.pdf'
+    out_png = out_dir / f'binding_visualization{id_tag}{suffix}.png'
     plt.savefig(out_pdf, bbox_inches='tight', dpi=300)
     plt.savefig(out_png, bbox_inches='tight', dpi=200)
     print(f'Saved: {out_pdf}')
@@ -382,5 +401,10 @@ if __name__ == '__main__':
     parser.add_argument('--model_dir', type=str, default=None)
     parser.add_argument('--data_path', type=str, default=None,
                         help='Path to df_test_final.pkl (default: hardcoded DATA_PATH)')
+    parser.add_argument('--circ_id', type=str, default=None,
+                        help='circRNA_ID to visualize (e.g. hsa_circ_0001649)')
+    parser.add_argument('--mirna_id', type=str, default=None,
+                        help='miRNA_ID to filter (e.g. hsa-miR-21-5p)')
     args = parser.parse_args()
-    main(with_pred=args.with_pred, model_dir=args.model_dir, data_path=args.data_path)
+    main(with_pred=args.with_pred, model_dir=args.model_dir, data_path=args.data_path,
+         circ_id=args.circ_id, mirna_id=args.mirna_id)
