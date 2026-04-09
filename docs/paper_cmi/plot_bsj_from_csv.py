@@ -57,17 +57,35 @@ ARCH_COLORS = {
 }
 
 
-def load_and_merge(csv_paths: list) -> pd.DataFrame:
-    """여러 CSV 파일 로드 후 병합 (중복시 마지막 파일 우선)."""
+def load_and_merge(csv_paths: list) -> tuple:
+    """
+    여러 CSV 파일 로드.
+    - 중복 모델 없음(서버별 병합): 그냥 concat 후 반환 (std=None)
+    - 중복 모델 있음(seed별 집계): model 기준 mean±std 계산 후 반환
+    Returns: (df_mean, df_std or None)
+    """
     dfs = []
     for p in csv_paths:
         df = pd.read_csv(p)
         df.columns = df.columns.str.strip()
         dfs.append(df)
     merged = pd.concat(dfs, ignore_index=True)
-    # 중복 모델은 마지막 파일 우선
-    merged = merged.drop_duplicates(subset='model', keep='last')
-    return merged
+
+    # 중복 모델이 있으면 seed 집계 모드
+    if merged['model'].duplicated().any():
+        numeric_cols = ['overall', 'proximal', 'distal']
+        df_mean = merged.groupby('model')[numeric_cols].mean().reset_index()
+        df_std  = merged.groupby('model')[numeric_cols].std().reset_index()
+        # prox_n, dist_n은 대표값(첫 행)
+        for col in ['label', 'prox_n', 'dist_n']:
+            if col in merged.columns:
+                df_mean[col] = merged.groupby('model')[col].first().values
+        n_seeds = merged.groupby('model').size().iloc[0]
+        print(f'[Aggregate mode] {n_seeds} seeds → mean ± std per model')
+        return df_mean, df_std
+    else:
+        # 서버별 병합 — 중복 없음
+        return merged, None
 
 
 def sort_by_model_order(df: pd.DataFrame) -> pd.DataFrame:
@@ -77,21 +95,30 @@ def sort_by_model_order(df: pd.DataFrame) -> pd.DataFrame:
     return df.sort_values('_order').drop(columns='_order').reset_index(drop=True)
 
 
-def plot_proximal_vs_distal_bar(df: pd.DataFrame, out_dir: Path):
-    """Figure A: proximal vs distal F1 grouped bar chart."""
+def plot_proximal_vs_distal_bar(df: pd.DataFrame, out_dir: Path, df_std: pd.DataFrame = None):
+    """Figure A: proximal vs distal F1 grouped bar chart (with optional error bars)."""
     df = sort_by_model_order(df)
+    if df_std is not None:
+        df_std = df_std.set_index('model').reindex(df['model']).reset_index()
     n = len(df)
     x = np.arange(n)
     width = 0.28
 
     fig, ax = plt.subplots(figsize=(max(8, n * 1.1), 5))
 
-    bars_p = ax.bar(x - width, df['proximal'], width,
-                    color=COLOR_PROXIMAL, alpha=0.85, label='BSJ-Proximal')
-    bars_d = ax.bar(x,         df['distal'],   width,
-                    color=COLOR_DISTAL,   alpha=0.85, label='BSJ-Distal')
-    bars_o = ax.bar(x + width, df['overall'],  width,
-                    color=COLOR_OVERALL,  alpha=0.85, label='Overall')
+    err_p = df_std['proximal'].values if df_std is not None else None
+    err_d = df_std['distal'].values   if df_std is not None else None
+    err_o = df_std['overall'].values  if df_std is not None else None
+
+    ax.bar(x - width, df['proximal'], width, yerr=err_p, capsize=3,
+           color=COLOR_PROXIMAL, alpha=0.85, label='BSJ-Proximal',
+           error_kw=dict(elinewidth=1, ecolor='#666'))
+    ax.bar(x,         df['distal'],   width, yerr=err_d, capsize=3,
+           color=COLOR_DISTAL,   alpha=0.85, label='BSJ-Distal',
+           error_kw=dict(elinewidth=1, ecolor='#666'))
+    ax.bar(x + width, df['overall'],  width, yerr=err_o, capsize=3,
+           color=COLOR_OVERALL,  alpha=0.85, label='Overall',
+           error_kw=dict(elinewidth=1, ecolor='#666'))
 
     # delta annotation (proximal - distal)
     for i, (_, row) in enumerate(df.iterrows()):
@@ -106,7 +133,10 @@ def plot_proximal_vs_distal_bar(df: pd.DataFrame, out_dir: Path):
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=20, ha='right', fontsize=9)
     ax.set_ylabel('F1 Macro', fontsize=11)
-    ax.set_title('BSJ-Proximal vs BSJ-Distal F1 by Model', fontsize=12, fontweight='bold')
+    title = 'BSJ-Proximal vs BSJ-Distal F1 by Model'
+    if df_std is not None:
+        title += ' (mean ± std, 3 seeds)'
+    ax.set_title(title, fontsize=12, fontweight='bold')
     ax.legend(fontsize=9)
     ax.set_ylim(0, df[['proximal','distal','overall']].max().max() * 1.15)
     ax.grid(axis='y', alpha=0.3)
@@ -120,16 +150,23 @@ def plot_proximal_vs_distal_bar(df: pd.DataFrame, out_dir: Path):
     print(f'Saved: {out}')
 
 
-def plot_delta_heatmap(df: pd.DataFrame, out_dir: Path):
-    """Figure B: (proximal - distal) delta 막대그래프."""
+def plot_delta_heatmap(df: pd.DataFrame, out_dir: Path, df_std: pd.DataFrame = None):
+    """Figure B: (proximal - distal) delta 막대그래프 (with optional error bars)."""
     df = sort_by_model_order(df)
     df = df.copy()
     df['delta'] = (df['proximal'] - df['distal']) * 100  # in pp
 
+    # delta std: sqrt(std_prox^2 + std_dist^2) * 100
+    err_delta = None
+    if df_std is not None:
+        df_std = df_std.set_index('model').reindex(df['model']).reset_index()
+        err_delta = np.sqrt(df_std['proximal'].values**2 + df_std['distal'].values**2) * 100
+
     fig, ax = plt.subplots(figsize=(max(7, len(df) * 0.9), 4))
 
     colors = [COLOR_PROXIMAL if d >= 0 else COLOR_DISTAL for d in df['delta']]
-    bars = ax.bar(range(len(df)), df['delta'], color=colors, alpha=0.85, edgecolor='white')
+    bars = ax.bar(range(len(df)), df['delta'], color=colors, alpha=0.85, edgecolor='white',
+                  yerr=err_delta, capsize=4, error_kw=dict(elinewidth=1, ecolor='#444'))
 
     ax.axhline(0, color='black', linewidth=0.8)
     for i, (bar, d) in enumerate(zip(bars, df['delta'])):
@@ -142,7 +179,10 @@ def plot_delta_heatmap(df: pd.DataFrame, out_dir: Path):
     ax.set_xticks(range(len(df)))
     ax.set_xticklabels(labels, rotation=20, ha='right', fontsize=9)
     ax.set_ylabel('Proximal − Distal F1 (pp)', fontsize=11)
-    ax.set_title('BSJ-Proximal Advantage (positive = proximal better)', fontsize=12, fontweight='bold')
+    title = 'BSJ-Proximal Advantage (positive = proximal better)'
+    if df_std is not None:
+        title += '\n(mean ± std, 3 seeds)'
+    ax.set_title(title, fontsize=12, fontweight='bold')
 
     prox_patch = mpatches.Patch(color=COLOR_PROXIMAL, alpha=0.85, label='Proximal advantage')
     dist_patch = mpatches.Patch(color=COLOR_DISTAL,   alpha=0.85, label='Distal advantage')
@@ -199,40 +239,55 @@ def plot_scatter(df: pd.DataFrame, out_dir: Path):
     print(f'Saved: {out}')
 
 
-def print_table(df: pd.DataFrame):
+def print_table(df: pd.DataFrame, df_std: pd.DataFrame = None):
     df = sort_by_model_order(df)
     df = df.copy()
     df['delta_pp'] = (df['proximal'] - df['distal']) * 100
     df['label'] = df['model'].map(MODEL_LABELS)
 
-    print('\n' + '='*70)
-    print(f"{'Model':<16} {'Overall':>8} {'Proximal':>10} {'Distal':>8} {'Δ(pp)':>8}  {'n_prox':>7} {'n_dist':>7}")
-    print('-'*70)
-    for _, row in df.iterrows():
-        sign = '↑' if row['delta_pp'] >= 0 else '↓'
-        print(f"{row['label']:<16} {row['overall']:>8.4f} {row['proximal']:>10.4f} "
-              f"{row['distal']:>8.4f} {row['delta_pp']:>+7.2f}pp {sign}  "
-              f"{int(row.get('prox_n', 0)):>6}  {int(row.get('dist_n', 0)):>6}")
-    print('='*70)
+    if df_std is not None:
+        std_idx = df_std.set_index('model')
+        print('\n' + '='*85)
+        print(f"{'Model':<16} {'Overall':>14} {'Proximal':>16} {'Distal':>14} {'Δ(pp)':>8}")
+        print('-'*85)
+        for _, row in df.iterrows():
+            m = row['model']
+            s = std_idx.loc[m] if m in std_idx.index else None
+            sign = '↑' if row['delta_pp'] >= 0 else '↓'
+            ov  = f"{row['overall']:.4f}±{s['overall']:.4f}"  if s is not None else f"{row['overall']:.4f}"
+            pr  = f"{row['proximal']:.4f}±{s['proximal']:.4f}" if s is not None else f"{row['proximal']:.4f}"
+            di  = f"{row['distal']:.4f}±{s['distal']:.4f}"    if s is not None else f"{row['distal']:.4f}"
+            print(f"{row['label']:<16} {ov:>14} {pr:>16} {di:>14} {row['delta_pp']:>+7.2f}pp {sign}")
+        print('='*85)
+    else:
+        print('\n' + '='*70)
+        print(f"{'Model':<16} {'Overall':>8} {'Proximal':>10} {'Distal':>8} {'Δ(pp)':>8}  {'n_prox':>7} {'n_dist':>7}")
+        print('-'*70)
+        for _, row in df.iterrows():
+            sign = '↑' if row['delta_pp'] >= 0 else '↓'
+            print(f"{row['label']:<16} {row['overall']:>8.4f} {row['proximal']:>10.4f} "
+                  f"{row['distal']:>8.4f} {row['delta_pp']:>+7.2f}pp {sign}  "
+                  f"{int(row.get('prox_n', 0)):>6}  {int(row.get('dist_n', 0)):>6}")
+        print('='*70)
 
 
 def main():
     parser = argparse.ArgumentParser(description='Plot BSJ analysis results from CSV')
     parser.add_argument('--csv', nargs='+', required=True,
-                        help='CSV file(s) from bsj analysis (from one or multiple servers)')
-    parser.add_argument('--out', default='docs/paper_cmi/',
+                        help='CSV file(s): 서버별 병합 또는 seed별 집계 자동 판단')
+    parser.add_argument('--out', '--out_dir', default='docs/paper_cmi/',
                         help='Output directory for figures')
     args = parser.parse_args()
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    df = load_and_merge(args.csv)
+    df, df_std = load_and_merge(args.csv)
     print(f'\nLoaded {len(df)} models from {len(args.csv)} CSV file(s)')
-    print_table(df)
+    print_table(df, df_std)
 
-    plot_proximal_vs_distal_bar(df, out_dir)
-    plot_delta_heatmap(df, out_dir)
+    plot_proximal_vs_distal_bar(df, out_dir, df_std)
+    plot_delta_heatmap(df, out_dir, df_std)
     plot_scatter(df, out_dir)
 
     print(f'\nAll figures saved to: {out_dir}')
