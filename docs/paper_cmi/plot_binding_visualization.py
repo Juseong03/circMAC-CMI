@@ -402,7 +402,7 @@ if __name__ == '__main__':
     parser.add_argument('--data_path', type=str, default=None,
                         help='Path to df_test_final.pkl (default: hardcoded DATA_PATH)')
     parser.add_argument('--circ_id', type=str, default=None,
-                        help='circRNA_ID to visualize (e.g. hsa_circ_0001649)')
+                        help='isoform_ID substring to visualize (e.g. chr6|130955105)')
     parser.add_argument('--mirna_id', type=str, default=None,
                         help='miRNA_ID to filter (e.g. hsa-miR-21-5p)')
     args = parser.parse_args()
