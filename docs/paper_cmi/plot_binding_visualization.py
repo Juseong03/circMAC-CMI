@@ -59,16 +59,56 @@ def get_predictions(row, model_dir=None, device='cuda'):
         pseudo = np.clip(pseudo, 0, 1)
         return pseudo
     else:
-        # 실제 inference (서버에서 실행)
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-        import torch
-        from training import build_model
-        from data import KmerTokenizer, CircRNABindingSitesDataset
+        # 실제 inference — analyze_bsj.py의 build_trainer / run_inference 방식 사용
+        ROOT_DIR = str(Path(__file__).parent.parent.parent)
+        sys.path.insert(0, ROOT_DIR)
 
-        # TODO: 실제 inference 코드
-        # model = load_model(model_dir)
-        # pred = model.predict(row)
-        raise NotImplementedError("서버에서 실제 inference 코드 연결 필요")
+        import torch
+        import pandas as pd
+        from torch.utils.data import DataLoader
+        from trainer import Trainer
+        from data import CircRNABindingSitesDataset
+        from utils import get_device
+        from utils_config import get_model_config
+
+        # model_dir: {root}/saved_models/{model_name}/{exp_name}/{seed}
+        model_dir_path = Path(model_dir).resolve()
+        seed       = int(model_dir_path.name)
+        exp_name   = model_dir_path.parent.name
+        model_name = model_dir_path.parent.parent.name
+
+        # 단일 row → 1-row DataFrame
+        df_single = pd.DataFrame([row])
+        dataset   = CircRNABindingSitesDataset(df_single, max_len=1022, k=1, k_target=1)
+
+        # Trainer 초기화 및 모델 로드
+        device_obj = get_device(0)
+        config  = get_model_config(model_name, d_model=128, n_layer=6,
+                                   vocab_size=dataset.vocab_size)
+        trainer = Trainer(seed=seed, device=device_obj,
+                          experiment_name=exp_name, verbose=False)
+        trainer.define_model(model_name=model_name, config=config,
+                             is_cross_attention=True,
+                             interaction='cross_attention',
+                             site_head_type='conv1d')
+        trainer.set_pretrained_target(target='mirna', rna_model='rnabert')
+        trainer.task = 'sites'
+        trainer.rc   = False
+        trainer.load_model(epoch=None, pretrain=False, verbose=True)
+        trainer.model.eval()
+
+        # Inference
+        loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0)
+        with torch.no_grad():
+            for data in loader:
+                target, target_mask = trainer.forward_target(data)
+                emb, mask = trainer.forward(data)
+                if trainer.model.is_cross_attention:
+                    emb, _ = trainer.forward_cross_attention(emb, target, target_mask)
+                pred_logits = trainer.forward_task(emb, target, task='sites')  # [1, L, 2]
+                pred_prob   = torch.softmax(pred_logits, dim=-1)[..., 1]       # [1, L]
+                L = int(data['length'][0].item())
+                return pred_prob[0, :L].cpu().numpy()
 
 # ══════════════════════════════════════════════════════════════════════════════
 # (a) Circular Diagram
