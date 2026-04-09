@@ -385,7 +385,12 @@ def main(with_pred=False, model_dir=None, data_path=None, circ_id=None, mirna_id
                  '(CircRNA shown as circular topology; BSJ = sequence start/end junction)',
                  fontsize=14, fontweight='bold', y=0.97, color='#2C3E50')
 
-    id_tag  = f'_{circ_id}' if circ_id else ''
+    # 파일명에 쓸 수 없는 문자 제거
+    def sanitize(s):
+        import re
+        return re.sub(r'[|,\s/\\:*?"<>]', '_', s)
+
+    id_tag  = f'_{sanitize(circ_id)}' if circ_id else ''
     suffix  = '_with_pred' if with_pred else '_gt_only'
     out_dir = Path(__file__).parent
     out_pdf = out_dir / f'binding_visualization{id_tag}{suffix}.pdf'
@@ -395,6 +400,24 @@ def main(with_pred=False, model_dir=None, data_path=None, circ_id=None, mirna_id
     print(f'Saved: {out_pdf}')
     print(f'Saved: {out_png}')
     plt.close()
+
+    # ── Raw 값 CSV 저장 ──────────────────────────────────────────────────────
+    import csv
+    out_csv = out_dir / f'binding_visualization{id_tag}{suffix}.csv'
+    with open(out_csv, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['isoform_ID', 'miRNA_ID', 'position', 'nucleotide',
+                         'ground_truth', 'pred_circmac'])
+        for row, ttl in cases:
+            iso   = row.get('isoform_ID', '')
+            mirna = row.get('miRNA_ID', '')
+            seq   = row['circRNA']
+            sites = np.array(row['sites'])
+            pred  = get_predictions(row, model_dir if with_pred else None)
+            for i in range(len(seq)):
+                writer.writerow([iso, mirna, i, seq[i],
+                                 int(sites[i]), round(float(pred[i]), 6)])
+    print(f'Saved: {out_csv}')
 
 
 if __name__ == '__main__':
