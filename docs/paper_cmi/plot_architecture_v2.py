@@ -7,6 +7,9 @@ CircMAC Architecture Figure v2 — 논문용
 """
 
 import numpy as np
+from pathlib import Path
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.patches import FancyBboxPatch, Arc
@@ -367,9 +370,9 @@ fig.suptitle(
     'CircMAC: Circular-aware Multi-branch Architecture for circRNA–miRNA Binding Site Prediction',
     fontsize=14, fontweight='bold', y=0.985, color=C['dark'])
 
-plt.savefig('/workspace/volume/cmi_mac/docs/paper_cmi/architecture_figure_v2.pdf',
+plt.savefig(str(Path(__file__).parent / 'architecture_figure_v2.pdf'),
             bbox_inches='tight', dpi=300)
-plt.savefig('/workspace/volume/cmi_mac/docs/paper_cmi/architecture_figure_v2.png',
+plt.savefig(str(Path(__file__).parent / 'architecture_figure_v2.png'),
             bbox_inches='tight', dpi=200)
 print('Saved: architecture_figure_v2.pdf / .png')
 plt.close()

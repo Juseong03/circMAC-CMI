@@ -255,9 +255,9 @@ fig.suptitle(
     f'Qualitative Analysis: BSJ-adjacent Binding Site  |  miRNA: {MIRNA}',
     fontsize=13, fontweight='bold', y=0.97, color='#2C3E50')
 
-plt.savefig('/workspace/volume/cmi_mac/docs/paper_cmi/example_case_figure.pdf',
+plt.savefig(str(Path(__file__).parent / 'example_case_figure.pdf'),
             bbox_inches='tight', dpi=300)
-plt.savefig('/workspace/volume/cmi_mac/docs/paper_cmi/example_case_figure.png',
+plt.savefig(str(Path(__file__).parent / 'example_case_figure.png'),
             bbox_inches='tight', dpi=200)
 print('Saved: example_case_figure.pdf / .png')
 plt.close()

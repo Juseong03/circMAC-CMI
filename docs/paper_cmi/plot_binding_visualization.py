@@ -364,9 +364,10 @@ def main(with_pred=False, model_dir=None, data_path=None):
                  '(CircRNA shown as circular topology; BSJ = sequence start/end junction)',
                  fontsize=14, fontweight='bold', y=0.97, color='#2C3E50')
 
-    suffix = '_with_pred' if with_pred else '_gt_only'
-    out_pdf = f'/workspace/volume/cmi_mac/docs/paper_cmi/binding_visualization{suffix}.pdf'
-    out_png = f'/workspace/volume/cmi_mac/docs/paper_cmi/binding_visualization{suffix}.png'
+    suffix  = '_with_pred' if with_pred else '_gt_only'
+    out_dir = Path(__file__).parent
+    out_pdf = out_dir / f'binding_visualization{suffix}.pdf'
+    out_png = out_dir / f'binding_visualization{suffix}.png'
     plt.savefig(out_pdf, bbox_inches='tight', dpi=300)
     plt.savefig(out_png, bbox_inches='tight', dpi=200)
     print(f'Saved: {out_pdf}')

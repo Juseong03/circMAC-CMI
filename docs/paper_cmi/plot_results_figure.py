@@ -9,6 +9,7 @@
 출력: results_figure_*.pdf / .png
 """
 
+from pathlib import Path
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -106,8 +107,8 @@ ax.legend(handles=legend_patches, loc='lower right', fontsize=9.5,
           framealpha=0.9, edgecolor='#ccc')
 
 plt.tight_layout()
-plt.savefig('/workspace/volume/cmi_mac/docs/paper_cmi/results_fig_A_encoder.pdf', bbox_inches='tight', dpi=300)
-plt.savefig('/workspace/volume/cmi_mac/docs/paper_cmi/results_fig_A_encoder.png', bbox_inches='tight', dpi=200)
+plt.savefig(str(Path(__file__).parent / 'results_fig_A_encoder.pdf'), bbox_inches='tight', dpi=300)
+plt.savefig(str(Path(__file__).parent / 'results_fig_A_encoder.png'), bbox_inches='tight', dpi=200)
 plt.close()
 print("Saved: results_fig_A_encoder")
 
@@ -152,8 +153,8 @@ ax.text(0.621, 4.0, 'Remove one branch', fontsize=8.5, color='#888', va='center'
 ax.text(0.621, 6.5, 'No circular\ncomponent', fontsize=8.5, color='#888', va='center', style='italic')
 
 plt.tight_layout()
-plt.savefig('/workspace/volume/cmi_mac/docs/paper_cmi/results_fig_B_ablation.pdf', bbox_inches='tight', dpi=300)
-plt.savefig('/workspace/volume/cmi_mac/docs/paper_cmi/results_fig_B_ablation.png', bbox_inches='tight', dpi=200)
+plt.savefig(str(Path(__file__).parent / 'results_fig_B_ablation.pdf'), bbox_inches='tight', dpi=300)
+plt.savefig(str(Path(__file__).parent / 'results_fig_B_ablation.png'), bbox_inches='tight', dpi=200)
 plt.close()
 print("Saved: results_fig_B_ablation")
 
@@ -182,8 +183,8 @@ hbar(axes[1], names_e6, means_e6, stds_e6, colors_e6,
      highlight_idx=1)
 
 plt.tight_layout()
-plt.savefig('/workspace/volume/cmi_mac/docs/paper_cmi/results_fig_CD_interaction_head.pdf', bbox_inches='tight', dpi=300)
-plt.savefig('/workspace/volume/cmi_mac/docs/paper_cmi/results_fig_CD_interaction_head.png', bbox_inches='tight', dpi=200)
+plt.savefig(str(Path(__file__).parent / 'results_fig_CD_interaction_head.pdf'), bbox_inches='tight', dpi=300)
+plt.savefig(str(Path(__file__).parent / 'results_fig_CD_interaction_head.png'), bbox_inches='tight', dpi=200)
 plt.close()
 print("Saved: results_fig_CD_interaction_head")
 
@@ -246,8 +247,8 @@ ax.legend(handles=legend_patches, loc='lower right', fontsize=9.5,
           framealpha=0.9, edgecolor='#ccc')
 
 plt.tight_layout()
-plt.savefig('/workspace/volume/cmi_mac/docs/paper_cmi/results_fig_E_pretraining.pdf', bbox_inches='tight', dpi=300)
-plt.savefig('/workspace/volume/cmi_mac/docs/paper_cmi/results_fig_E_pretraining.png', bbox_inches='tight', dpi=200)
+plt.savefig(str(Path(__file__).parent / 'results_fig_E_pretraining.pdf'), bbox_inches='tight', dpi=300)
+plt.savefig(str(Path(__file__).parent / 'results_fig_E_pretraining.png'), bbox_inches='tight', dpi=200)
 plt.close()
 print("Saved: results_fig_E_pretraining")
 

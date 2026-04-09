@@ -3,6 +3,7 @@
 출력: pretraining_figure.pdf / pretraining_figure.png
 """
 
+from pathlib import Path
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -356,9 +357,9 @@ ax.text(0.0, 0.3, '△ Structure labels from RNAsubopt --circ',
 fig.suptitle('Self-Supervised Pretraining Strategies for CircRNA Representation Learning',
              fontsize=15, fontweight='bold', y=0.97, color='#2C3E50')
 
-plt.savefig('/workspace/volume/cmi_mac/docs/paper_cmi/pretraining_figure.pdf',
+plt.savefig(str(Path(__file__).parent / 'pretraining_figure.pdf'),
             bbox_inches='tight', dpi=300)
-plt.savefig('/workspace/volume/cmi_mac/docs/paper_cmi/pretraining_figure.png',
+plt.savefig(str(Path(__file__).parent / 'pretraining_figure.png'),
             bbox_inches='tight', dpi=200)
 print("Saved: pretraining_figure.pdf / .png")
 plt.show()

@@ -8,6 +8,9 @@ Layout (세로):
 """
 
 import numpy as np
+from pathlib import Path
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.patches import FancyBboxPatch, FancyArrowPatch, Arc, Wedge
@@ -392,9 +395,9 @@ fig.legend(handles=legend_items, loc='lower center', ncol=6,
 fig.suptitle('CircMAC: Circular-aware Multi-branch Architecture for circRNA–miRNA Binding Site Prediction',
              fontsize=14, fontweight='bold', y=0.985, color=C['dark'])
 
-plt.savefig('/workspace/volume/cmi_mac/docs/paper_cmi/architecture_figure.pdf',
+plt.savefig(str(Path(__file__).parent / 'architecture_figure.pdf'),
             bbox_inches='tight', dpi=300)
-plt.savefig('/workspace/volume/cmi_mac/docs/paper_cmi/architecture_figure.png',
+plt.savefig(str(Path(__file__).parent / 'architecture_figure.png'),
             bbox_inches='tight', dpi=200)
 print('Saved: architecture_figure.pdf / .png')
 plt.close()
