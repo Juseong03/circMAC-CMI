@@ -39,6 +39,8 @@ import argparse
 import json
 import numpy as np
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')  # headless 서버용 (display 없이 파일 저장)
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from pathlib import Path
