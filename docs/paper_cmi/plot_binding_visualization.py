@@ -18,6 +18,7 @@ Figure 구성:
 import os, sys, argparse
 from pathlib import Path
 import numpy as np
+import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -293,7 +294,6 @@ def select_cases(df, circ_id=None, mirna_id=None):
 
 def main(with_pred=False, model_dir=None, data_path=None, circ_id=None, mirna_id=None):
     np.random.seed(42)
-    import pandas as pd
     df = load_data(data_path)
 
     cases = select_cases(df, circ_id=circ_id, mirna_id=mirna_id)
