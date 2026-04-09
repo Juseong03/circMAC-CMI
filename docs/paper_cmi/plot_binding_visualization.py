@@ -277,7 +277,9 @@ def select_cases(df, circ_id=None, mirna_id=None):
         print(f"Found {len(matched)} matching row(s).")
         cases = []
         for i, (_, row) in enumerate(matched.iterrows()):
-            label = f"isoform: {row.get('isoform_ID', '?')} | miRNA: {row.get('miRNA_ID', '?')}"
+            iso = str(row.get('isoform_ID', '?'))
+            iso_short = iso if len(iso) <= 30 else iso[:27] + '...'
+            label = f"isoform: {iso_short}\nmiRNA: {row.get('miRNA_ID', '?')}"
             cases.append((row, label))
         return cases
 
