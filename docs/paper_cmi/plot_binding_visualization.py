@@ -48,8 +48,12 @@ def load_data(data_path=None):
 _trainer_cache = {}   # model_dir → trainer (재사용으로 속도 향상)
 
 
+PRETRAINED_MODELS = ['rnabert', 'rnaernie', 'rnafm', 'rnamsm']
+MAX_LEN_MAP = {'rnabert': 438, 'rnaernie': 511, 'rnafm': 1022, 'rnamsm': 1022}
+
+
 def _build_trainer(model_dir, row):
-    """Trainer를 빌드하고 캐싱. 같은 model_dir은 한 번만 로드."""
+    """Trainer를 빌드하고 캐싱. analyze_bsj.py의 build_trainer와 동일한 방식."""
     if model_dir in _trainer_cache:
         return _trainer_cache[model_dir]
 
@@ -57,7 +61,6 @@ def _build_trainer(model_dir, row):
     if ROOT_DIR not in sys.path:
         sys.path.insert(0, ROOT_DIR)
 
-    import torch
     from trainer import Trainer
     from data import CircRNABindingSitesDataset
     from utils import get_device
@@ -68,9 +71,9 @@ def _build_trainer(model_dir, row):
     exp_name   = model_dir_path.parent.name
     model_name = model_dir_path.parent.parent.name
 
-    # 실제 row로 dataset 생성 (vocab_size 확인)
+    max_len = MAX_LEN_MAP.get(model_name, 1022)
     df_single = pd.DataFrame([row])
-    dataset = CircRNABindingSitesDataset(df_single, max_len=1022, k=1, k_target=1)
+    dataset   = CircRNABindingSitesDataset(df_single, max_len=max_len, k=1, k_target=1)
 
     device_obj = get_device(0)
     config = get_model_config(model_name, d_model=128, n_layer=6,
@@ -84,6 +87,11 @@ def _build_trainer(model_dir, row):
     trainer.set_pretrained_target(target='mirna', rna_model='rnabert')
     trainer.task = 'sites'
     trainer.rc   = False
+
+    # RNA LM 계열은 circRNA 인코딩에 pretrained model 별도 필요
+    if model_name in PRETRAINED_MODELS:
+        trainer.define_pretrained_model(model_name)
+
     trainer.load_model(epoch=None, pretrain=False, verbose=True)
     trainer.model.eval()
 
@@ -112,8 +120,10 @@ def get_predictions(row, model_dir=None, device='cuda'):
     from data import CircRNABindingSitesDataset
 
     trainer = _build_trainer(model_dir, row)
-    df_single = pd.DataFrame([row])
-    dataset   = CircRNABindingSitesDataset(df_single, max_len=1022, k=1, k_target=1)
+    model_name = Path(model_dir).resolve().parent.parent.name
+    max_len    = MAX_LEN_MAP.get(model_name, 1022)
+    df_single  = pd.DataFrame([row])
+    dataset    = CircRNABindingSitesDataset(df_single, max_len=max_len, k=1, k_target=1)
     loader    = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0)
     with torch.no_grad():
         for data in loader:
