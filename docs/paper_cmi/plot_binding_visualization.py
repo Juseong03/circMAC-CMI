@@ -48,13 +48,14 @@ def load_data(data_path=None):
 _trainer_cache = {}   # model_dir → trainer (재사용으로 속도 향상)
 
 
-def _build_trainer(model_dir):
+def _build_trainer(model_dir, row):
     """Trainer를 빌드하고 캐싱. 같은 model_dir은 한 번만 로드."""
     if model_dir in _trainer_cache:
         return _trainer_cache[model_dir]
 
     ROOT_DIR = str(Path(__file__).parent.parent.parent)
-    sys.path.insert(0, ROOT_DIR)
+    if ROOT_DIR not in sys.path:
+        sys.path.insert(0, ROOT_DIR)
 
     import torch
     from trainer import Trainer
@@ -67,14 +68,9 @@ def _build_trainer(model_dir):
     exp_name   = model_dir_path.parent.name
     model_name = model_dir_path.parent.parent.name
 
-    # vocab_size 확인용 임시 dataset (1행)
-    tmp_df = pd.DataFrame([{'circRNA': 'AUCG', 'miRNA': 'AUCG',
-                             'sites': [0, 0, 0, 0], 'binding': 0,
-                             'length': 4, 'n_binding_site': 0,
-                             'ratio_binding_site': 0.0, 'label': 0,
-                             'isoform_ID': '', 'miRNA_ID': ''}])
-    from data import CircRNABindingSitesDataset
-    dataset = CircRNABindingSitesDataset(tmp_df, max_len=1022, k=1, k_target=1)
+    # 실제 row로 dataset 생성 (vocab_size 확인)
+    df_single = pd.DataFrame([row])
+    dataset = CircRNABindingSitesDataset(df_single, max_len=1022, k=1, k_target=1)
 
     device_obj = get_device(0)
     config = get_model_config(model_name, d_model=128, n_layer=6,
@@ -115,7 +111,7 @@ def get_predictions(row, model_dir=None, device='cuda'):
     from torch.utils.data import DataLoader
     from data import CircRNABindingSitesDataset
 
-    trainer = _build_trainer(model_dir)
+    trainer = _build_trainer(model_dir, row)
     df_single = pd.DataFrame([row])
     dataset   = CircRNABindingSitesDataset(df_single, max_len=1022, k=1, k_target=1)
     loader    = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0)
