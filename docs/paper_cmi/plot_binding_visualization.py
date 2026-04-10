@@ -268,7 +268,7 @@ def select_cases(df, circ_id=None, mirna_id=None):
     if circ_id is not None or mirna_id is not None:
         mask = pd.Series([True] * len(df), index=df.index)
         if circ_id is not None:
-            mask &= df['isoform_ID'].astype(str).str.contains(str(circ_id), case=False)
+            mask &= df['isoform_ID'].astype(str).str.contains(str(circ_id), case=False, regex=False)
         if mirna_id is not None:
             mask &= df['miRNA_ID'].astype(str) == str(mirna_id)
         matched = df[mask]
