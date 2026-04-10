@@ -106,6 +106,11 @@ def get_predictions(row, model_dir=None, device='cuda'):
         pseudo = np.clip(sites * 0.92 + 0.05 + noise, 0, 1)
         return np.clip(gaussian_filter1d(pseudo, sigma=1.5), 0, 1)
 
+    # ROOT_DIR을 sys.path에 먼저 추가해야 data, trainer 등 import 가능
+    ROOT_DIR = str(Path(__file__).parent.parent.parent)
+    if ROOT_DIR not in sys.path:
+        sys.path.insert(0, ROOT_DIR)
+
     import torch
     from torch.utils.data import DataLoader
     from data import CircRNABindingSitesDataset
