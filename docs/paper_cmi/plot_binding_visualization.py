@@ -446,7 +446,7 @@ def main(with_pred=False, model_dirs=None, data_path=None, circ_id=None, mirna_i
     ax.set_facecolor('white')
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
-    bsj_wins = [10, 20, 30, 50, 70]
+    bsj_wins = [5, 10, 15, 20, 30]
     ratios = []
     pos_df = df[df['binding'] == 1]
     for w in bsj_wins:
@@ -513,7 +513,7 @@ def main(with_pred=False, model_dirs=None, data_path=None, circ_id=None, mirna_i
             seq   = row['circRNA']
             sites = np.array(row['sites'])
             L     = len(seq)
-            w     = 50
+            w     = 20
             # 모델 예측값 (없으면 GT pseudo)
             pred_vals = {}
             if with_pred and model_dirs:

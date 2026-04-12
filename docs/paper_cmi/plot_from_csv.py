@@ -81,7 +81,7 @@ def load_isoform(df, isoform_substr):
 
 def pick_top_mirnas(sub, model_cols, top_n, mode='bsj_prox'):
     L = sub['position'].max() + 1
-    w = 50
+    w = 20
     rows = []
     for mirna, grp in sub.groupby('miRNA_ID'):
         grp = grp.sort_values('position')
@@ -100,7 +100,7 @@ def list_isoforms(df, model_cols):
     for iso, grp in df.groupby('isoform_ID'):
         L = grp['position'].max() + 1
         n_mirna = grp['miRNA_ID'].nunique()
-        w = 50
+        w = 20
         bsj = int(grp[(grp['position'] < w) | (grp['position'] >= L - w)]['ground_truth'].sum())
         results.append((iso, L, n_mirna, bsj))
     results.sort(key=lambda x: (-x[2], -x[3]))
@@ -367,7 +367,7 @@ def plot_model_summary(sub, iso_full, model_cols, out_dir=None):
     if len(model_cols) < 2:
         print("model_summary requires >= 2 models"); return
     L = sub['position'].max() + 1
-    w = 50
+    w = 20
 
     # middle이 너무 작으면 window 자동 축소
     if L <= 2 * w:
@@ -469,7 +469,7 @@ if __name__ == '__main__':
         best, best_score = None, -1
         for iso, grp in df.groupby('isoform_ID'):
             L = grp['position'].max() + 1
-            w = 50
+            w = 20
             bsj = int(grp[(grp['position'] < w) |
                           (grp['position'] >= L - w)]['ground_truth'].sum())
             score = grp['miRNA_ID'].nunique() * 10 + bsj
