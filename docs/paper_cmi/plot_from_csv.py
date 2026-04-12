@@ -369,25 +369,40 @@ def plot_model_summary(sub, iso_full, model_cols, out_dir=None):
     L = sub['position'].max() + 1
     w = 50
 
+    # middle이 너무 작으면 window 자동 축소
+    if L <= 2 * w:
+        w = L // 3
+        print(f"Warning: L={L} too short for w=50, reduced to w={w}")
+
     bsj_mask = (sub['position'] < w) | (sub['position'] >= L - w)
     mid_mask  = ~bsj_mask
 
+    # 전체 miRNA 대상으로 집계 (top-N 편향 없이)
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
     fig.patch.set_facecolor('white')
 
     for ax, mask, region in [(axes[0], bsj_mask, f'BSJ-proximal (±{w}nt)'),
-                              (axes[1], mid_mask,  'Middle region')]:
+                              (axes[1], mid_mask,  f'Middle region (pos {w}~{L-w})')]:
         region_df = sub[mask]
         gt_bind   = region_df['ground_truth'].values
+        n_bind    = int((gt_bind > 0.5).sum())
+
         labels, means, colors = [], [], []
         for m_i, (m_label, m_col) in enumerate(model_cols.items()):
             pred = region_df[m_col].values
-            # binding site에서의 평균 예측값
             bind_idx = gt_bind > 0.5
             score = pred[bind_idx].mean() if bind_idx.any() else 0.0
             labels.append(m_label)
             means.append(score)
             colors.append(get_model_color(m_label, m_i))
+
+        if n_bind == 0:
+            ax.text(0.5, 0.5, f'No binding sites\nin this region',
+                    ha='center', va='center', fontsize=11, color='#999',
+                    transform=ax.transAxes)
+            ax.set_title(region, fontsize=11, fontweight='bold')
+            ax.axis('off')
+            continue
 
         bars = ax.bar(range(len(labels)), means, color=colors,
                       edgecolor='white', linewidth=1.0, width=0.6)
