@@ -33,7 +33,7 @@ python docs/paper_cmi/plot_binding_visualization.py \
     --with_pred \
     --circ_id "$CIRC_ID" \
     --model_dirs \
-        circmac:./saved_models/circmac/exp3_circmac_pt_s${SEED}/${SEED} \
+        circmac:./saved_models/circmac/exp4_full_s${SEED}/${SEED} \
         mamba:./saved_models/mamba/exp1_mamba_s${SEED}/${SEED} \
         lstm:./saved_models/lstm/exp1_lstm_s${SEED}/${SEED} \
         transformer:./saved_models/transformer/exp1_transformer_s${SEED}/${SEED} \
