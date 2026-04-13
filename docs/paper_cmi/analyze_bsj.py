@@ -356,6 +356,102 @@ def compute_group_f1(results: list, group_mask: list, threshold: float = 0.5) ->
     }
 
 
+# ── span 관련 유틸 ─────────────────────────────────────────────────────────────
+
+def extract_spans(seq: np.ndarray) -> list:
+    """연속된 1의 구간 → [(start, end), ...] 반환 (0-indexed, end inclusive)"""
+    spans, start = [], None
+    for i, v in enumerate(seq):
+        if v == 1 and start is None:
+            start = i
+        elif v != 1 and start is not None:
+            spans.append((start, i - 1))
+            start = None
+    if start is not None:
+        spans.append((start, len(seq) - 1))
+    return spans
+
+
+def span_is_proximal(span: tuple, L: int, bsj_window: int) -> bool:
+    """span (start, end) 내 어느 위치라도 BSJ 거리 < bsj_window 이면 proximal"""
+    for pos in range(span[0], span[1] + 1):
+        if bsj_distance(pos, L) < bsj_window:
+            return True
+    return False
+
+
+def compute_span_metrics(results: list, group_mask: list,
+                         bsj_window: int, threshold: float = 0.5) -> dict:
+    """
+    Span-level (site-level) 평가 — overlap 기준 (strict=False).
+
+    group_mask가 True인 샘플에 대해:
+      - 전체 span F1 / precision / recall
+      - BSJ-proximal span recall  (GT span 중 proximal한 것만)
+      - BSJ-distal   span recall  (GT span 중 distal한 것만)
+
+    Returns dict with keys:
+        span_f1, span_precision, span_recall,
+        prox_span_recall, dist_span_recall,
+        n_gt_spans, n_prox_spans, n_dist_spans, n_samples
+    """
+    TP = FP = FN = 0
+    prox_TP = prox_FN = 0
+    dist_TP = dist_FN = 0
+
+    for r, include in zip(results, group_mask):
+        if not include:
+            continue
+        L = r['length']
+        label_bin = (r['label'] >= 0.5).astype(int)
+        pred_bin  = (r['pred']  >= threshold).astype(int)
+
+        gt_spans   = extract_spans(label_bin)
+        pred_spans = extract_spans(pred_bin)
+
+        # overlap matching (strict=False)
+        matched_pred = set()
+        for gt in gt_spans:
+            hit = False
+            for j, pred in enumerate(pred_spans):
+                if max(gt[0], pred[0]) <= min(gt[1], pred[1]):   # overlap
+                    hit = True
+                    matched_pred.add(j)
+                    break
+            if hit:
+                TP += 1
+            else:
+                FN += 1
+
+            # BSJ proximal/distal recall
+            if span_is_proximal(gt, L, bsj_window):
+                if hit: prox_TP += 1
+                else:   prox_FN += 1
+            else:
+                if hit: dist_TP += 1
+                else:   dist_FN += 1
+
+        FP += len(pred_spans) - len(matched_pred)
+
+    precision = TP / (TP + FP + 1e-8)
+    recall    = TP / (TP + FN + 1e-8)
+    f1        = 2 * precision * recall / (precision + recall + 1e-8)
+    prox_recall = prox_TP / (prox_TP + prox_FN + 1e-8)
+    dist_recall = dist_TP / (dist_TP + dist_FN + 1e-8)
+
+    return {
+        'span_f1':          f1,
+        'span_precision':   precision,
+        'span_recall':      recall,
+        'prox_span_recall': prox_recall,
+        'dist_span_recall': dist_recall,
+        'n_gt_spans':   TP + FN,
+        'n_prox_spans': prox_TP + prox_FN,
+        'n_dist_spans': dist_TP + dist_FN,
+        'n_samples':    int(sum(group_mask)),
+    }
+
+
 def find_best_threshold(results: list, group_mask: list) -> float:
     """Validation 없이 test set에서 threshold sweep (분석용)"""
     from sklearn.metrics import f1_score
@@ -380,7 +476,8 @@ def find_best_threshold(results: list, group_mask: list) -> float:
 
 def run_model_analysis(df_pos: pd.DataFrame, test_dataset,
                        model_cfgs: list, bsj_window: int,
-                       batch_size: int, out_dir: Path):
+                       batch_size: int, out_dir: Path,
+                       args_bsj_window: int = None):
     """
     여러 모델에 대해 BSJ-proximal / BSJ-distal F1을 계산하고 시각화.
 
@@ -393,6 +490,9 @@ def run_model_analysis(df_pos: pd.DataFrame, test_dataset,
     # BSJ 그룹 레이블 (positive test samples 순서 = df_pos 순서)
     prox_mask  = [row['bsj_label'] == 'proximal' for _, row in df_pos.iterrows()]
     distal_mask = [row['bsj_label'] == 'distal'   for _, row in df_pos.iterrows()]
+
+    if args_bsj_window is None:
+        args_bsj_window = bsj_window
 
     print(f"BSJ-proximal samples: {sum(prox_mask)}")
     print(f"BSJ-distal samples:   {sum(distal_mask)}")
@@ -450,18 +550,38 @@ def run_model_analysis(df_pos: pd.DataFrame, test_dataset,
             proximal = compute_group_f1(inference_results, cur_prox_mask,   threshold=thresh)
             distal   = compute_group_f1(inference_results, cur_distal_mask, threshold=thresh)
 
+            # ── Span-level metrics ──────────────────────────────────────────
+            span_all = compute_span_metrics(
+                inference_results, all_mask_cur, args_bsj_window, threshold=thresh)
+
             results_table.append({
                 'model':     mname,
                 'label':     MODEL_LABELS.get(mname, mname),
+                # nt-level
                 'overall':   overall['f1'],
                 'proximal':  proximal['f1'],
                 'distal':    distal['f1'],
                 'prox_n':    proximal['n_samples'],
                 'dist_n':    distal['n_samples'],
+                # span-level
+                'span_f1':          span_all['span_f1'],
+                'span_precision':   span_all['span_precision'],
+                'span_recall':      span_all['span_recall'],
+                'prox_span_recall': span_all['prox_span_recall'],
+                'dist_span_recall': span_all['dist_span_recall'],
+                'n_gt_spans':   span_all['n_gt_spans'],
+                'n_prox_spans': span_all['n_prox_spans'],
+                'n_dist_spans': span_all['n_dist_spans'],
             })
             print(f"  Overall F1:          {overall['f1']:.4f}")
             print(f"  BSJ-proximal F1:     {proximal['f1']:.4f} (n={proximal['n_samples']})")
             print(f"  BSJ-distal F1:       {distal['f1']:.4f}  (n={distal['n_samples']})")
+            print(f"  Span F1:             {span_all['span_f1']:.4f}  "
+                  f"(prec={span_all['span_precision']:.4f}, rec={span_all['span_recall']:.4f})")
+            print(f"  Prox span recall:    {span_all['prox_span_recall']:.4f}  "
+                  f"(n_spans={span_all['n_prox_spans']})")
+            print(f"  Dist span recall:    {span_all['dist_span_recall']:.4f}  "
+                  f"(n_spans={span_all['n_dist_spans']})")
 
         except Exception as e:
             print(f"  ERROR: {e}")
@@ -477,8 +597,11 @@ def run_model_analysis(df_pos: pd.DataFrame, test_dataset,
     print(f"\nResults saved: {out_dir / 'bsj_analysis_results.csv'}")
     print(df_results.to_string(index=False))
 
-    # ── Figure: BSJ-Proximal vs Distal 비교 ──
+    # ── Figure: BSJ-Proximal vs Distal 비교 (nt-level) ──
     plot_bsj_comparison(df_results, bsj_window, out_dir)
+
+    # ── Figure: Span-level BSJ recall 비교 ──
+    plot_span_bsj_comparison(df_results, bsj_window, out_dir)
 
 
 def plot_bsj_comparison(df_results: pd.DataFrame, bsj_window: int, out_dir: Path):
@@ -587,6 +710,106 @@ def plot_bsj_comparison(df_results: pd.DataFrame, bsj_window: int, out_dir: Path
     plt.savefig(out_dir / f'bsj_analysis_three_groups_w{bsj_window}.png', bbox_inches='tight', dpi=200)
     plt.close()
     print(f"Saved: {out_pdf2}")
+
+
+def plot_span_bsj_comparison(df_results: pd.DataFrame, bsj_window: int, out_dir: Path):
+    """
+    Site(span)-level BSJ-proximal vs distal recall 비교 figure.
+
+    Panel (a): grouped bar — proximal recall vs distal recall per model
+    Panel (b): Δrecall (proximal − distal) — circular architecture 효과
+    Panel (c): Span F1 / Precision / Recall overview
+    """
+    # span columns이 없으면 skip (data_only mode)
+    if 'span_f1' not in df_results.columns:
+        return
+
+    n_models = len(df_results)
+    x = np.arange(n_models)
+    bar_colors = [COLORS.get(m, '#999') for m in df_results['model']]
+
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    fig.patch.set_facecolor('white')
+
+    # ── (a) Proximal vs Distal span recall ──
+    ax = axes[0]
+    w = 0.32
+    bars_prox = ax.bar(x - w/2, df_results['prox_span_recall'], width=w,
+                       color=bar_colors, alpha=0.95, edgecolor='white', linewidth=0.8,
+                       label='BSJ-proximal sites')
+    bars_dist = ax.bar(x + w/2, df_results['dist_span_recall'], width=w,
+                       color=bar_colors, alpha=0.40, edgecolor='white', linewidth=0.8,
+                       label='BSJ-distal sites')
+    for bar in bars_prox:
+        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
+                f'{bar.get_height():.3f}', ha='center', va='bottom', fontsize=8)
+    for bar in bars_dist:
+        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
+                f'{bar.get_height():.3f}', ha='center', va='bottom', fontsize=8)
+
+    n_prox = df_results['n_prox_spans'].iloc[0] if 'n_prox_spans' in df_results.columns else '?'
+    n_dist = df_results['n_dist_spans'].iloc[0] if 'n_dist_spans' in df_results.columns else '?'
+    ax.set_xticks(x)
+    ax.set_xticklabels(df_results['label'], fontsize=10, rotation=15, ha='right')
+    ax.set_ylabel('Site Recall (overlap-based)', fontsize=11)
+    ax.set_title(f'(a) BSJ-Proximal vs Distal Site Recall\n'
+                 f'window={bsj_window}nt  |  prox sites={n_prox}, dist sites={n_dist}',
+                 fontsize=11, fontweight='bold')
+    ax.legend(fontsize=9, framealpha=0.9)
+    ax.set_ylim(0, 1.12)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.grid(axis='y', linestyle='--', alpha=0.3)
+
+    # ── (b) Δ recall (proximal − distal) ──
+    ax = axes[1]
+    delta = df_results['prox_span_recall'] - df_results['dist_span_recall']
+    bars = ax.bar(x, delta, color=bar_colors, edgecolor='white', linewidth=0.8)
+    if 'circmac' in df_results['model'].values:
+        cm_idx = df_results['model'].tolist().index('circmac')
+        bars[cm_idx].set_edgecolor('#F39C12')
+        bars[cm_idx].set_linewidth(2.5)
+    ax.axhline(0, color='black', linewidth=1.0)
+    for bar, d in zip(bars, delta):
+        sign = '+' if d >= 0 else ''
+        ax.text(bar.get_x() + bar.get_width()/2,
+                d + (0.005 if d >= 0 else -0.008),
+                f'{sign}{d:.3f}', ha='center',
+                va='bottom' if d >= 0 else 'top', fontsize=9)
+    ax.set_xticks(x)
+    ax.set_xticklabels(df_results['label'], fontsize=10, rotation=15, ha='right')
+    ax.set_ylabel('Δ Site Recall (Proximal − Distal)', fontsize=11)
+    ax.set_title('(b) BSJ-Proximal Advantage\n(site-level, positive = better on BSJ)',
+                 fontsize=11, fontweight='bold')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.grid(axis='y', linestyle='--', alpha=0.3)
+
+    # ── (c) Span F1 / Precision / Recall overview ──
+    ax = axes[2]
+    w3 = 0.25
+    ax.bar(x - w3, df_results['span_f1'],        width=w3, color=bar_colors,
+           alpha=1.0, edgecolor='white', label='Span F1')
+    ax.bar(x,      df_results['span_precision'],  width=w3, color=bar_colors,
+           alpha=0.6, edgecolor='white', label='Precision')
+    ax.bar(x + w3, df_results['span_recall'],     width=w3, color=bar_colors,
+           alpha=0.35, edgecolor='white', label='Recall')
+    ax.set_xticks(x)
+    ax.set_xticklabels(df_results['label'], fontsize=10, rotation=15, ha='right')
+    ax.set_ylabel('Score', fontsize=11)
+    ax.set_title('(c) Overall Span-level Metrics\n(overlap-based)',
+                 fontsize=11, fontweight='bold')
+    ax.legend(fontsize=9, framealpha=0.9)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.grid(axis='y', linestyle='--', alpha=0.3)
+
+    plt.tight_layout()
+    out_pdf = out_dir / f'bsj_span_comparison_w{bsj_window}.pdf'
+    plt.savefig(out_pdf, bbox_inches='tight', dpi=300)
+    plt.savefig(out_dir / f'bsj_span_comparison_w{bsj_window}.png', bbox_inches='tight', dpi=200)
+    plt.close()
+    print(f"Saved: {out_pdf}")
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -725,7 +948,8 @@ def main():
         df_pos_reset, max_len=args.max_len + 2, target_type='mirna', k=1)
 
     run_model_analysis(df_pos, test_dataset, model_cfgs,
-                       args.bsj_window, args.batch_size, out_dir)
+                       args.bsj_window, args.batch_size, out_dir,
+                       args_bsj_window=args.bsj_window)
 
     print("\n=== All done! ===")
     print(f"Figures saved to: {out_dir}")
