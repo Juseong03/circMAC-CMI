@@ -79,9 +79,9 @@ def load_isoform(df, isoform_substr):
     return df[df['isoform_ID'] == iso], iso
 
 
-def pick_top_mirnas(sub, model_cols, top_n, mode='bsj_prox'):
+def pick_top_mirnas(sub, model_cols, top_n, bsj_w=20, mode='bsj_prox'):
     L = sub['position'].max() + 1
-    w = 20
+    w = bsj_w
     rows = []
     for mirna, grp in sub.groupby('miRNA_ID'):
         grp = grp.sort_values('position')
@@ -93,14 +93,14 @@ def pick_top_mirnas(sub, model_cols, top_n, mode='bsj_prox'):
     return rows[:top_n]
 
 
-def list_isoforms(df, model_cols):
+def list_isoforms(df, model_cols, bsj_w=20):
     print(f"{'isoform_ID':<65} {'L':>5} {'n_mirna':>8} {'bsj_prox':>9} {'models'}")
     print('-' * 100)
     results = []
     for iso, grp in df.groupby('isoform_ID'):
         L = grp['position'].max() + 1
         n_mirna = grp['miRNA_ID'].nunique()
-        w = 20
+        w = bsj_w
         bsj = int(grp[(grp['position'] < w) | (grp['position'] >= L - w)]['ground_truth'].sum())
         results.append((iso, L, n_mirna, bsj))
     results.sort(key=lambda x: (-x[2], -x[3]))
@@ -112,8 +112,8 @@ def list_isoforms(df, model_cols):
 # ══════════════════════════════════════════════════════════════════════════════
 # 1. Heatmap: GT + 모델별 히트맵 (miRNA × position)
 # ══════════════════════════════════════════════════════════════════════════════
-def plot_heatmap(sub, iso_full, model_cols, top_n=12, out_dir=None):
-    top = pick_top_mirnas(sub, model_cols, top_n)
+def plot_heatmap(sub, iso_full, model_cols, top_n=12, bsj_w=20, out_dir=None):
+    top = pick_top_mirnas(sub, model_cols, top_n, bsj_w=bsj_w)
     if not top:
         print("No data for heatmap"); return
     L          = top[0][4]
@@ -168,8 +168,8 @@ def plot_heatmap(sub, iso_full, model_cols, top_n=12, out_dir=None):
 # ══════════════════════════════════════════════════════════════════════════════
 # 2. Overlay: 다중 모델 예측 오버레이 (상위 N miRNA)
 # ══════════════════════════════════════════════════════════════════════════════
-def plot_overlay(sub, iso_full, model_cols, top_n=6, out_dir=None):
-    top = pick_top_mirnas(sub, model_cols, top_n)
+def plot_overlay(sub, iso_full, model_cols, top_n=6, bsj_w=20, out_dir=None):
+    top = pick_top_mirnas(sub, model_cols, top_n, bsj_w=bsj_w)
     if not top:
         print("No data for overlay"); return
     L = top[0][4]
@@ -263,9 +263,9 @@ def _draw_circular(ax, gt, pred, L, model_label, color, title=''):
                      color=color if pred is not None else '#2C3E50')
 
 
-def plot_per_model(sub, iso_full, model_cols, top_n=4, out_dir=None):
+def plot_per_model(sub, iso_full, model_cols, top_n=4, bsj_w=20, out_dir=None):
     """각 모델별 개별 PDF 저장 (circular + linear overlay)"""
-    top = pick_top_mirnas(sub, model_cols, min(top_n, 4))
+    top = pick_top_mirnas(sub, model_cols, min(top_n, 4), bsj_w=bsj_w)
     if not top:
         print("No data for per_model"); return
     L = top[0][4]
@@ -363,11 +363,11 @@ def plot_bsj_zoom(sub, iso_full, model_cols, top_n=6, zoom_w=50, out_dir=None):
 # ══════════════════════════════════════════════════════════════════════════════
 # 5. Model Summary: BSJ-proximal 예측 성능 비교 bar chart
 # ══════════════════════════════════════════════════════════════════════════════
-def plot_model_summary(sub, iso_full, model_cols, out_dir=None):
+def plot_model_summary(sub, iso_full, model_cols, bsj_w=20, out_dir=None):
     if len(model_cols) < 2:
         print("model_summary requires >= 2 models"); return
     L = sub['position'].max() + 1
-    w = 20
+    w = bsj_w
 
     # middle이 너무 작으면 window 자동 축소
     if L <= 2 * w:
@@ -445,8 +445,10 @@ if __name__ == '__main__':
     parser.add_argument('--csv',  required=True)
     parser.add_argument('--isoform', type=str, default=None)
     parser.add_argument('--top_mirna', type=int, default=12)
+    parser.add_argument('--bsj_w', type=int, default=20,
+                        help='BSJ-proximal window size for region analysis (default: 20)')
     parser.add_argument('--zoom_w', type=int, default=50,
-                        help='BSJ zoom window size (default: 50)')
+                        help='BSJ zoom window size for bsj_zoom plot (default: 50)')
     parser.add_argument('--out_dir', type=str, default=None)
     parser.add_argument('--list_isoforms', action='store_true')
     parser.add_argument('--plots', nargs='+',
@@ -461,7 +463,7 @@ if __name__ == '__main__':
     print(f'Models in CSV: {list(model_cols.keys())}')
 
     if args.list_isoforms:
-        list_isoforms(df, model_cols)
+        list_isoforms(df, model_cols, bsj_w=args.bsj_w)
         exit(0)
 
     # isoform 선택
@@ -469,7 +471,7 @@ if __name__ == '__main__':
         best, best_score = None, -1
         for iso, grp in df.groupby('isoform_ID'):
             L = grp['position'].max() + 1
-            w = 20
+            w = args.bsj_w
             bsj = int(grp[(grp['position'] < w) |
                           (grp['position'] >= L - w)]['ground_truth'].sum())
             score = grp['miRNA_ID'].nunique() * 10 + bsj
@@ -488,16 +490,17 @@ if __name__ == '__main__':
 
     if do_plot('heatmap'):
         plot_heatmap(sub, iso_full, model_cols,
-                     top_n=args.top_mirna, out_dir=args.out_dir)
+                     top_n=args.top_mirna, bsj_w=args.bsj_w, out_dir=args.out_dir)
     if do_plot('overlay'):
         plot_overlay(sub, iso_full, model_cols,
-                     top_n=min(args.top_mirna, 6), out_dir=args.out_dir)
+                     top_n=min(args.top_mirna, 6), bsj_w=args.bsj_w, out_dir=args.out_dir)
     if do_plot('per_model'):
         plot_per_model(sub, iso_full, model_cols,
-                       top_n=4, out_dir=args.out_dir)
+                       top_n=4, bsj_w=args.bsj_w, out_dir=args.out_dir)
     if do_plot('bsj_zoom'):
         plot_bsj_zoom(sub, iso_full, model_cols,
                       top_n=min(args.top_mirna, 6),
                       zoom_w=args.zoom_w, out_dir=args.out_dir)
     if do_plot('model_summary'):
-        plot_model_summary(sub, iso_full, model_cols, out_dir=args.out_dir)
+        plot_model_summary(sub, iso_full, model_cols,
+                           bsj_w=args.bsj_w, out_dir=args.out_dir)

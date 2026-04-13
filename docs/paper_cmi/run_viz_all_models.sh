@@ -10,6 +10,7 @@
 DEVICE=${1:-0}
 SEED=${2:-3}
 CIRC_ID=${3:-"chr4|5565258"}
+BSJ_W=${4:-20}
 
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 OUT_DIR="${ROOT_DIR}/docs/paper_cmi"
@@ -20,6 +21,7 @@ echo "  All-model Visualization"
 echo "  device  : $DEVICE"
 echo "  seed    : $SEED"
 echo "  circ_id : $CIRC_ID"
+echo "  bsj_w   : $BSJ_W"
 echo "  root    : $ROOT_DIR"
 echo "========================================"
 
@@ -59,6 +61,7 @@ python docs/paper_cmi/plot_from_csv.py \
     --csv "$CSV_FILE" \
     --isoform "$CIRC_ID" \
     --top_mirna 12 \
+    --bsj_w "$BSJ_W" \
     --zoom_w 50 \
     --out_dir "$OUT_DIR" \
     --plots all
