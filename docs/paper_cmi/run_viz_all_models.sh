@@ -47,10 +47,10 @@ python docs/paper_cmi/plot_binding_visualization.py \
         lstm:./saved_models/lstm/exp1_lstm_s${SEED}/${SEED} \
         transformer:./saved_models/transformer/exp1_transformer_s${SEED}/${SEED} \
         hymba:./saved_models/hymba/exp1_hymba_s${SEED}/${SEED} \
-        rnabert:./saved_models/rnabert/exp3_rnabert_frozen_s${SEED}/${SEED} \
-        rnaernie:./saved_models/rnaernie/exp3_rnaernie_frozen_s${SEED}/${SEED} \
-        rnamsm:./saved_models/rnamsm/exp3_rnamsm_frozen_s${SEED}/${SEED} \
-        rnafm:./saved_models/rnafm/exp3_rnafm_frozen_s${SEED}/${SEED}
+        rnabert:./saved_models/rnabert/exp1_rnabert_frozen_s${SEED}/${SEED} \
+        rnaernie:./saved_models/rnaernie/exp1_rnaernie_frozen_s${SEED}/${SEED} \
+        rnamsm:./saved_models/rnamsm/exp1_rnamsm_frozen_s${SEED}/${SEED} \
+        rnafm:./saved_models/rnafm/exp1_rnafm_frozen_s${SEED}/${SEED}
 
 # CSV는 plot_binding_visualization.py가 BASE_DIR에 저장함 → OUT_DIR로 이동
 CSV_SRC="${BASE_DIR}/binding_visualization_${CSV_TAG}_with_pred.csv"
