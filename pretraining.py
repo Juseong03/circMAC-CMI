@@ -160,7 +160,7 @@ if __name__ == '__main__':
 
     # Logging and control
     parser.add_argument('--verbose', action='store_true', help='Verbose logging')
-    parser.add_argument('--device', type=int, default=-1, choices=[-1, 0, 1], help='Device (-1 for CPU)')
+    parser.add_argument('--device', type=int, default=-1, help='Device (-1 for CPU, 0~N for GPU)')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
     parser.add_argument('--exp', type=str, default=None, help='Experiment name')
 

@@ -15,7 +15,7 @@ GPU=${1:-4}
 SEEDS=(1 2 3)
 TASK="sites"
 LR=1e-4; EPOCHS=150; EARLYSTOP=20; NUM_WORKERS=4
-D_MODEL=128; N_LAYER=6; MAX_LEN=1022; BS=128
+D_MODEL=128; N_LAYER=6; MAX_LEN=1022; BS=64
 
 mkdir -p logs/exp5 logs/exp6 logs/exp1 saved_models
 TOTAL=0; SKIPPED=0; RAN=0

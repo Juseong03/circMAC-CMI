@@ -229,7 +229,7 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=100, help='Number of epochs')
     parser.add_argument('--earlystop', type=int, default=10, help='Early stopping patience')
     parser.add_argument('--verbose', action='store_true', help='Verbose output')
-    parser.add_argument('--device', type=int, default=-1, choices=[-1, 0, 1], help='Device ID (-1 for CPU)')
+    parser.add_argument('--device', type=int, default=-1, help='Device ID (-1 for CPU, 0~N for GPU)')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
 
     # Experiment and model loading settings
