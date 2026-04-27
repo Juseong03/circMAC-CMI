@@ -8,6 +8,9 @@ logs/{model}/{exp}/{seed}/training.json 을 읽어
 Usage:
   python docs/paper_cmi/check_progress.py          # 전체 요약
   python docs/paper_cmi/check_progress.py --exp1   # EXP1만
+  python docs/paper_cmi/check_progress.py --exp2   # EXP2 (사전학습) 만
+  python docs/paper_cmi/check_progress.py --exp4   # EXP4만
+  python docs/paper_cmi/check_progress.py --exp56  # EXP5+6만
   python docs/paper_cmi/check_progress.py --csv    # CSV로 저장
   python docs/paper_cmi/check_progress.py --plot   # bar chart 생성
 """
@@ -43,18 +46,21 @@ EXPERIMENTS = [
     ("EXP1_trainable", "RNAErnie (tr)", "rnaernie","exp1_rnaernie_trainable", "exp3_rnaernie_trainable"),
     ("EXP1_trainable", "RNA-MSM (tr)",  "rnamsm",  "exp1_rnamsm_trainable",   "exp3_rnamsm_trainable"),
 
+    # ── EXP2: logs 디렉토리에서 자동 스캔 (아래 _auto_scan_exp2() 로 추가됨) ──
+
     # ── EXP4 Ablation ──────────────────────────────────────────────────────
-    ("EXP4_ablation", "Full (CircMAC)",  "circmac", "exp4_full",         None),
-    ("EXP4_ablation", "No Attn",         "circmac", "exp4_no_attn",      None),
-    ("EXP4_ablation", "No Mamba",        "circmac", "exp4_no_mamba",     None),
-    ("EXP4_ablation", "No Conv",         "circmac", "exp4_no_conv",      None),
-    ("EXP4_ablation", "No Circ Bias",    "circmac", "exp4_no_circ_bias", None),
-    ("EXP4_ablation", "Attn Only",       "circmac", "exp4_attn_only",    None),
-    ("EXP4_ablation", "Mamba Only",      "circmac", "exp4_mamba_only",   None),
-    ("EXP4_ablation", "CNN Only",        "circmac", "exp4_cnn_only",     None),
+    ("EXP4_ablation", "Full (CircMAC)",  "circmac", "exp4_full",             None),
+    ("EXP4_ablation", "No Attn",         "circmac", "exp4_no_attn",          None),
+    ("EXP4_ablation", "No Mamba",        "circmac", "exp4_no_mamba",         None),
+    ("EXP4_ablation", "No Conv",         "circmac", "exp4_no_conv",          None),
+    ("EXP4_ablation", "No Circ Bias",    "circmac", "exp4_no_circ_bias",     "exp4_no_circular_bias"),
+    ("EXP4_ablation", "No Circ Pad",     "circmac", "exp4_no_circ_pad",      "exp4_no_circular_pad"),
+    ("EXP4_ablation", "Attn Only",       "circmac", "exp4_attn_only",        None),
+    ("EXP4_ablation", "Mamba Only",      "circmac", "exp4_mamba_only",       None),
+    ("EXP4_ablation", "CNN Only",        "circmac", "exp4_cnn_only",         None),
 
     # ── EXP5 Interaction ───────────────────────────────────────────────────
-    ("EXP5_interaction", "Cross-Attn",   "circmac", "exp5_cross_attn",  None),
+    ("EXP5_interaction", "Cross-Attn",   "circmac", "exp5_cross_attn",  "exp5_cross_attention"),
     ("EXP5_interaction", "Concat",       "circmac", "exp5_concat",      None),
     ("EXP5_interaction", "Elementwise",  "circmac", "exp5_elementwise", None),
 
@@ -66,15 +72,58 @@ EXPERIMENTS = [
 SEEDS = [1, 2, 3]
 
 GROUP_ORDER = ["EXP1_base", "EXP1_frozen", "EXP1_trainable",
+               "EXP2_pretrain",
                "EXP4_ablation", "EXP5_interaction", "EXP6_site_head"]
 GROUP_TITLES = {
     "EXP1_base":        "EXP1 — Base Encoder Comparison",
     "EXP1_frozen":      "EXP1 — RNA LM Frozen",
     "EXP1_trainable":   "EXP1 — RNA LM Trainable",
+    "EXP2_pretrain":    "EXP2 — Pretraining Strategy (CircMAC)",
     "EXP4_ablation":    "EXP4 — CircMAC Ablation",
     "EXP5_interaction": "EXP5 — Interaction Mechanism",
     "EXP6_site_head":   "EXP6 — Site Prediction Head",
 }
+
+# ── EXP2 자동 스캔 ─────────────────────────────────────────────────────────────
+def _scan_exp2() -> list:
+    """
+    logs/circmac/exp2*/ 를 스캔해서 EXPERIMENTS 형식으로 반환.
+    버전별로 그룹화: exp2v4 > exp2v3 > exp2v2 > exp2 순으로 최신 버전만 표시.
+    """
+    circ_log = LOG_DIR / "circmac"
+    if not circ_log.exists():
+        return []
+
+    # exp_prefix (seed 제거) → seed list
+    from collections import defaultdict
+    prefix_seeds: dict = defaultdict(set)
+    for p in circ_log.iterdir():
+        name = p.name  # e.g. exp2v4_nopt_sites_s1
+        if not name.startswith("exp2"):
+            continue
+        # 마지막 _s{N} 제거
+        import re
+        m = re.match(r"^(exp2[^/]+)_s(\d+)$", name)
+        if m:
+            prefix_seeds[m.group(1)].add(int(m.group(2)))
+
+    if not prefix_seeds:
+        return []
+
+    # 버전 우선순위 정렬: exp2v4 > exp2v3 > exp2v2 > exp2_
+    def version_key(pref):
+        if pref.startswith("exp2v4"): return (0, pref)
+        if pref.startswith("exp2v3"): return (1, pref)
+        if pref.startswith("exp2v2"): return (2, pref)
+        return (3, pref)
+
+    rows = []
+    for prefix in sorted(prefix_seeds.keys(), key=version_key):
+        label = prefix.replace("exp2v4_", "").replace("exp2v3_", "").replace("exp2v2_", "").replace("exp2_", "")
+        label = label.replace("_sites", "").replace("_", "+")
+        rows.append(("EXP2_pretrain", label, "circmac", prefix, None))
+    return rows
+
 
 # ── 결과 읽기 ──────────────────────────────────────────────────────────────────
 def load_result(model: str, exp_prefix: str, seed: int) -> dict | None:
@@ -102,8 +151,20 @@ def load_result(model: str, exp_prefix: str, seed: int) -> dict | None:
 
 
 def collect_results():
+    # EXP2는 logs 디렉토리에서 자동 스캔해서 EXPERIMENTS에 합침
+    exp2_entries = _scan_exp2()
+    all_experiments = []
+    for entry in EXPERIMENTS:
+        if entry[0] == "EXP2_pretrain":
+            continue  # placeholder 제거
+        all_experiments.append(entry)
+    # EXP2를 EXP1 뒤, EXP4 앞에 삽입
+    insert_idx = next((i for i, e in enumerate(all_experiments) if e[0] == "EXP4_ablation"), len(all_experiments))
+    for e in reversed(exp2_entries):
+        all_experiments.insert(insert_idx, e)
+
     rows = []
-    for group, label, model, exp_prefix, alt_prefix in EXPERIMENTS:
+    for group, label, model, exp_prefix, alt_prefix in all_experiments:
         seed_results = []
         for seed in SEEDS:
             r = load_result(model, exp_prefix, seed)
@@ -257,6 +318,7 @@ def plot_summary(rows):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--exp1",  action="store_true", help="EXP1 only")
+    parser.add_argument("--exp2",  action="store_true", help="EXP2 pretraining only")
     parser.add_argument("--exp4",  action="store_true", help="EXP4 only")
     parser.add_argument("--exp56", action="store_true", help="EXP5+6 only")
     parser.add_argument("--csv",   action="store_true", help="Save CSV")
@@ -269,6 +331,8 @@ def main():
     # 필터
     if args.exp1:
         rows = [r for r in rows if r["group"].startswith("EXP1")]
+    elif args.exp2:
+        rows = [r for r in rows if r["group"] == "EXP2_pretrain"]
     elif args.exp4:
         rows = [r for r in rows if r["group"] == "EXP4_ablation"]
     elif args.exp56:
