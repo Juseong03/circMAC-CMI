@@ -6,13 +6,15 @@ logs/{model}/{exp}/{seed}/training.json 을 읽어
 실험별 F1 (mean ± std across seeds) 테이블을 출력합니다.
 
 Usage:
-  python docs/paper_cmi/check_progress.py          # 전체 요약
-  python docs/paper_cmi/check_progress.py --exp1   # EXP1만
-  python docs/paper_cmi/check_progress.py --exp2   # EXP2 (사전학습) 만
-  python docs/paper_cmi/check_progress.py --exp4   # EXP4만
-  python docs/paper_cmi/check_progress.py --exp56  # EXP5+6만
-  python docs/paper_cmi/check_progress.py --csv    # CSV로 저장
-  python docs/paper_cmi/check_progress.py --plot   # bar chart 생성
+  python docs/paper_cmi/check_progress.py               # 전체 요약 (logs/ 기준)
+  python docs/paper_cmi/check_progress.py --logdir logs_0427   # 서버 결과 확인
+  python docs/paper_cmi/check_progress.py --exp1        # EXP1만
+  python docs/paper_cmi/check_progress.py --exp2        # EXP2 (사전학습)
+  python docs/paper_cmi/check_progress.py --exp4        # EXP4 ablation
+  python docs/paper_cmi/check_progress.py --exp56       # EXP5+6
+  python docs/paper_cmi/check_progress.py --csv         # CSV로 저장
+  python docs/paper_cmi/check_progress.py --plot        # bar chart 생성
+  python docs/paper_cmi/check_progress.py --logdir logs_0427 --all_exp2  # 전체 EXP2
 """
 
 import json
@@ -21,13 +23,13 @@ import numpy as np
 from pathlib import Path
 
 ROOT    = Path(__file__).parent.parent.parent
-LOG_DIR = ROOT / 'logs'
+LOG_DIR = ROOT / 'logs'          # default; --logdir 로 덮어씀
 OUT_DIR = Path(__file__).parent
 
 # ── 실험 정의 ──────────────────────────────────────────────────────────────────
 # (group, label, model, final_exp_prefix, old_exp_prefix)
-# final_exp_prefix : scripts/final_v2/ 에서 사용하는 최종 naming
-# old_exp_prefix   : 이전 실험에서 돌린 naming (--final 모드에선 무시)
+# final_exp_prefix : 최신 naming (logs_0427)
+# old_exp_prefix   : 이전 naming fallback (--final 모드에선 무시)
 
 EXPERIMENTS = [
     # ── EXP1 Base ──────────────────────────────────────────────────────────
@@ -37,29 +39,31 @@ EXPERIMENTS = [
     ("EXP1_base", "LSTM",        "lstm",        "exp1_lstm",        None),
     ("EXP1_base", "Transformer", "transformer", "exp1_transformer", None),
 
-    # ── EXP1 RNA LM Frozen ─────────────────────────────────────────────────
-    ("EXP1_frozen", "RNABERT (frz)",  "rnabert", "exp1_rnabert_frozen",  "exp3_rnabert_frozen"),
-    ("EXP1_frozen", "RNAErnie (frz)", "rnaernie","exp1_rnaernie_frozen", "exp3_rnaernie_frozen"),
-    ("EXP1_frozen", "RNA-FM (frz)",   "rnafm",   "exp1_rnafm_frozen",    "exp3_rnafm_frozen"),
-    ("EXP1_frozen", "RNA-MSM (frz)",  "rnamsm",  "exp1_rnamsm_frozen",   "exp3_rnamsm_frozen"),
+    # ── EXP1 RNA LM Frozen (fair: max_len=438) ─────────────────────────────
+    # logs_0427: exp1_fair_frozen_{model}_s{seed}
+    ("EXP1_frozen", "RNABERT (frz)",  "rnabert", "exp1_fair_frozen_rnabert",  "exp3_rnabert_frozen"),
+    ("EXP1_frozen", "RNAErnie (frz)", "rnaernie","exp1_fair_frozen_rnaernie", "exp3_rnaernie_frozen"),
+    ("EXP1_frozen", "RNA-FM (frz)",   "rnafm",   "exp1_fair_frozen_rnafm",    "exp3_rnafm_frozen"),
+    ("EXP1_frozen", "RNA-MSM (frz)",  "rnamsm",  "exp1_fair_frozen_rnamsm",   "exp3_rnamsm_frozen"),
 
-    # ── EXP1 RNA LM Trainable ──────────────────────────────────────────────
-    ("EXP1_trainable", "RNABERT (tr)",  "rnabert", "exp1_rnabert_trainable",  "exp3_rnabert_trainable"),
-    ("EXP1_trainable", "RNAErnie (tr)", "rnaernie","exp1_rnaernie_trainable", "exp3_rnaernie_trainable"),
-    ("EXP1_trainable", "RNA-MSM (tr)",  "rnamsm",  "exp1_rnamsm_trainable",   "exp3_rnamsm_trainable"),
+    # ── EXP1 RNA LM Trainable (fair: max_len=438) ──────────────────────────
+    ("EXP1_trainable", "RNABERT (tr)",  "rnabert", "exp1_fair_trainable_rnabert",  "exp3_rnabert_trainable"),
+    ("EXP1_trainable", "RNAErnie (tr)", "rnaernie","exp1_fair_trainable_rnaernie", "exp3_rnaernie_trainable"),
+    ("EXP1_trainable", "RNA-FM (tr)",   "rnafm",   "exp1_fair_trainable_rnafm",    "exp3_rnafm_trainable"),
+    ("EXP1_trainable", "RNA-MSM (tr)",  "rnamsm",  "exp1_fair_trainable_rnamsm",   "exp3_rnamsm_trainable"),
 
     # ── EXP2: _scan_exp2()로 동적 추가 ────────────────────────────────────
 
     # ── EXP4 Ablation ──────────────────────────────────────────────────────
-    ("EXP4_ablation", "Full (CircMAC)",  "circmac", "exp4_full",         None),
-    ("EXP4_ablation", "No Attn",         "circmac", "exp4_no_attn",      None),
-    ("EXP4_ablation", "No Mamba",        "circmac", "exp4_no_mamba",     None),
-    ("EXP4_ablation", "No Conv",         "circmac", "exp4_no_conv",      None),
-    ("EXP4_ablation", "No Circ Bias",    "circmac", "exp4_no_circ_bias", "exp4_no_circular_bias"),
-    ("EXP4_ablation", "No Circ Pad",     "circmac", "exp4_no_circ_pad",  "exp4_no_circular_pad"),
-    ("EXP4_ablation", "Attn Only",       "circmac", "exp4_attn_only",    None),
-    ("EXP4_ablation", "Mamba Only",      "circmac", "exp4_mamba_only",   None),
-    ("EXP4_ablation", "CNN Only",        "circmac", "exp4_cnn_only",     None),
+    ("EXP4_ablation", "Full (CircMAC)",  "circmac", "exp4_full",              None),
+    ("EXP4_ablation", "No Attn",         "circmac", "exp4_no_attn",           None),
+    ("EXP4_ablation", "No Mamba",        "circmac", "exp4_no_mamba",          None),
+    ("EXP4_ablation", "No Conv",         "circmac", "exp4_no_conv",           None),
+    ("EXP4_ablation", "No Circ Bias",    "circmac", "exp4_no_circ_bias",      "exp4_no_circular_bias"),
+    ("EXP4_ablation", "No Circ Pad",     "circmac", "exp4_no_circ_pad",       "exp4_no_circular_pad"),
+    ("EXP4_ablation", "Attn Only",       "circmac", "exp4_attn_only",         None),
+    ("EXP4_ablation", "Mamba Only",      "circmac", "exp4_mamba_only",        None),
+    ("EXP4_ablation", "CNN Only",        "circmac", "exp4_cnn_only",          None),
 
     # ── EXP5 Interaction ───────────────────────────────────────────────────
     ("EXP5_interaction", "Cross-Attn",  "circmac", "exp5_cross_attn",  "exp5_cross_attention"),
@@ -71,18 +75,17 @@ EXPERIMENTS = [
     ("EXP6_site_head", "Linear",  "circmac", "exp6_linear", None),
 ]
 
-# ── EXP2 최종 정의 (ptcmp = run_pretrain_comparison.sh 결과) ───────────────────
-# ptcmp naming: BS=64 for finetune (same as EXP1)
-# old_exp_prefix: fallback for checking progress before ptcmp is done
+# ── EXP2 최종 정의 ─────────────────────────────────────────────────────────────
+# logs_0427 기준: exp2_{strategy}_sites_s{seed}
+# 사전학습 전략 비교 (d_model=64 pretrain → d_model=128 finetune)
 EXP2_FINAL = [
-    ("EXP2_pretrain", "No PT",    "circmac", "ptcmp_nopt",    "exp2v4_nopt_sites"),
-    ("EXP2_pretrain", "MLM",      "circmac", "ptcmp_mlm",     "exp2v4_mlm_sites"),
-    ("EXP2_pretrain", "NTP",      "circmac", "ptcmp_ntp",     "exp2_ntp_sites"),
-    ("EXP2_pretrain", "SSP",      "circmac", "ptcmp_ssp",     "exp2v4_ssp_sites"),
-    ("EXP2_pretrain", "Pairing",  "circmac", "ptcmp_pair",    "exp2v4_pair_sites"),
-    ("EXP2_pretrain", "CPCL",     "circmac", "ptcmp_cpcl",    "exp2v4_cpcl_sites"),
-    ("EXP2_pretrain", "MLM+NTP",  "circmac", "ptcmp_mlm_ntp", "exp2_mlm_ntp_sites"),
-    ("EXP2_pretrain", "All",      "circmac", "ptcmp_all",     "exp2_mlm_ntp_cpcl_pair_sites"),
+    ("EXP2_pretrain", "No PT",      "circmac", "exp2_nopt_sites",        None),
+    ("EXP2_pretrain", "MLM",        "circmac", "exp2_mlm_sites",         None),
+    ("EXP2_pretrain", "NTP",        "circmac", "exp2_ntp_sites",         None),
+    ("EXP2_pretrain", "MLM+SSP",    "circmac", "exp2_mlm_ssp_sites",     None),
+    ("EXP2_pretrain", "MLM+CPCL",   "circmac", "exp2_mlm_cpcl_sites",    None),
+    ("EXP2_pretrain", "MLM+NTP",    "circmac", "exp2_mlm_ntp_sites",     None),
+    ("EXP2_pretrain", "All",        "circmac", "exp2_mlm_ntp_cpcl_pair_sites", None),
 ]
 
 SEEDS = [1, 2, 3]
@@ -92,22 +95,21 @@ GROUP_ORDER = ["EXP1_base", "EXP1_frozen", "EXP1_trainable",
                "EXP4_ablation", "EXP5_interaction", "EXP6_site_head"]
 GROUP_TITLES = {
     "EXP1_base":        "EXP1 — Base Encoder Comparison",
-    "EXP1_frozen":      "EXP1 — RNA LM Frozen",
-    "EXP1_trainable":   "EXP1 — RNA LM Trainable",
+    "EXP1_frozen":      "EXP1 — RNA LM Frozen (fair, max_len=438)",
+    "EXP1_trainable":   "EXP1 — RNA LM Trainable (fair, max_len=438)",
     "EXP2_pretrain":    "EXP2 — Pretraining Strategy (CircMAC)",
     "EXP4_ablation":    "EXP4 — CircMAC Ablation",
     "EXP5_interaction": "EXP5 — Interaction Mechanism",
     "EXP6_site_head":   "EXP6 — Site Prediction Head",
 }
 
-# ── EXP2 자동 스캔 (--all 모드) ────────────────────────────────────────────────
-def _scan_exp2_all() -> list:
-    """
-    logs/circmac/exp2*/ 를 전부 스캔해서 반환 (버전 구분 없이 모두 표시).
-    """
+
+# ── EXP2 자동 스캔 (--all_exp2 모드) ───────────────────────────────────────────
+def _scan_exp2_all(log_dir: Path) -> list:
+    """logs/circmac/exp2*/ 를 전부 스캔해서 반환."""
     import re
     from collections import defaultdict
-    circ_log = LOG_DIR / "circmac"
+    circ_log = log_dir / "circmac"
     if not circ_log.exists():
         return []
 
@@ -123,12 +125,12 @@ def _scan_exp2_all() -> list:
         if pref.startswith("exp2v4"): return (0, pref)
         if pref.startswith("exp2v3"): return (1, pref)
         if pref.startswith("exp2v2"): return (2, pref)
-        return (3, pref)
+        if pref.startswith("exp2_"):  return (3, pref)
+        return (4, pref)
 
     rows = []
     for prefix in sorted(prefix_seeds.keys(), key=version_key):
         label = re.sub(r"^exp2v?\d*_", "", prefix).replace("_sites", "").replace("_", "+")
-        # 버전 태그 추가
         ver = re.match(r"^(exp2v?\d*)", prefix).group(1)
         label = f"[{ver}] {label}"
         rows.append(("EXP2_pretrain", label, "circmac", prefix, None))
@@ -136,10 +138,10 @@ def _scan_exp2_all() -> list:
 
 
 # ── 결과 읽기 ──────────────────────────────────────────────────────────────────
-def load_result(model: str, exp_prefix: str, seed: int) -> dict | None:
+def load_result(model: str, exp_prefix: str, seed: int, log_dir: Path) -> dict | None:
     """logs/{model}/{exp_prefix}_s{seed}/{seed}/training.json 에서 test F1 추출"""
     exp_name = f"{exp_prefix}_s{seed}"
-    path = LOG_DIR / model / exp_name / str(seed) / "training.json"
+    path = log_dir / model / exp_name / str(seed) / "training.json"
     if not path.exists():
         return None
     try:
@@ -160,56 +162,49 @@ def load_result(model: str, exp_prefix: str, seed: int) -> dict | None:
         return None
 
 
-def collect_results(final: bool = False, all_exp2: bool = False):
+def collect_results(log_dir: Path, final: bool = False, all_exp2: bool = False):
     """
-    final=True  : final_v2 naming만 (old alt_prefix 무시, EXP2는 EXP2_FINAL만)
-    all_exp2=True : EXP2를 전체 스캔 (이전 실험 포함)
-    기본값       : final naming 우선, alt_prefix fallback 허용, EXP2_FINAL 사용
+    final=True   : alt_prefix 무시 (최신 naming만)
+    all_exp2=True: EXP2 전체 스캔
+    기본값        : final naming 우선, alt_prefix fallback 허용
     """
-    # EXP2 entries 결정
-    if all_exp2:
-        exp2_entries = _scan_exp2_all()
-    else:
-        exp2_entries = EXP2_FINAL  # 최종 정의만
+    exp2_entries = _scan_exp2_all(log_dir) if all_exp2 else EXP2_FINAL
 
-    all_experiments = []
-    for entry in EXPERIMENTS:
-        if entry[0] == "EXP2_pretrain":
-            continue
-        all_experiments.append(entry)
-
-    insert_idx = next((i for i, e in enumerate(all_experiments) if e[0] == "EXP4_ablation"), len(all_experiments))
+    all_experiments = [e for e in EXPERIMENTS if e[0] != "EXP2_pretrain"]
+    insert_idx = next(
+        (i for i, e in enumerate(all_experiments) if e[0] == "EXP4_ablation"),
+        len(all_experiments)
+    )
     for e in reversed(exp2_entries):
         all_experiments.insert(insert_idx, e)
 
     rows = []
     for group, label, model, exp_prefix, alt_prefix in all_experiments:
-        # --final 모드: alt_prefix 사용 안 함
         if final:
             alt_prefix = None
         seed_results = []
         for seed in SEEDS:
-            r = load_result(model, exp_prefix, seed)
+            r = load_result(model, exp_prefix, seed, log_dir)
             if r is None and alt_prefix:
-                r = load_result(model, alt_prefix, seed)
+                r = load_result(model, alt_prefix, seed, log_dir)
             seed_results.append(r)
 
-        done    = sum(1 for r in seed_results if r is not None)
-        f1s     = [r["f1"]    for r in seed_results if r is not None]
-        span_f1s= [r["span_f1"] for r in seed_results if r is not None]
-        epochs  = [r["epoch"] for r in seed_results if r is not None]
+        done     = sum(1 for r in seed_results if r is not None)
+        f1s      = [r["f1"]       for r in seed_results if r is not None]
+        span_f1s = [r["span_f1"]  for r in seed_results if r is not None]
+        epochs   = [r["epoch"]    for r in seed_results if r is not None]
 
         rows.append({
-            "group":    group,
-            "label":    label,
-            "model":    model,
-            "exp":      exp_prefix,
-            "done":     done,
-            "total":    len(SEEDS),
-            "f1_mean":  np.mean(f1s)     if f1s else None,
-            "f1_std":   np.std(f1s)      if len(f1s) > 1 else 0.0,
-            "span_mean":np.mean(span_f1s) if span_f1s else None,
-            "epochs":   epochs,
+            "group":     group,
+            "label":     label,
+            "model":     model,
+            "exp":       exp_prefix,
+            "done":      done,
+            "total":     len(SEEDS),
+            "f1_mean":   np.mean(f1s)      if f1s else None,
+            "f1_std":    np.std(f1s)       if len(f1s) > 1 else 0.0,
+            "span_mean": np.mean(span_f1s) if span_f1s else None,
+            "epochs":    epochs,
             "seed_results": seed_results,
         })
     return rows
@@ -223,14 +218,14 @@ def print_table(rows, show_span=False):
             continue
 
         title = GROUP_TITLES[grp]
-        done_count = sum(1 for r in grp_rows for _ in range(r["done"]))
+        done_count  = sum(r["done"]  for r in grp_rows)
         total_count = sum(r["total"] for r in grp_rows)
 
         print(f"\n{'='*72}")
         print(f"  {title}   [{done_count}/{total_count} seeds done]")
         print(f"{'='*72}")
 
-        header = f"  {'Model':<22} {'Done':>6}  {'F1 (mean±std)':>16}"
+        header = f"  {'Model':<25} {'Done':>6}  {'F1 (mean±std)':>16}"
         if show_span:
             header += f"  {'Span-F1':>10}"
         header += f"  {'Epochs'}"
@@ -239,17 +234,12 @@ def print_table(rows, show_span=False):
 
         for r in grp_rows:
             status = f"{r['done']}/{r['total']}"
-            if r["f1_mean"] is not None:
-                f1_str = f"{r['f1_mean']:.4f} ± {r['f1_std']:.4f}"
-            else:
-                f1_str = "—"
-
+            f1_str = f"{r['f1_mean']:.4f} ± {r['f1_std']:.4f}" if r["f1_mean"] is not None else "—"
             span_str = f"{r['span_mean']:.4f}" if r["span_mean"] is not None else "—"
             ep_str   = ",".join(str(e) for e in r["epochs"]) if r["epochs"] else "—"
 
-            # 완료 여부 표시
             marker = "✓" if r["done"] == r["total"] else ("…" if r["done"] > 0 else " ")
-            line = f"  {marker} {r['label']:<21} {status:>6}  {f1_str:>16}"
+            line = f"  {marker} {r['label']:<24} {status:>6}  {f1_str:>16}"
             if show_span:
                 line += f"  {span_str:>10}"
             line += f"  ep={ep_str}"
@@ -276,7 +266,7 @@ def save_csv(rows, path: Path):
     print(f"Saved: {path}")
 
 
-def plot_summary(rows):
+def plot_summary(rows, out_dir: Path):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -286,12 +276,12 @@ def plot_summary(rows):
         "EXP1_base":        "#E67E22",
         "EXP1_frozen":      "#8E44AD",
         "EXP1_trainable":   "#9B59B6",
+        "EXP2_pretrain":    "#16A085",
         "EXP4_ablation":    "#2980B9",
         "EXP5_interaction": "#27AE60",
         "EXP6_site_head":   "#E74C3C",
     }
 
-    # completed rows only
     done_rows = [r for r in rows if r["f1_mean"] is not None]
     if not done_rows:
         print("No completed experiments to plot.")
@@ -301,7 +291,7 @@ def plot_summary(rows):
     fig, ax = plt.subplots(figsize=(max(10, n * 0.6), 5))
     fig.patch.set_facecolor("white")
 
-    x = np.arange(n)
+    x      = np.arange(n)
     colors = [COLORS_GROUP.get(r["group"], "#999") for r in done_rows]
     means  = [r["f1_mean"] for r in done_rows]
     stds   = [r["f1_std"]  for r in done_rows]
@@ -318,20 +308,20 @@ def plot_summary(rows):
     ax.set_xticklabels([r["label"] for r in done_rows],
                        rotation=45, ha="right", fontsize=8.5)
     ax.set_ylabel("Test F1 (macro)", fontsize=11)
-    ax.set_title("Intermediate Results — All Experiments", fontsize=12, fontweight="bold")
+    ax.set_title("Experiment Results Summary", fontsize=12, fontweight="bold")
     ax.set_ylim(0, max(m + s for m, s in zip(means, stds)) * 1.15)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     ax.grid(axis="y", linestyle="--", alpha=0.3)
 
     legend_patches = [mpatches.Patch(color=c, label=GROUP_TITLES[g].split("—")[1].strip())
-                      for g, c in COLORS_GROUP.items()]
+                      for g, c in COLORS_GROUP.items() if g in GROUP_TITLES]
     ax.legend(handles=legend_patches, fontsize=8, loc="lower right", framealpha=0.9)
 
     plt.tight_layout()
-    out = OUT_DIR / "interim_results_summary.pdf"
+    out = out_dir / "interim_results_summary.pdf"
     plt.savefig(out, bbox_inches="tight", dpi=300)
-    plt.savefig(OUT_DIR / "interim_results_summary.png", bbox_inches="tight", dpi=150)
+    plt.savefig(out_dir / "interim_results_summary.png", bbox_inches="tight", dpi=150)
     plt.close()
     print(f"Saved: {out}")
 
@@ -339,20 +329,33 @@ def plot_summary(rows):
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--logdir",   type=str, default=None,
+                        help="Log directory (default: logs/). e.g. --logdir logs_0427")
     parser.add_argument("--exp1",     action="store_true", help="EXP1 only")
     parser.add_argument("--exp2",     action="store_true", help="EXP2 pretraining only")
-    parser.add_argument("--exp4",     action="store_true", help="EXP4 only")
+    parser.add_argument("--exp4",     action="store_true", help="EXP4 ablation only")
     parser.add_argument("--exp56",    action="store_true", help="EXP5+6 only")
     parser.add_argument("--final",    action="store_true",
-                        help="final_v2 naming만 표시 (이전 실험 제외)")
+                        help="최신 naming만 (alt_prefix fallback 없음)")
     parser.add_argument("--all_exp2", action="store_true",
-                        help="EXP2 모든 버전 표시 (기본: EXP2_FINAL만)")
-    parser.add_argument("--csv",      action="store_true", help="Save CSV")
-    parser.add_argument("--plot",     action="store_true", help="Save bar chart")
-    parser.add_argument("--span",     action="store_true", help="Show span-F1 column")
+                        help="EXP2 전체 버전 스캔")
+    parser.add_argument("--csv",      action="store_true", help="CSV 저장")
+    parser.add_argument("--plot",     action="store_true", help="Bar chart 저장")
+    parser.add_argument("--span",     action="store_true", help="Span-F1 컬럼 표시")
     args = parser.parse_args()
 
-    rows = collect_results(final=args.final, all_exp2=args.all_exp2)
+    # log directory 결정
+    if args.logdir:
+        log_dir = ROOT / args.logdir
+    else:
+        log_dir = LOG_DIR
+        # logs_0427이 있으면 자동 안내
+        if (ROOT / "logs_0427").exists() and log_dir != ROOT / "logs_0427":
+            print(f"[TIP] logs_0427 디렉토리가 있습니다. --logdir logs_0427 로 서버 결과를 확인하세요.")
+
+    print(f"  logs 경로: {log_dir}")
+
+    rows = collect_results(log_dir, final=args.final, all_exp2=args.all_exp2)
 
     # 필터
     if args.exp1:
@@ -364,12 +367,10 @@ def main():
     elif args.exp56:
         rows = [r for r in rows if r["group"] in ("EXP5_interaction", "EXP6_site_head")]
 
-    # 전체 완료율
-    done_total = sum(r["done"] for r in rows)
+    done_total = sum(r["done"]  for r in rows)
     all_total  = sum(r["total"] for r in rows)
     print(f"\n{'='*72}")
     print(f"  전체 진행률: {done_total}/{all_total} seeds  ({done_total/all_total*100:.0f}%)")
-    print(f"  logs 경로:   {LOG_DIR}")
 
     print_table(rows, show_span=args.span)
 
@@ -377,7 +378,7 @@ def main():
         save_csv(rows, OUT_DIR / "interim_results.csv")
 
     if args.plot:
-        plot_summary(rows)
+        plot_summary(rows, OUT_DIR)
 
 
 if __name__ == "__main__":
