@@ -71,17 +71,18 @@ EXPERIMENTS = [
     ("EXP6_site_head", "Linear",  "circmac", "exp6_linear", None),
 ]
 
-# ── EXP2 최종 정의 (final 모드) ────────────────────────────────────────────────
-# exp2v4 = 최종 버전, 없으면 exp2v3 fallback (--final 모드에서만 사용)
+# ── EXP2 최종 정의 (ptcmp = run_pretrain_comparison.sh 결과) ───────────────────
+# ptcmp naming: BS=64 for finetune (same as EXP1)
+# old_exp_prefix: fallback for checking progress before ptcmp is done
 EXP2_FINAL = [
-    ("EXP2_pretrain", "No PT",    "circmac", "exp2v4_nopt_sites",    "exp2v3_nopt_sites"),
-    ("EXP2_pretrain", "MLM",      "circmac", "exp2v4_mlm_sites",     "exp2v3_mlm_sites"),
-    ("EXP2_pretrain", "NTP",      "circmac", "exp2v4_ntp_sites",     "exp2_ntp_sites"),
-    ("EXP2_pretrain", "SSP",      "circmac", "exp2v4_ssp_sites",     "exp2v3_ssp_sites"),
-    ("EXP2_pretrain", "Pairing",  "circmac", "exp2v4_pair_sites",    "exp2v3_pair_sites"),
-    ("EXP2_pretrain", "CPCL",     "circmac", "exp2v4_cpcl_sites",    "exp2_mlm_cpcl_sites"),
-    ("EXP2_pretrain", "MLM+NTP",  "circmac", "exp2v4_mlm_ntp_sites", "exp2v3_mlm_ntp_sites"),
-    ("EXP2_pretrain", "All",      "circmac", "exp2v4_all_sites",     "exp2_mlm_ntp_cpcl_pair_sites"),
+    ("EXP2_pretrain", "No PT",    "circmac", "ptcmp_nopt",    "exp2v4_nopt_sites"),
+    ("EXP2_pretrain", "MLM",      "circmac", "ptcmp_mlm",     "exp2v4_mlm_sites"),
+    ("EXP2_pretrain", "NTP",      "circmac", "ptcmp_ntp",     "exp2_ntp_sites"),
+    ("EXP2_pretrain", "SSP",      "circmac", "ptcmp_ssp",     "exp2v4_ssp_sites"),
+    ("EXP2_pretrain", "Pairing",  "circmac", "ptcmp_pair",    "exp2v4_pair_sites"),
+    ("EXP2_pretrain", "CPCL",     "circmac", "ptcmp_cpcl",    "exp2v4_cpcl_sites"),
+    ("EXP2_pretrain", "MLM+NTP",  "circmac", "ptcmp_mlm_ntp", "exp2_mlm_ntp_sites"),
+    ("EXP2_pretrain", "All",      "circmac", "ptcmp_all",     "exp2_mlm_ntp_cpcl_pair_sites"),
 ]
 
 SEEDS = [1, 2, 3]
