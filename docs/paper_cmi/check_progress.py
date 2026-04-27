@@ -25,8 +25,10 @@ LOG_DIR = ROOT / 'logs'
 OUT_DIR = Path(__file__).parent
 
 # ── 실험 정의 ──────────────────────────────────────────────────────────────────
-# (group, label, model, exp_prefix, alt_exp_prefix)
-# alt_exp_prefix: 이전 naming으로 돌린 결과도 같이 탐색
+# (group, label, model, final_exp_prefix, old_exp_prefix)
+# final_exp_prefix : scripts/final_v2/ 에서 사용하는 최종 naming
+# old_exp_prefix   : 이전 실험에서 돌린 naming (--final 모드에선 무시)
+
 EXPERIMENTS = [
     # ── EXP1 Base ──────────────────────────────────────────────────────────
     ("EXP1_base", "CircMAC",     "circmac",     "exp1_circmac",     None),
@@ -46,27 +48,40 @@ EXPERIMENTS = [
     ("EXP1_trainable", "RNAErnie (tr)", "rnaernie","exp1_rnaernie_trainable", "exp3_rnaernie_trainable"),
     ("EXP1_trainable", "RNA-MSM (tr)",  "rnamsm",  "exp1_rnamsm_trainable",   "exp3_rnamsm_trainable"),
 
-    # ── EXP2: logs 디렉토리에서 자동 스캔 (아래 _auto_scan_exp2() 로 추가됨) ──
+    # ── EXP2: _scan_exp2()로 동적 추가 ────────────────────────────────────
 
     # ── EXP4 Ablation ──────────────────────────────────────────────────────
-    ("EXP4_ablation", "Full (CircMAC)",  "circmac", "exp4_full",             None),
-    ("EXP4_ablation", "No Attn",         "circmac", "exp4_no_attn",          None),
-    ("EXP4_ablation", "No Mamba",        "circmac", "exp4_no_mamba",         None),
-    ("EXP4_ablation", "No Conv",         "circmac", "exp4_no_conv",          None),
-    ("EXP4_ablation", "No Circ Bias",    "circmac", "exp4_no_circ_bias",     "exp4_no_circular_bias"),
-    ("EXP4_ablation", "No Circ Pad",     "circmac", "exp4_no_circ_pad",      "exp4_no_circular_pad"),
-    ("EXP4_ablation", "Attn Only",       "circmac", "exp4_attn_only",        None),
-    ("EXP4_ablation", "Mamba Only",      "circmac", "exp4_mamba_only",       None),
-    ("EXP4_ablation", "CNN Only",        "circmac", "exp4_cnn_only",         None),
+    ("EXP4_ablation", "Full (CircMAC)",  "circmac", "exp4_full",         None),
+    ("EXP4_ablation", "No Attn",         "circmac", "exp4_no_attn",      None),
+    ("EXP4_ablation", "No Mamba",        "circmac", "exp4_no_mamba",     None),
+    ("EXP4_ablation", "No Conv",         "circmac", "exp4_no_conv",      None),
+    ("EXP4_ablation", "No Circ Bias",    "circmac", "exp4_no_circ_bias", "exp4_no_circular_bias"),
+    ("EXP4_ablation", "No Circ Pad",     "circmac", "exp4_no_circ_pad",  "exp4_no_circular_pad"),
+    ("EXP4_ablation", "Attn Only",       "circmac", "exp4_attn_only",    None),
+    ("EXP4_ablation", "Mamba Only",      "circmac", "exp4_mamba_only",   None),
+    ("EXP4_ablation", "CNN Only",        "circmac", "exp4_cnn_only",     None),
 
     # ── EXP5 Interaction ───────────────────────────────────────────────────
-    ("EXP5_interaction", "Cross-Attn",   "circmac", "exp5_cross_attn",  "exp5_cross_attention"),
-    ("EXP5_interaction", "Concat",       "circmac", "exp5_concat",      None),
-    ("EXP5_interaction", "Elementwise",  "circmac", "exp5_elementwise", None),
+    ("EXP5_interaction", "Cross-Attn",  "circmac", "exp5_cross_attn",  "exp5_cross_attention"),
+    ("EXP5_interaction", "Concat",      "circmac", "exp5_concat",      None),
+    ("EXP5_interaction", "Elementwise", "circmac", "exp5_elementwise", None),
 
     # ── EXP6 Site Head ─────────────────────────────────────────────────────
     ("EXP6_site_head", "Conv1D",  "circmac", "exp6_conv1d", None),
     ("EXP6_site_head", "Linear",  "circmac", "exp6_linear", None),
+]
+
+# ── EXP2 최종 정의 (final 모드) ────────────────────────────────────────────────
+# exp2v4 = 최종 버전, 없으면 exp2v3 fallback (--final 모드에서만 사용)
+EXP2_FINAL = [
+    ("EXP2_pretrain", "No PT",    "circmac", "exp2v4_nopt_sites",    "exp2v3_nopt_sites"),
+    ("EXP2_pretrain", "MLM",      "circmac", "exp2v4_mlm_sites",     "exp2v3_mlm_sites"),
+    ("EXP2_pretrain", "NTP",      "circmac", "exp2v4_ntp_sites",     "exp2_ntp_sites"),
+    ("EXP2_pretrain", "SSP",      "circmac", "exp2v4_ssp_sites",     "exp2v3_ssp_sites"),
+    ("EXP2_pretrain", "Pairing",  "circmac", "exp2v4_pair_sites",    "exp2v3_pair_sites"),
+    ("EXP2_pretrain", "CPCL",     "circmac", "exp2v4_cpcl_sites",    "exp2_mlm_cpcl_sites"),
+    ("EXP2_pretrain", "MLM+NTP",  "circmac", "exp2v4_mlm_ntp_sites", "exp2v3_mlm_ntp_sites"),
+    ("EXP2_pretrain", "All",      "circmac", "exp2v4_all_sites",     "exp2_mlm_ntp_cpcl_pair_sites"),
 ]
 
 SEEDS = [1, 2, 3]
@@ -84,33 +99,25 @@ GROUP_TITLES = {
     "EXP6_site_head":   "EXP6 — Site Prediction Head",
 }
 
-# ── EXP2 자동 스캔 ─────────────────────────────────────────────────────────────
-def _scan_exp2() -> list:
+# ── EXP2 자동 스캔 (--all 모드) ────────────────────────────────────────────────
+def _scan_exp2_all() -> list:
     """
-    logs/circmac/exp2*/ 를 스캔해서 EXPERIMENTS 형식으로 반환.
-    버전별로 그룹화: exp2v4 > exp2v3 > exp2v2 > exp2 순으로 최신 버전만 표시.
+    logs/circmac/exp2*/ 를 전부 스캔해서 반환 (버전 구분 없이 모두 표시).
     """
+    import re
+    from collections import defaultdict
     circ_log = LOG_DIR / "circmac"
     if not circ_log.exists():
         return []
 
-    # exp_prefix (seed 제거) → seed list
-    from collections import defaultdict
     prefix_seeds: dict = defaultdict(set)
     for p in circ_log.iterdir():
-        name = p.name  # e.g. exp2v4_nopt_sites_s1
-        if not name.startswith("exp2"):
+        if not p.name.startswith("exp2"):
             continue
-        # 마지막 _s{N} 제거
-        import re
-        m = re.match(r"^(exp2[^/]+)_s(\d+)$", name)
+        m = re.match(r"^(exp2[^/]+)_s(\d+)$", p.name)
         if m:
             prefix_seeds[m.group(1)].add(int(m.group(2)))
 
-    if not prefix_seeds:
-        return []
-
-    # 버전 우선순위 정렬: exp2v4 > exp2v3 > exp2v2 > exp2_
     def version_key(pref):
         if pref.startswith("exp2v4"): return (0, pref)
         if pref.startswith("exp2v3"): return (1, pref)
@@ -119,8 +126,10 @@ def _scan_exp2() -> list:
 
     rows = []
     for prefix in sorted(prefix_seeds.keys(), key=version_key):
-        label = prefix.replace("exp2v4_", "").replace("exp2v3_", "").replace("exp2v2_", "").replace("exp2_", "")
-        label = label.replace("_sites", "").replace("_", "+")
+        label = re.sub(r"^exp2v?\d*_", "", prefix).replace("_sites", "").replace("_", "+")
+        # 버전 태그 추가
+        ver = re.match(r"^(exp2v?\d*)", prefix).group(1)
+        label = f"[{ver}] {label}"
         rows.append(("EXP2_pretrain", label, "circmac", prefix, None))
     return rows
 
@@ -150,21 +159,33 @@ def load_result(model: str, exp_prefix: str, seed: int) -> dict | None:
         return None
 
 
-def collect_results():
-    # EXP2는 logs 디렉토리에서 자동 스캔해서 EXPERIMENTS에 합침
-    exp2_entries = _scan_exp2()
+def collect_results(final: bool = False, all_exp2: bool = False):
+    """
+    final=True  : final_v2 naming만 (old alt_prefix 무시, EXP2는 EXP2_FINAL만)
+    all_exp2=True : EXP2를 전체 스캔 (이전 실험 포함)
+    기본값       : final naming 우선, alt_prefix fallback 허용, EXP2_FINAL 사용
+    """
+    # EXP2 entries 결정
+    if all_exp2:
+        exp2_entries = _scan_exp2_all()
+    else:
+        exp2_entries = EXP2_FINAL  # 최종 정의만
+
     all_experiments = []
     for entry in EXPERIMENTS:
         if entry[0] == "EXP2_pretrain":
-            continue  # placeholder 제거
+            continue
         all_experiments.append(entry)
-    # EXP2를 EXP1 뒤, EXP4 앞에 삽입
+
     insert_idx = next((i for i, e in enumerate(all_experiments) if e[0] == "EXP4_ablation"), len(all_experiments))
     for e in reversed(exp2_entries):
         all_experiments.insert(insert_idx, e)
 
     rows = []
     for group, label, model, exp_prefix, alt_prefix in all_experiments:
+        # --final 모드: alt_prefix 사용 안 함
+        if final:
+            alt_prefix = None
         seed_results = []
         for seed in SEEDS:
             r = load_result(model, exp_prefix, seed)
@@ -317,16 +338,20 @@ def plot_summary(rows):
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--exp1",  action="store_true", help="EXP1 only")
-    parser.add_argument("--exp2",  action="store_true", help="EXP2 pretraining only")
-    parser.add_argument("--exp4",  action="store_true", help="EXP4 only")
-    parser.add_argument("--exp56", action="store_true", help="EXP5+6 only")
-    parser.add_argument("--csv",   action="store_true", help="Save CSV")
-    parser.add_argument("--plot",  action="store_true", help="Save bar chart")
-    parser.add_argument("--span",  action="store_true", help="Show span-F1 column")
+    parser.add_argument("--exp1",     action="store_true", help="EXP1 only")
+    parser.add_argument("--exp2",     action="store_true", help="EXP2 pretraining only")
+    parser.add_argument("--exp4",     action="store_true", help="EXP4 only")
+    parser.add_argument("--exp56",    action="store_true", help="EXP5+6 only")
+    parser.add_argument("--final",    action="store_true",
+                        help="final_v2 naming만 표시 (이전 실험 제외)")
+    parser.add_argument("--all_exp2", action="store_true",
+                        help="EXP2 모든 버전 표시 (기본: EXP2_FINAL만)")
+    parser.add_argument("--csv",      action="store_true", help="Save CSV")
+    parser.add_argument("--plot",     action="store_true", help="Save bar chart")
+    parser.add_argument("--span",     action="store_true", help="Show span-F1 column")
     args = parser.parse_args()
 
-    rows = collect_results()
+    rows = collect_results(final=args.final, all_exp2=args.all_exp2)
 
     # 필터
     if args.exp1:
