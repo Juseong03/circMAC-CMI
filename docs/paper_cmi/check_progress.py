@@ -32,21 +32,23 @@ OUT_DIR = Path(__file__).parent
 # old_exp_prefix   : 이전 naming fallback (--final 모드에선 무시)
 
 EXPERIMENTS = [
-    # ── EXP1 Base ──────────────────────────────────────────────────────────
-    ("EXP1_base", "CircMAC",     "circmac",     "exp1_circmac",     None),
-    ("EXP1_base", "Mamba",       "mamba",       "exp1_mamba",       None),
-    ("EXP1_base", "Hymba",       "hymba",       "exp1_hymba",       None),
-    ("EXP1_base", "LSTM",        "lstm",        "exp1_lstm",        None),
-    ("EXP1_base", "Transformer", "transformer", "exp1_transformer", None),
+    # ── EXP1 Base ─────────────────────────────────────────────────────────
+    # v2_enc_* : run_final_s1.sh  (BS=64, cross_attention) ← 최종
+    # exp1_*   : logs_0427 (BS=128, cross_attention)       ← fallback
+    ("EXP1_base", "CircMAC",     "circmac",     "v2_enc_circmac",     "exp1_circmac"),
+    ("EXP1_base", "Mamba",       "mamba",       "v2_enc_mamba",       "exp1_mamba"),
+    ("EXP1_base", "Hymba",       "hymba",       "v2_enc_hymba",       "exp1_hymba"),
+    ("EXP1_base", "LSTM",        "lstm",        "v2_enc_lstm",        "exp1_lstm"),
+    ("EXP1_base", "Transformer", "transformer", "v2_enc_transformer", "exp1_transformer"),
 
-    # ── EXP1 RNA LM Frozen (fair: max_len=438) ─────────────────────────────
-    # logs_0427: exp1_fair_frozen_{model}_s{seed}
+    # ── EXP1 RNA LM Frozen (fair: max_len=438) ────────────────────────────
+    # logs_0427 결과 유효, 재실험 불필요
     ("EXP1_frozen", "RNABERT (frz)",  "rnabert", "exp1_fair_frozen_rnabert",  "exp3_rnabert_frozen"),
     ("EXP1_frozen", "RNAErnie (frz)", "rnaernie","exp1_fair_frozen_rnaernie", "exp3_rnaernie_frozen"),
     ("EXP1_frozen", "RNA-FM (frz)",   "rnafm",   "exp1_fair_frozen_rnafm",    "exp3_rnafm_frozen"),
     ("EXP1_frozen", "RNA-MSM (frz)",  "rnamsm",  "exp1_fair_frozen_rnamsm",   "exp3_rnamsm_frozen"),
 
-    # ── EXP1 RNA LM Trainable (fair: max_len=438) ──────────────────────────
+    # ── EXP1 RNA LM Trainable (fair: max_len=438) ─────────────────────────
     ("EXP1_trainable", "RNABERT (tr)",  "rnabert", "exp1_fair_trainable_rnabert",  "exp3_rnabert_trainable"),
     ("EXP1_trainable", "RNAErnie (tr)", "rnaernie","exp1_fair_trainable_rnaernie", "exp3_rnaernie_trainable"),
     ("EXP1_trainable", "RNA-FM (tr)",   "rnafm",   "exp1_fair_trainable_rnafm",    "exp3_rnafm_trainable"),
@@ -54,38 +56,45 @@ EXPERIMENTS = [
 
     # ── EXP2: _scan_exp2()로 동적 추가 ────────────────────────────────────
 
-    # ── EXP4 Ablation ──────────────────────────────────────────────────────
-    ("EXP4_ablation", "Full (CircMAC)",  "circmac", "exp4_full",              None),
-    ("EXP4_ablation", "No Attn",         "circmac", "exp4_no_attn",           None),
-    ("EXP4_ablation", "No Mamba",        "circmac", "exp4_no_mamba",          None),
-    ("EXP4_ablation", "No Conv",         "circmac", "exp4_no_conv",           None),
-    ("EXP4_ablation", "No Circ Bias",    "circmac", "exp4_no_circ_bias",      "exp4_no_circular_bias"),
-    ("EXP4_ablation", "No Circ Pad",     "circmac", "exp4_no_circ_pad",       "exp4_no_circular_pad"),
-    ("EXP4_ablation", "Attn Only",       "circmac", "exp4_attn_only",         None),
-    ("EXP4_ablation", "Mamba Only",      "circmac", "exp4_mamba_only",        None),
-    ("EXP4_ablation", "CNN Only",        "circmac", "exp4_cnn_only",          None),
+    # ── EXP4 Ablation ─────────────────────────────────────────────────────
+    # v2_abl_* : run_final_s3.sh (BS=64) ← 최종
+    # exp4_*   : logs_0427 (BS=128)      ← fallback
+    ("EXP4_ablation", "Full (CircMAC)",  "circmac", "v2_abl_full",       "exp4_full"),
+    ("EXP4_ablation", "No Attn",         "circmac", "v2_abl_no_attn",    "exp4_no_attn"),
+    ("EXP4_ablation", "No Mamba",        "circmac", "v2_abl_no_mamba",   "exp4_no_mamba"),
+    ("EXP4_ablation", "No Conv",         "circmac", "v2_abl_no_conv",    "exp4_no_conv"),
+    ("EXP4_ablation", "No Circ Bias",    "circmac", "v2_abl_no_circ_bias","exp4_no_circ_bias"),
+    ("EXP4_ablation", "Attn Only",       "circmac", "v2_abl_attn_only",  "exp4_attn_only"),
+    ("EXP4_ablation", "Mamba Only",      "circmac", "v2_abl_mamba_only", "exp4_mamba_only"),
+    ("EXP4_ablation", "CNN Only",        "circmac", "v2_abl_cnn_only",   "exp4_cnn_only"),
 
-    # ── EXP5 Interaction ───────────────────────────────────────────────────
-    ("EXP5_interaction", "Cross-Attn",  "circmac", "exp5_cross_attn",  "exp5_cross_attention"),
-    ("EXP5_interaction", "Concat",      "circmac", "exp5_concat",      None),
-    ("EXP5_interaction", "Elementwise", "circmac", "exp5_elementwise", None),
+    # ── EXP5 Interaction ──────────────────────────────────────────────────
+    # v2_int_* : run_final_s1.sh (BS=64) ← 최종
+    # exp5_*   : logs_0427 (BS=64)       ← fallback (이미 BS=64로 동일)
+    ("EXP5_interaction", "Cross-Attn",  "circmac", "v2_int_cross_attn",  "exp5_cross_attn"),
+    ("EXP5_interaction", "Concat",      "circmac", "v2_int_concat",      "exp5_concat"),
+    ("EXP5_interaction", "Elementwise", "circmac", "v2_int_elementwise", "exp5_elementwise"),
 
-    # ── EXP6 Site Head ─────────────────────────────────────────────────────
-    ("EXP6_site_head", "Conv1D",  "circmac", "exp6_conv1d", None),
-    ("EXP6_site_head", "Linear",  "circmac", "exp6_linear", None),
+    # ── EXP6 Site Head ────────────────────────────────────────────────────
+    # v2_head_* : run_final_s1.sh (BS=64) ← 최종
+    # exp6_*    : logs_0427 (BS=64)       ← fallback
+    ("EXP6_site_head", "Conv1D",  "circmac", "v2_head_conv1d", "exp6_conv1d"),
+    ("EXP6_site_head", "Linear",  "circmac", "v2_head_linear", "exp6_linear"),
 ]
 
 # ── EXP2 최종 정의 ─────────────────────────────────────────────────────────────
 # logs_0427 기준: exp2_{strategy}_sites_s{seed}
 # 사전학습 전략 비교 (d_model=64 pretrain → d_model=128 finetune)
 EXP2_FINAL = [
-    ("EXP2_pretrain", "No PT",      "circmac", "exp2_nopt_sites",        None),
-    ("EXP2_pretrain", "MLM",        "circmac", "exp2_mlm_sites",         None),
-    ("EXP2_pretrain", "NTP",        "circmac", "exp2_ntp_sites",         None),
-    ("EXP2_pretrain", "MLM+SSP",    "circmac", "exp2_mlm_ssp_sites",     None),
-    ("EXP2_pretrain", "MLM+CPCL",   "circmac", "exp2_mlm_cpcl_sites",    None),
-    ("EXP2_pretrain", "MLM+NTP",    "circmac", "exp2_mlm_ntp_sites",     None),
-    ("EXP2_pretrain", "All",        "circmac", "exp2_mlm_ntp_cpcl_pair_sites", None),
+    # v2_pt_* : run_final_s2.sh (BS=64, consistent) ← 최종
+    # exp2_*  : logs_0427 (BS=32, inconsistent)     ← fallback
+    ("EXP2_pretrain", "No PT",    "circmac", "v2_pt_nopt",     "exp2_nopt_sites"),
+    ("EXP2_pretrain", "MLM",      "circmac", "v2_pt_mlm",      "exp2_mlm_sites"),
+    ("EXP2_pretrain", "NTP",      "circmac", "v2_pt_ntp",      "exp2_ntp_sites"),
+    ("EXP2_pretrain", "MLM+SSP",  "circmac", "v2_pt_mlm_ssp",  "exp2_mlm_ssp_sites"),
+    ("EXP2_pretrain", "MLM+CPCL", "circmac", "v2_pt_mlm_cpcl", "exp2_mlm_cpcl_sites"),
+    ("EXP2_pretrain", "MLM+NTP",  "circmac", "v2_pt_mlm_ntp",  "exp2_mlm_ntp_sites"),
+    ("EXP2_pretrain", "All",      "circmac", "v2_pt_all",      "exp2_mlm_ntp_cpcl_pair_sites"),
 ]
 
 SEEDS = [1, 2, 3]
