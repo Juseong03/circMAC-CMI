@@ -559,11 +559,15 @@ def plot_region_overlap(sub, iso_full, model_cols, bsj_w=20,
 
 
 # ── 저장 유틸 ──────────────────────────────────────────────────────────────────
+_SAVE_PDF = True   # --no_pdf 플래그로 제어
+
 def _save(fig, out_dir, stem):
     out = Path(out_dir) if out_dir else Path(__file__).parent
-    fig.savefig(out / f'{stem}.pdf', bbox_inches='tight', dpi=300)
+    if _SAVE_PDF:
+        fig.savefig(out / f'{stem}.pdf', bbox_inches='tight', dpi=300)
     fig.savefig(out / f'{stem}.png', bbox_inches='tight', dpi=150)
-    print(f'Saved: {stem}.pdf/png')
+    saved = f'{stem}.png' + (f' + .pdf' if _SAVE_PDF else '')
+    print(f'Saved: {saved}')
     plt.close(fig)
 
 
@@ -592,7 +596,13 @@ if __name__ == '__main__':
                         help='Pred binarization threshold for region_overlap (default: 0.5)')
     parser.add_argument('--iou_thresh', type=float, default=0.3,
                         help='IoU threshold to count a GT site as detected (default: 0.3)')
+    parser.add_argument('--no_pdf', action='store_true',
+                        help='Skip PDF output, save PNG only')
     args = parser.parse_args()
+
+    global _SAVE_PDF
+    if args.no_pdf:
+        _SAVE_PDF = False
 
     df = pd.read_csv(args.csv)
     model_cols = get_model_cols(df)

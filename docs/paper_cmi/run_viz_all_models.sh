@@ -18,6 +18,7 @@ CIRC_ID=${3:-"chr4|5565258"}
 BSJ_W=${4:-20}
 THRESHOLD=${5:-0.5}    # pred binarization threshold for region overlap
 IOU_THRESH=${6:-0.3}   # IoU >= this → GT site detected
+NO_PDF=${7:-0}         # 1 이면 PDF 저장 안 함
 
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 BASE_DIR="${ROOT_DIR}/docs/paper_cmi"
@@ -109,6 +110,9 @@ echo ""
 echo "[Step 2] Generating visualizations from CSV..."
 echo "  CSV: $CSV_FILE"
 
+PDF_FLAG=""
+[ "$NO_PDF" = "1" ] && PDF_FLAG="--no_pdf"
+
 python docs/paper_cmi/plot_from_csv.py \
     --csv "$CSV_FILE" \
     --isoform "$CIRC_ID" \
@@ -118,7 +122,8 @@ python docs/paper_cmi/plot_from_csv.py \
     --threshold "$THRESHOLD" \
     --iou_thresh "$IOU_THRESH" \
     --out_dir "$OUT_DIR" \
-    --plots all
+    --plots all \
+    $PDF_FLAG
 
 echo ""
 echo "========================================"
