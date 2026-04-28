@@ -161,6 +161,8 @@ def pick_top_mirnas(sub, model_cols, top_n, bsj_w=20, mode='bsj_prox'):
     for mirna, grp in sub.groupby('miRNA_ID'):
         grp = grp.sort_values('position')
         gt   = grp['ground_truth'].values
+        if gt.sum() == 0:           # binding 없는 pair 제외
+            continue
         preds = {m: grp[col].values for m, col in model_cols.items()}
         bsj  = gt[:w].sum() + gt[max(0, L - w):].sum()
         rows.append((mirna, bsj, gt, preds, L))
@@ -475,6 +477,9 @@ def plot_region_overlap(sub, iso_full, model_cols, bsj_w=20,
         grp = grp.sort_values('position')
         pos = grp['position'].values
         gt  = grp['ground_truth'].values
+
+        if gt.sum() == 0:           # binding 없는 pair 전체 제외
+            continue
 
         bsj_idx = (pos < w) | (pos >= L - w)
         mid_idx = ~bsj_idx
