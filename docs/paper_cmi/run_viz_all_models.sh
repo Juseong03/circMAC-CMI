@@ -16,6 +16,8 @@ DEVICE=${1:-0}
 SEED=${2:-1}
 CIRC_ID=${3:-"chr4|5565258"}
 BSJ_W=${4:-20}
+THRESHOLD=${5:-0.5}    # pred binarization threshold for region overlap
+IOU_THRESH=${6:-0.3}   # IoU >= this → GT site detected
 
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 BASE_DIR="${ROOT_DIR}/docs/paper_cmi"
@@ -29,11 +31,13 @@ mkdir -p "$OUT_DIR"
 
 echo "========================================"
 echo "  All-model Visualization"
-echo "  device  : $DEVICE"
-echo "  seed    : $SEED"
-echo "  circ_id : $CIRC_ID"
-echo "  bsj_w   : $BSJ_W"
-echo "  out_dir : $OUT_DIR"
+echo "  device    : $DEVICE"
+echo "  seed      : $SEED"
+echo "  circ_id   : $CIRC_ID"
+echo "  bsj_w     : $BSJ_W"
+echo "  threshold : $THRESHOLD"
+echo "  iou_thresh: $IOU_THRESH"
+echo "  out_dir   : $OUT_DIR"
 echo "========================================"
 
 cd "$ROOT_DIR" || exit 1
@@ -111,6 +115,8 @@ python docs/paper_cmi/plot_from_csv.py \
     --top_mirna 12 \
     --bsj_w "$BSJ_W" \
     --zoom_w 50 \
+    --threshold "$THRESHOLD" \
+    --iou_thresh "$IOU_THRESH" \
     --out_dir "$OUT_DIR" \
     --plots all
 

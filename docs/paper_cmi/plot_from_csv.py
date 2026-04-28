@@ -2,11 +2,13 @@
 CSV raw prediction 값을 이용한 다양한 시각화
 
 생성 그림:
-  1. heatmap       - GT + 모델별 예측 히트맵 (isoform × miRNA)
-  2. overlay       - 다중 모델 예측 오버레이 (상위 N miRNA)
-  3. per_model     - 모델별 개별 저장 (circular + linear)
-  4. bsj_zoom      - BSJ 근처 확대 뷰
-  5. model_summary - 모델간 BSJ-proximal 예측 성능 비교 bar chart
+  1. heatmap        - GT + 모델별 예측 히트맵 (isoform × miRNA)
+  2. overlay        - 다중 모델 예측 오버레이 (상위 N miRNA)
+  3. per_model      - 모델별 개별 저장 (circular + linear)
+  4. bsj_zoom       - BSJ 근처 확대 뷰
+  5. region_overlap - 모델간 region-overlap 기반 성능 비교
+                      (Site Recall, Mean IoU, GT Coverage)
+                      BSJ-proximal / Middle 구분
 
 사용법:
   # 모든 그림 생성
@@ -31,6 +33,79 @@ from matplotlib.patches import Wedge
 from matplotlib.gridspec import GridSpec
 import numpy as np
 import pandas as pd
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Region Overlap 유틸
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _get_regions(binary_arr):
+    """Binary array → list of (start, end) tuples (end exclusive)."""
+    arr = np.asarray(binary_arr, dtype=int)
+    regions = []
+    in_r, start = False, 0
+    for i, v in enumerate(arr):
+        if v and not in_r:
+            start, in_r = i, True
+        elif not v and in_r:
+            regions.append((start, i))
+            in_r = False
+    if in_r:
+        regions.append((start, len(arr)))
+    return regions
+
+
+def _region_iou(a, b):
+    """IoU between two (start, end) regions."""
+    inter = max(0, min(a[1], b[1]) - max(a[0], b[0]))
+    union = max(a[1], b[1]) - min(a[0], b[0])
+    return inter / union if union > 0 else 0.0
+
+
+def _region_coverage(gt_r, pred_r):
+    """Fraction of GT region covered by pred region."""
+    inter = max(0, min(gt_r[1], pred_r[1]) - max(gt_r[0], pred_r[0]))
+    gt_len = gt_r[1] - gt_r[0]
+    return inter / gt_len if gt_len > 0 else 0.0
+
+
+def _compute_region_metrics(gt_arr, pred_prob, threshold=0.5, iou_thresh=0.3):
+    """
+    GT binary array와 pred probability array로 region-overlap 기반 지표 계산.
+
+    Returns dict:
+      site_recall   - GT region 중 IoU >= iou_thresh 인 비율
+      mean_iou      - GT region별 best-match IoU 평균
+      gt_coverage   - GT region별 best-match GT coverage 평균
+      n_gt          - GT region 수
+      n_pred        - Pred region 수
+    """
+    pred_bin = (np.asarray(pred_prob) >= threshold).astype(int)
+    gt_regions   = _get_regions(gt_arr)
+    pred_regions = _get_regions(pred_bin)
+
+    if not gt_regions:
+        return dict(site_recall=np.nan, mean_iou=np.nan,
+                    gt_coverage=np.nan, n_gt=0, n_pred=len(pred_regions))
+
+    ious, coverages, detected = [], [], []
+    for gt_r in gt_regions:
+        if pred_regions:
+            best_iou = max(_region_iou(gt_r, p) for p in pred_regions)
+            best_cov = max(_region_coverage(gt_r, p) for p in pred_regions)
+        else:
+            best_iou, best_cov = 0.0, 0.0
+        ious.append(best_iou)
+        coverages.append(best_cov)
+        detected.append(float(best_iou >= iou_thresh))
+
+    return dict(
+        site_recall = float(np.mean(detected)),
+        mean_iou    = float(np.mean(ious)),
+        gt_coverage = float(np.mean(coverages)),
+        n_gt        = len(gt_regions),
+        n_pred      = len(pred_regions),
+    )
 
 
 # ── 색상 ──────────────────────────────────────────────────────────────────────
@@ -361,69 +436,121 @@ def plot_bsj_zoom(sub, iso_full, model_cols, top_n=6, zoom_w=50, out_dir=None):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 5. Model Summary: BSJ-proximal 예측 성능 비교 bar chart
+# 5. Region Overlap: 모델간 region-overlap 기반 성능 비교
+#    - Site Recall  : GT region 중 IoU >= 0.3 인 비율
+#    - Mean IoU     : GT region별 best-match IoU 평균
+#    - GT Coverage  : GT region별 best-match coverage 평균
+#    BSJ-proximal / Middle 두 region으로 구분
 # ══════════════════════════════════════════════════════════════════════════════
-def plot_model_summary(sub, iso_full, model_cols, bsj_w=20, out_dir=None):
-    if len(model_cols) < 2:
-        print("model_summary requires >= 2 models"); return
+def plot_region_overlap(sub, iso_full, model_cols, bsj_w=20,
+                        threshold=0.5, iou_thresh=0.3, out_dir=None):
+    """
+    Region-overlap 기반 모델 성능 비교 (bar chart, 3 metrics × 2 regions).
+
+    threshold  : pred binarization threshold (default 0.5)
+    iou_thresh : IoU >= 이 값이면 GT site 탐지 성공 (default 0.3)
+    """
+    if not model_cols:
+        print("region_overlap: no model columns found"); return
+
     L = sub['position'].max() + 1
-    w = bsj_w
+    w = bsj_w if L > 2 * bsj_w else L // 3
 
-    # middle이 너무 작으면 window 자동 축소
-    if L <= 2 * w:
-        w = L // 3
-        print(f"Warning: L={L} too short for w=50, reduced to w={w}")
+    METRICS = [
+        ('site_recall', f'Site Recall\n(IoU ≥ {iou_thresh})', '#E74C3C'),
+        ('mean_iou',    'Mean IoU',                             '#2980B9'),
+        ('gt_coverage', 'GT Coverage',                          '#27AE60'),
+    ]
+    REGIONS = [
+        ('bsj',    f"BSJ-proximal (±{w}nt)"),
+        ('middle', f"Middle (pos {w}~{L-w})"),
+    ]
 
-    bsj_mask = (sub['position'] < w) | (sub['position'] >= L - w)
-    mid_mask  = ~bsj_mask
+    # ── 집계: miRNA × region × model ─────────────────────────────────────────
+    # results[region_key][model_label] = list of metric dicts
+    from collections import defaultdict
+    results = {rk: defaultdict(list) for rk, _ in REGIONS}
 
-    # 전체 miRNA 대상으로 집계 (top-N 편향 없이)
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+    for mirna, grp in sub.groupby('miRNA_ID'):
+        grp = grp.sort_values('position')
+        pos = grp['position'].values
+        gt  = grp['ground_truth'].values
+
+        bsj_idx = (pos < w) | (pos >= L - w)
+        mid_idx = ~bsj_idx
+
+        for rk, mask in [('bsj', bsj_idx), ('middle', mid_idx)]:
+            gt_sub = gt[mask]
+            if gt_sub.sum() == 0:   # 이 region에 GT binding site 없음 → 스킵
+                continue
+            for m_label, m_col in model_cols.items():
+                pred_sub = grp[m_col].values[mask]
+                m = _compute_region_metrics(gt_sub, pred_sub,
+                                            threshold=threshold,
+                                            iou_thresh=iou_thresh)
+                if m['n_gt'] > 0:
+                    results[rk][m_label].append(m)
+
+    # ── 그리기 ────────────────────────────────────────────────────────────────
+    n_metrics = len(METRICS)
+    n_regions = len(REGIONS)
+    fig, axes = plt.subplots(n_regions, n_metrics,
+                             figsize=(5 * n_metrics, 4 * n_regions))
     fig.patch.set_facecolor('white')
 
-    for ax, mask, region in [(axes[0], bsj_mask, f'BSJ-proximal (±{w}nt)'),
-                              (axes[1], mid_mask,  f'Middle region (pos {w}~{L-w})')]:
-        region_df = sub[mask]
-        gt_bind   = region_df['ground_truth'].values
-        n_bind    = int((gt_bind > 0.5).sum())
+    model_labels = list(model_cols.keys())
+    x = np.arange(len(model_labels))
+    bar_w = 0.6
 
-        labels, means, colors = [], [], []
-        for m_i, (m_label, m_col) in enumerate(model_cols.items()):
-            pred = region_df[m_col].values
-            bind_idx = gt_bind > 0.5
-            score = pred[bind_idx].mean() if bind_idx.any() else 0.0
-            labels.append(m_label)
-            means.append(score)
-            colors.append(get_model_color(m_label, m_i))
+    for r_i, (rk, r_title) in enumerate(REGIONS):
+        for m_i, (metric_key, metric_label, bar_color) in enumerate(METRICS):
+            ax = axes[r_i][m_i]
 
-        if n_bind == 0:
-            ax.text(0.5, 0.5, f'No binding sites\nin this region',
-                    ha='center', va='center', fontsize=11, color='#999',
-                    transform=ax.transAxes)
-            ax.set_title(region, fontsize=11, fontweight='bold')
-            ax.axis('off')
-            continue
+            vals, errs = [], []
+            for ml in model_labels:
+                data = results[rk].get(ml, [])
+                v_list = [d[metric_key] for d in data
+                          if not np.isnan(d[metric_key])]
+                if v_list:
+                    vals.append(float(np.mean(v_list)))
+                    errs.append(float(np.std(v_list) / np.sqrt(len(v_list)))
+                                if len(v_list) > 1 else 0.0)
+                else:
+                    vals.append(0.0)
+                    errs.append(0.0)
 
-        bars = ax.bar(range(len(labels)), means, color=colors,
-                      edgecolor='white', linewidth=1.0, width=0.6)
-        for bar, v in zip(bars, means):
-            ax.text(bar.get_x() + bar.get_width() / 2,
-                    bar.get_height() + 0.005,
-                    f'{v:.3f}', ha='center', fontsize=9.5, fontweight='bold')
-        ax.set_xticks(range(len(labels)))
-        ax.set_xticklabels(labels, fontsize=10)
-        ax.set_ylabel('Mean pred. prob. at GT binding sites', fontsize=9)
-        ax.set_title(region, fontsize=11, fontweight='bold')
-        ax.set_ylim(0, max(means) * 1.3 if means else 1)
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.grid(axis='y', linestyle='--', alpha=0.3)
+            colors = [get_model_color(ml, i) for i, ml in enumerate(model_labels)]
+            bars = ax.bar(x, vals, yerr=errs, color=colors,
+                          width=bar_w, edgecolor='white',
+                          capsize=4, error_kw=dict(lw=1.5, alpha=0.7))
+
+            for bar, v in zip(bars, vals):
+                if v > 0:
+                    ax.text(bar.get_x() + bar.get_width() / 2,
+                            bar.get_height() + max(errs) * 1.1 + 0.01,
+                            f'{v:.2f}', ha='center', va='bottom',
+                            fontsize=8.5, fontweight='bold')
+
+            ax.set_xticks(x)
+            ax.set_xticklabels(model_labels, fontsize=9, rotation=20, ha='right')
+            ax.set_ylim(0, 1.15)
+            ax.set_ylabel(metric_label, fontsize=9.5)
+            ax.set_title(f'{r_title}\n{metric_label}',
+                         fontsize=10, fontweight='bold', color=bar_color)
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.grid(axis='y', linestyle='--', alpha=0.3)
+            ax.axhline(iou_thresh if metric_key == 'mean_iou' else 0,
+                       color='#aaa', lw=0.8, linestyle=':')
 
     iso_short = iso_full[:55] + '...' if len(iso_full) > 55 else iso_full
-    fig.suptitle(f'Model Comparison: Prediction Score  |  {iso_short}',
-                 fontsize=11, fontweight='bold')
+    fig.suptitle(
+        f'Region Overlap Evaluation  |  {iso_short}\n'
+        f'(threshold={threshold}, IoU≥{iou_thresh} = detected)',
+        fontsize=11, fontweight='bold'
+    )
     plt.tight_layout()
-    _save(fig, out_dir, f'viz_model_summary_{sanitize(iso_full[:40])}')
+    _save(fig, out_dir, f'viz_region_overlap_{sanitize(iso_full[:40])}')
 
 
 # ── 저장 유틸 ──────────────────────────────────────────────────────────────────
@@ -453,9 +580,13 @@ if __name__ == '__main__':
     parser.add_argument('--list_isoforms', action='store_true')
     parser.add_argument('--plots', nargs='+',
                         choices=['heatmap', 'overlay', 'per_model',
-                                 'bsj_zoom', 'model_summary', 'all'],
+                                 'bsj_zoom', 'region_overlap', 'all'],
                         default=['all'],
                         help='Which plots to generate (default: all)')
+    parser.add_argument('--threshold', type=float, default=0.5,
+                        help='Pred binarization threshold for region_overlap (default: 0.5)')
+    parser.add_argument('--iou_thresh', type=float, default=0.3,
+                        help='IoU threshold to count a GT site as detected (default: 0.3)')
     args = parser.parse_args()
 
     df = pd.read_csv(args.csv)
@@ -501,6 +632,9 @@ if __name__ == '__main__':
         plot_bsj_zoom(sub, iso_full, model_cols,
                       top_n=min(args.top_mirna, 6),
                       zoom_w=args.zoom_w, out_dir=args.out_dir)
-    if do_plot('model_summary'):
-        plot_model_summary(sub, iso_full, model_cols,
-                           bsj_w=args.bsj_w, out_dir=args.out_dir)
+    if do_plot('region_overlap'):
+        plot_region_overlap(sub, iso_full, model_cols,
+                            bsj_w=args.bsj_w,
+                            threshold=args.threshold,
+                            iou_thresh=args.iou_thresh,
+                            out_dir=args.out_dir)
