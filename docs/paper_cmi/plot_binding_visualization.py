@@ -308,6 +308,8 @@ def select_cases(df, circ_id=None, mirna_id=None):
             mask &= df['isoform_ID'].astype(str).str.contains(str(circ_id), case=False, regex=False)
         if mirna_id is not None:
             mask &= df['miRNA_ID'].astype(str) == str(mirna_id)
+        if 'binding' in df.columns:
+            mask &= df['binding'] == 1   # binding pair만 포함
         matched = df[mask]
         if len(matched) == 0:
             raise ValueError(f"No rows found for circ_id={circ_id}, mirna_id={mirna_id}")
