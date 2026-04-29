@@ -253,51 +253,52 @@ def draw_circular_binding(ax, seq, sites, title='', bsj_mark=True,
 # (b) Linear Heatmap
 # ══════════════════════════════════════════════════════════════════════════════
 def draw_linear_heatmap(ax, seq, sites, pred_circmac, pred_linear=None,
-                         title='', max_show=200):
+                         title=''):
+    """전체 sequence를 imshow로 렌더링 (max_show 제한 없음)."""
+    import matplotlib.colors as mcolors
     L = len(seq)
-    show = min(L, max_show)
-    seq_s = seq[:show]
-    sites_s = np.array(sites[:show])
-    pred_c = np.array(pred_circmac[:show])
-    pred_l = np.array(pred_linear[:show]) if pred_linear is not None else None
+    sites_arr = np.array(sites, dtype=float)
+    pred_c    = np.array(pred_circmac, dtype=float)
 
-    rows = 3 if pred_l is not None else 2
-    fig_inner = ax.inset_axes([0, 0, 1, 1])
-    fig_inner.remove()
+    # row 구성: GT, CircMAC, (optional) pred_linear
+    rows = [sites_arr, pred_c]
+    row_labels  = ['GT', 'CircMAC']
+    row_colors  = ['#E74C3C', '#E74C3C']
+    row_cmaps   = [
+        mcolors.LinearSegmentedColormap.from_list('gt', [NOBIND_COLOR, BIND_COLOR]),
+        plt.cm.Reds,
+    ]
+    if pred_linear is not None:
+        rows.append(np.array(pred_linear, dtype=float))
+        row_labels.append('Linear')
+        row_colors.append('#3498DB')
+        row_cmaps.append(plt.cm.Blues)
 
-    # ground truth bar
-    gt_colors = [BIND_COLOR if s else NOBIND_COLOR for s in sites_s]
-    ax.bar(range(show), [0.9] * show, color=gt_colors, width=1.0,
-           alpha=0.85, zorder=2)
+    n_rows = len(rows)
+    mat = np.vstack([r[np.newaxis, :] for r in rows])  # (n_rows, L)
 
-    # 범례
-    ax.set_xlim(-1, show + 1)
-    ax.set_ylim(0, rows + 0.5)
-    ax.axis('off')
+    # 각 row를 별도로 imshow (cmap이 다르므로)
+    ax.set_xlim(0, L)
+    ax.set_ylim(-0.5, n_rows - 0.5)
+    ax.set_yticks(range(n_rows))
+    ax.set_yticklabels(row_labels[::-1], fontsize=9, fontweight='bold')
+    ax.tick_params(axis='y', length=0, pad=4)
+    ax.set_xlabel('Position (nt)', fontsize=9)
+    for spine in ['top', 'right', 'left']:
+        ax.spines[spine].set_visible(False)
 
-    # row labels
-    ax.text(-1.5, 0.45, 'GT', ha='right', va='center', fontsize=10,
-            fontweight='bold', color='#2C3E50')
+    for r_i, (row_arr, cmap) in enumerate(zip(rows, row_cmaps)):
+        y = n_rows - 1 - r_i   # 위에서부터 GT, CircMAC, ...
+        img = row_arr[np.newaxis, :]  # (1, L)
+        ax.imshow(img, aspect='auto', cmap=cmap, vmin=0, vmax=1,
+                  extent=[0, L, y - 0.45, y + 0.45], zorder=2)
 
-    row_y = 1.1
-    # CircMAC prediction heatmap
-    for i, p in enumerate(pred_c):
-        fc = plt.cm.Reds(p * 0.85 + 0.1)
-        ax.barh(row_y, 1, left=i, height=0.8, color=fc, zorder=2)
-    ax.text(-1.5, row_y, 'CircMAC', ha='right', va='center', fontsize=9,
-            color='#E74C3C', fontweight='bold')
+    # BSJ 마커
+    ax.axvline(0,     color=BSJ_COLOR, lw=2, linestyle='--', alpha=0.9, zorder=5)
+    ax.axvline(L - 1, color=BSJ_COLOR, lw=2, linestyle='--', alpha=0.9, zorder=5)
 
-    if pred_l is not None:
-        row_y = 2.1
-        for i, p in enumerate(pred_l):
-            fc = plt.cm.Blues(p * 0.85 + 0.1)
-            ax.barh(row_y, 1, left=i, height=0.8, color=fc, zorder=2)
-        ax.text(-1.5, row_y, 'Linear', ha='right', va='center', fontsize=9,
-                color='#3498DB', fontweight='bold')
-
-    # BSJ markers at both ends
-    ax.axvline(0, color=BSJ_COLOR, lw=2.5, linestyle='--', alpha=0.8, zorder=5)
-    ax.axvline(show - 1, color=BSJ_COLOR, lw=2.5, linestyle='--', alpha=0.8, zorder=5)
+    if title:
+        ax.set_title(title, fontsize=9, pad=4)
     ax.text(0, rows + 0.25, "5' BSJ", ha='center', fontsize=9,
             color=BSJ_COLOR, fontweight='bold')
     ax.text(show - 1, rows + 0.25, "3' BSJ", ha='center', fontsize=9,
