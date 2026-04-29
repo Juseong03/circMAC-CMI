@@ -103,28 +103,19 @@ python docs/paper_cmi/plot_binding_visualization.py \
     --with_pred \
     --circ_id "$CIRC_ID" \
     --split "$SPLIT" \
+    --out_dir "$OUT_DIR" \
     --model_dirs "${MODEL_ARGS[@]}" \
     $ALL_PAIRS_FLAG
 
-# CSV 이동
-CSV_SRC="${BASE_DIR}/binding_visualization_${CSV_TAG}_with_pred.csv"
 CSV_FILE="${OUT_DIR}/binding_visualization_${CSV_TAG}_with_pred.csv"
 
-if [ ! -f "$CSV_SRC" ]; then
-    echo "ERROR: CSV not found: $CSV_SRC"
+if [ ! -f "$CSV_FILE" ]; then
+    echo "ERROR: CSV not found: $CSV_FILE"
     echo "  circ_id가 데이터에 없거나, split=$SPLIT 에 해당 pair가 없습니다."
     echo "  사용 가능한 circRNA 확인:"
     echo "    python -c \"import pickle,pandas as pd; df=pickle.load(open('data/df_test_final.pkl','rb')); print(df[df['binding']==1]['isoform_ID'].unique()[:10])\""
     exit 1
 fi
-
-mv "$CSV_SRC" "$CSV_FILE"
-
-# PNG/PDF도 OUT_DIR로 이동
-for f in "${BASE_DIR}/binding_visualization_${CSV_TAG}"*.pdf \
-          "${BASE_DIR}/binding_visualization_${CSV_TAG}"*.png; do
-    [ -f "$f" ] && mv "$f" "$OUT_DIR/"
-done
 
 # ── Step 2: 시각화 생성 ────────────────────────────────────────────────────
 echo ""

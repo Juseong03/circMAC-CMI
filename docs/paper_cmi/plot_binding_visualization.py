@@ -297,15 +297,11 @@ def draw_linear_heatmap(ax, seq, sites, pred_circmac, pred_linear=None,
     ax.axvline(0,     color=BSJ_COLOR, lw=2, linestyle='--', alpha=0.9, zorder=5)
     ax.axvline(L - 1, color=BSJ_COLOR, lw=2, linestyle='--', alpha=0.9, zorder=5)
 
-    if title:
-        ax.set_title(title, fontsize=9, pad=4)
-    ax.text(0, rows + 0.25, "5' BSJ", ha='center', fontsize=9,
+    y_label = n_rows - 0.5 + 0.15
+    ax.text(0, y_label, "5' BSJ", ha='center', fontsize=9,
             color=BSJ_COLOR, fontweight='bold')
-    ax.text(show - 1, rows + 0.25, "3' BSJ", ha='center', fontsize=9,
+    ax.text(L - 1, y_label, "3' BSJ", ha='center', fontsize=9,
             color=BSJ_COLOR, fontweight='bold')
-    ax.annotate('', xy=(show + 0.5, rows + 0.25), xytext=(-0.5, rows + 0.25),
-                arrowprops=dict(arrowstyle='<->', color=BSJ_COLOR,
-                                lw=1.5, linestyle='dashed'))
 
     if title:
         ax.set_title(title, fontsize=11, fontweight='bold', pad=4, color='#2C3E50')
@@ -406,7 +402,8 @@ DEFAULT_COLORS = ['#E67E22', '#2980B9', '#27AE60', '#8E44AD', '#16A085',
 
 
 def main(with_pred=False, model_dirs=None, data_path=None,
-         circ_id=None, mirna_id=None, split='test', binding_only=True):
+         circ_id=None, mirna_id=None, split='test', binding_only=True,
+         out_dir=None):
     """
     model_dirs   : dict {'label': 'path', ...}  — 여러 모델 비교
     split        : 'test' | 'train' | 'all'
@@ -526,9 +523,10 @@ def main(with_pred=False, model_dirs=None, data_path=None,
 
     id_tag = f'_{_sanitize(circ_id)}' if circ_id else ''
     suffix = '_with_pred' if with_pred else '_gt_only'
-    out_dir = Path(__file__).parent
-    out_pdf = out_dir / f'binding_visualization{id_tag}{suffix}.pdf'
-    out_png = out_dir / f'binding_visualization{id_tag}{suffix}.png'
+    out_dir_path = Path(out_dir) if out_dir else Path(__file__).parent
+    out_dir_path.mkdir(parents=True, exist_ok=True)
+    out_pdf = out_dir_path / f'binding_visualization{id_tag}{suffix}.pdf'
+    out_png = out_dir_path / f'binding_visualization{id_tag}{suffix}.png'
     plt.savefig(out_pdf, bbox_inches='tight', dpi=300)
     plt.savefig(out_png, bbox_inches='tight', dpi=200)
     print(f'Saved: {out_pdf}')
@@ -537,7 +535,7 @@ def main(with_pred=False, model_dirs=None, data_path=None,
 
     # ── Raw CSV 저장 (모델별 컬럼) ────────────────────────────────────────────
     import csv
-    out_csv = out_dir / f'binding_visualization{id_tag}{suffix}.csv'
+    out_csv = out_dir_path / f'binding_visualization{id_tag}{suffix}.csv'
     model_labels = list(model_dirs.keys()) if model_dirs else ['pred']
     header = ['isoform_ID', 'miRNA_ID', 'length', 'position', 'nucleotide',
               'ground_truth', 'bsj_adjacent'] + [f'pred_{m}' for m in model_labels]
@@ -609,9 +607,12 @@ Examples:
                         help='miRNA_ID to filter (e.g. hsa-miR-21-5p)')
     parser.add_argument('--all_pairs', action='store_true',
                         help='non-binding pair도 포함 (default: binding==1만)')
+    parser.add_argument('--out_dir', type=str, default=None,
+                        help='출력 디렉토리 (default: 스크립트 위치)')
     args = parser.parse_args()
 
     model_dirs = parse_model_dirs(args.model_dirs)
     main(with_pred=args.with_pred, model_dirs=model_dirs,
          data_path=args.data_path, circ_id=args.circ_id, mirna_id=args.mirna_id,
-         split=args.split, binding_only=not args.all_pairs)
+         split=args.split, binding_only=not args.all_pairs,
+         out_dir=args.out_dir)
