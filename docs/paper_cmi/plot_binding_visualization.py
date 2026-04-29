@@ -39,10 +39,26 @@ PRED_CMAP   = LinearSegmentedColormap.from_list('pred', ['#EBF5FB', '#1A5276'])
 DATA_PATH = str(Path(__file__).parent.parent.parent / 'data' / 'df_test_final.pkl')
 
 # ── 데이터 로드 ───────────────────────────────────────────────────────────────
-def load_data(data_path=None):
-    path = data_path or DATA_PATH
-    df = pickle.load(open(path, 'rb'))
-    return df
+def load_data(data_path=None, split='test'):
+    """
+    split: 'test' | 'train' | 'all'
+    data_path이 명시되면 그 파일을 직접 사용.
+    """
+    import pandas as pd
+    if data_path:
+        return pickle.load(open(data_path, 'rb'))
+
+    root = Path(DATA_PATH).parent
+    if split == 'test':
+        return pickle.load(open(root / 'df_test_final.pkl', 'rb'))
+    elif split == 'train':
+        return pickle.load(open(root / 'df_train_final.pkl', 'rb'))
+    elif split == 'all':
+        df_test  = pickle.load(open(root / 'df_test_final.pkl',  'rb'))
+        df_train = pickle.load(open(root / 'df_train_final.pkl', 'rb'))
+        return pd.concat([df_test, df_train], ignore_index=True)
+    else:
+        raise ValueError(f"split must be 'test', 'train', or 'all'. Got: {split}")
 
 # ── Model Inference ───────────────────────────────────────────────────────────
 _trainer_cache = {}   # model_dir → trainer (재사용으로 속도 향상)
@@ -297,10 +313,12 @@ def draw_linear_heatmap(ax, seq, sites, pred_circmac, pred_linear=None,
 # ══════════════════════════════════════════════════════════════════════════════
 # Main Figure
 # ══════════════════════════════════════════════════════════════════════════════
-def select_cases(df, circ_id=None, mirna_id=None):
+def select_cases(df, circ_id=None, mirna_id=None, binding_only=True):
     """
     circ_id / mirna_id가 주어지면 해당 row들을 케이스로 사용.
     없으면 기본 케이스 3개(iloc 기반) 사용.
+    binding_only=True: binding==1 pair만 포함 (default)
+    binding_only=False: 모든 pair 포함 (non-binding 포함)
     """
     if circ_id is not None or mirna_id is not None:
         mask = pd.Series([True] * len(df), index=df.index)
@@ -308,11 +326,16 @@ def select_cases(df, circ_id=None, mirna_id=None):
             mask &= df['isoform_ID'].astype(str).str.contains(str(circ_id), case=False, regex=False)
         if mirna_id is not None:
             mask &= df['miRNA_ID'].astype(str) == str(mirna_id)
-        if 'binding' in df.columns:
-            mask &= df['binding'] == 1   # binding pair만 포함
         matched = df[mask]
+        n_total = len(matched)
+        if binding_only and 'binding' in df.columns:
+            matched = matched[matched['binding'] == 1]
         if len(matched) == 0:
-            raise ValueError(f"No rows found for circ_id={circ_id}, mirna_id={mirna_id}")
+            raise ValueError(
+                f"No rows found for circ_id={circ_id}, mirna_id={mirna_id}"
+                + (f" (binding_only=True: {n_total} total rows but 0 with binding==1)"
+                   if binding_only else "")
+            )
         print(f"Found {len(matched)} matching row(s).")
         cases = []
         for i, (_, row) in enumerate(matched.iterrows()):
@@ -374,15 +397,19 @@ DEFAULT_COLORS = ['#E67E22', '#2980B9', '#27AE60', '#8E44AD', '#16A085',
                   '#C0392B', '#F39C12', '#95A5A6']
 
 
-def main(with_pred=False, model_dirs=None, data_path=None, circ_id=None, mirna_id=None):
+def main(with_pred=False, model_dirs=None, data_path=None,
+         circ_id=None, mirna_id=None, split='test', binding_only=True):
     """
-    model_dirs: dict {'label': 'path', ...}  — 여러 모델 비교
+    model_dirs   : dict {'label': 'path', ...}  — 여러 모델 비교
+    split        : 'test' | 'train' | 'all'
+    binding_only : True → binding==1 pair만 / False → 모든 pair
     """
     np.random.seed(42)
-    df = load_data(data_path)
+    df = load_data(data_path, split=split)
+    print(f"[Data] split={split}  rows={len(df)}  binding={df['binding'].sum() if 'binding' in df.columns else '?'}")
     model_dirs = model_dirs or {}
 
-    cases = select_cases(df, circ_id=circ_id, mirna_id=mirna_id)
+    cases = select_cases(df, circ_id=circ_id, mirna_id=mirna_id, binding_only=binding_only)
     n_cases  = len(cases)
     n_models = max(len(model_dirs), 1)
 
@@ -564,13 +591,19 @@ Examples:
                         help='Model dirs as "label:path" pairs. '
                              'e.g. circmac:./saved_models/circmac/exp4_full_s3/3')
     parser.add_argument('--data_path', type=str, default=None,
-                        help='Path to df_test_final.pkl')
+                        help='직접 pkl 경로 지정 (지정 시 --split 무시)')
+    parser.add_argument('--split', type=str, default='test',
+                        choices=['test', 'train', 'all'],
+                        help='사용할 데이터 split (default: test)')
     parser.add_argument('--circ_id', type=str, default=None,
-                        help='isoform_ID substring (e.g. "chr4|84678168")')
+                        help='isoform_ID substring (e.g. "chr11|102114144")')
     parser.add_argument('--mirna_id', type=str, default=None,
                         help='miRNA_ID to filter (e.g. hsa-miR-21-5p)')
+    parser.add_argument('--all_pairs', action='store_true',
+                        help='non-binding pair도 포함 (default: binding==1만)')
     args = parser.parse_args()
 
     model_dirs = parse_model_dirs(args.model_dirs)
     main(with_pred=args.with_pred, model_dirs=model_dirs,
-         data_path=args.data_path, circ_id=args.circ_id, mirna_id=args.mirna_id)
+         data_path=args.data_path, circ_id=args.circ_id, mirna_id=args.mirna_id,
+         split=args.split, binding_only=not args.all_pairs)

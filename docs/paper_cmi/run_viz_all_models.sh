@@ -6,26 +6,43 @@
 #   RNA LM 4종: saved_models/{model}/exp1_{model}_frozen_s{SEED}/{SEED}/
 #
 # 사용법:
-#   ./docs/paper_cmi/run_viz_all_models.sh [DEVICE] [SEED] [CIRC_ID] [BSJ_W]
+#   ./docs/paper_cmi/run_viz_all_models.sh [DEVICE] [SEED] [CIRC_ID] [BSJ_W] \
+#       [THRESHOLD] [IOU_THRESH] [NO_PDF] [SPLIT] [ALL_PAIRS]
 #
 # 예시:
-#   ./docs/paper_cmi/run_viz_all_models.sh 0 1 "chr4|5565258"
-#   ./docs/paper_cmi/run_viz_all_models.sh 0 1 "chr17|78802324" 30
+#   # 기본 (test set, binding pair만)
+#   ./docs/paper_cmi/run_viz_all_models.sh 0 1 "chr11|102114144"
+#
+#   # train set 사용
+#   ./docs/paper_cmi/run_viz_all_models.sh 0 1 "chr11|102114144" 20 0.5 0.3 0 train
+#
+#   # train+test 합쳐서
+#   ./docs/paper_cmi/run_viz_all_models.sh 0 1 "chr11|102114144" 20 0.5 0.3 0 all
+#
+#   # non-binding pair도 포함
+#   ./docs/paper_cmi/run_viz_all_models.sh 0 1 "chr11|102114144" 20 0.5 0.3 0 test 1
+#
+#   # PDF 없이
+#   ./docs/paper_cmi/run_viz_all_models.sh 0 1 "chr11|102114144" 20 0.5 0.3 1
 
 DEVICE=${1:-0}
 SEED=${2:-1}
-CIRC_ID=${3:-"chr4|5565258"}
+CIRC_ID=${3:-"chr11|102114144"}
 BSJ_W=${4:-20}
 THRESHOLD=${5:-0.5}    # pred binarization threshold for region overlap
 IOU_THRESH=${6:-0.3}   # IoU >= this → GT site detected
 NO_PDF=${7:-0}         # 1 이면 PDF 저장 안 함
+SPLIT=${8:-"test"}     # test | train | all
+ALL_PAIRS=${9:-0}      # 0=binding only (default), 1=모든 pair 포함
 
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 BASE_DIR="${ROOT_DIR}/docs/paper_cmi"
 
-# 결과 폴더: results/{isoform_tag}_bsjw{BSJ_W}_s{SEED}/
+# 결과 폴더: results/{isoform_tag}_{split}_{pairs}_bsjw{BSJ_W}_s{SEED}/
 CSV_TAG=$(echo "$CIRC_ID" | sed 's/[|,: /\\]/_/g')
-RUN_TAG="${CSV_TAG}_bsjw${BSJ_W}_s${SEED}"
+PAIR_TAG="binding_only"
+[ "$ALL_PAIRS" = "1" ] && PAIR_TAG="all_pairs"
+RUN_TAG="${CSV_TAG}_${SPLIT}_${PAIR_TAG}_bsjw${BSJ_W}_s${SEED}"
 OUT_DIR="${BASE_DIR}/results/${RUN_TAG}"
 
 mkdir -p "$OUT_DIR"
@@ -35,29 +52,25 @@ echo "  All-model Visualization"
 echo "  device    : $DEVICE"
 echo "  seed      : $SEED"
 echo "  circ_id   : $CIRC_ID"
+echo "  split     : $SPLIT"
+echo "  pairs     : $PAIR_TAG"
 echo "  bsj_w     : $BSJ_W"
 echo "  threshold : $THRESHOLD"
 echo "  iou_thresh: $IOU_THRESH"
+echo "  no_pdf    : $NO_PDF"
 echo "  out_dir   : $OUT_DIR"
 echo "========================================"
 
 cd "$ROOT_DIR" || exit 1
 
 # ── 모델 경로 확인 (없으면 경고만 출력, 계속 진행) ──────────────────────────
-check_model() {
-    local label=$1 path=$2
-    if [ ! -d "$path" ]; then
-        echo "  [WARN] $label not found: $path"
-        return 1
-    fi
-    return 0
-}
-
 MODEL_ARGS=()
 add_model() {
     local label=$1 path=$2
-    if check_model "$label" "$path"; then
+    if [ -d "$path" ]; then
         MODEL_ARGS+=("${label}:${path}")
+    else
+        echo "  [WARN] $label not found: $path"
     fi
 }
 
@@ -77,35 +90,43 @@ if [ ${#MODEL_ARGS[@]} -eq 0 ]; then
     echo "ERROR: No valid model paths found. Check saved_models/ and SEED=$SEED."
     exit 1
 fi
-echo "  Found ${#MODEL_ARGS[@]} model(s): ${MODEL_ARGS[*]%%:*}"
+echo "  Found ${#MODEL_ARGS[@]} model(s): $(echo "${MODEL_ARGS[@]%%:*}" | tr ' ' ',')"
 
 # ── Step 1: 모든 모델 inference → CSV 저장 ────────────────────────────────
 echo ""
-echo "[Step 1] Running inference for ${#MODEL_ARGS[@]} models..."
+echo "[Step 1] Running inference  (split=$SPLIT, $PAIR_TAG)..."
+
+ALL_PAIRS_FLAG=""
+[ "$ALL_PAIRS" = "1" ] && ALL_PAIRS_FLAG="--all_pairs"
 
 python docs/paper_cmi/plot_binding_visualization.py \
     --with_pred \
     --circ_id "$CIRC_ID" \
-    --model_dirs "${MODEL_ARGS[@]}"
+    --split "$SPLIT" \
+    --model_dirs "${MODEL_ARGS[@]}" \
+    $ALL_PAIRS_FLAG
 
-# CSV는 plot_binding_visualization.py가 BASE_DIR에 저장함 → OUT_DIR로 이동
+# CSV 이동
 CSV_SRC="${BASE_DIR}/binding_visualization_${CSV_TAG}_with_pred.csv"
 CSV_FILE="${OUT_DIR}/binding_visualization_${CSV_TAG}_with_pred.csv"
 
 if [ ! -f "$CSV_SRC" ]; then
     echo "ERROR: CSV not found: $CSV_SRC"
-    echo "Check if circ_id matched any isoform."
+    echo "  circ_id가 데이터에 없거나, split=$SPLIT 에 해당 pair가 없습니다."
+    echo "  사용 가능한 circRNA 확인:"
+    echo "    python -c \"import pickle,pandas as pd; df=pickle.load(open('data/df_test_final.pkl','rb')); print(df[df['binding']==1]['isoform_ID'].unique()[:10])\""
     exit 1
 fi
 
 mv "$CSV_SRC" "$CSV_FILE"
 
-# PDF/PNG도 OUT_DIR로 이동
+# PNG/PDF도 OUT_DIR로 이동
 for f in "${BASE_DIR}/binding_visualization_${CSV_TAG}"*.pdf \
           "${BASE_DIR}/binding_visualization_${CSV_TAG}"*.png; do
     [ -f "$f" ] && mv "$f" "$OUT_DIR/"
 done
 
+# ── Step 2: 시각화 생성 ────────────────────────────────────────────────────
 echo ""
 echo "[Step 2] Generating visualizations from CSV..."
 echo "  CSV: $CSV_FILE"
@@ -127,17 +148,20 @@ python docs/paper_cmi/plot_from_csv.py \
 
 echo ""
 echo "========================================"
-echo "  Done! Files saved to:"
-echo "  $OUT_DIR"
+echo "  Done! Files saved to: $OUT_DIR"
 echo ""
-echo "  binding_visualization_*.csv      - raw predictions"
-echo "  viz_heatmap_*.pdf/png            - GT + 모델별 히트맵"
-echo "  viz_overlay_*.pdf/png            - 다중 모델 오버레이"
-echo "  viz_model_{name}_*.pdf/png       - 모델별 개별 그림"
-echo "  viz_bsj_zoom_*.pdf/png           - BSJ 근처 확대"
-echo "  viz_model_summary_*.pdf/png      - 모델간 비교 bar chart"
+echo "  binding_visualization_*.csv    - raw predictions"
+echo "  viz_heatmap_*                  - GT + 모델별 히트맵"
+echo "  viz_overlay_*                  - 다중 모델 오버레이"
+echo "  viz_model_{name}_*             - 모델별 개별 그림"
+echo "  viz_bsj_zoom_*                 - BSJ 근처 확대"
+echo "  viz_region_overlap_*           - Site Recall / IoU / Coverage"
 echo "========================================"
 echo ""
-echo "  TIP: seed 1,2,3 중 원하는 것 지정 가능"
-echo "    ./docs/paper_cmi/run_viz_all_models.sh 0 2 \"chr4|5565258\""
+echo "  SPLIT 옵션: test(기본) | train | all(train+test)"
+echo "  PAIR 옵션 : binding_only(기본) | all_pairs(non-binding 포함)"
+echo ""
+echo "  예시:"
+echo "    ./docs/paper_cmi/run_viz_all_models.sh 0 1 \"chr11|102114144\" 20 0.5 0.3 0 train"
+echo "    ./docs/paper_cmi/run_viz_all_models.sh 0 1 \"chr11|102114144\" 20 0.5 0.3 0 all 1"
 echo "========================================"
