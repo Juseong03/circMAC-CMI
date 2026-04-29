@@ -345,14 +345,21 @@ def select_cases(df, circ_id=None, mirna_id=None, binding_only=True):
             cases.append((row, label))
         return cases
 
-    # 기본 케이스
-    row_a = df.iloc[766]
-    row_b = df.iloc[32]
-    row_c = df[(df['binding'] == 1) & (df['length'].between(150, 200))].iloc[5]
+    # 기본 케이스 — 모두 binding==1에서 선택
+    pos = df[df['binding'] == 1]
+    # BSJ 근처 binding site가 있는 케이스
+    def has_bsj(r, w=20):
+        s = np.array(r['sites'])
+        return bool(s[:w].any() or s[-w:].any())
+    bsj_rows = pos[pos.apply(has_bsj, axis=1)]
+    mid_rows = pos[~pos.apply(has_bsj, axis=1)]
+    row_a = bsj_rows.iloc[0]  if len(bsj_rows) > 0 else pos.iloc[0]
+    row_b = bsj_rows.iloc[1]  if len(bsj_rows) > 1 else pos.iloc[1]
+    row_c = mid_rows.iloc[0]  if len(mid_rows)  > 0 else pos.iloc[2]
     return [
-        (row_a, "Case A: Binding site at 3' end\n(adjacent to BSJ in circular form)"),
-        (row_b, "Case B: Binding site at 5' end\n(adjacent to BSJ in circular form)"),
-        (row_c, "Case C: Binding site in the middle\n(not near BSJ)"),
+        (row_a, "Case A: Binding site near BSJ (5' end)"),
+        (row_b, "Case B: Binding site near BSJ (3' end)"),
+        (row_c, "Case C: Binding site in middle region"),
     ]
 
 
