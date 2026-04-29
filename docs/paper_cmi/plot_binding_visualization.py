@@ -426,7 +426,8 @@ def main(with_pred=False, model_dirs=None, data_path=None,
     # ── Figure 레이아웃 ───────────────────────────────────────────────────────
     # Row 0: 원형 다이어그램 (케이스별)
     # Row 1~N: 모델별 선형 비교 (모델이 여러 개면 행 추가)
-    n_cols     = max(n_cases, 3)
+    # n_cases 열 + 1열(BSJ stats) 확보 — BSJ stats가 케이스 슬롯을 빼앗지 않도록
+    n_cols      = max(n_cases + 1, 4)
     n_pred_rows = n_models if (with_pred and model_dirs) else 1
 
     from matplotlib.gridspec import GridSpec
@@ -462,7 +463,7 @@ def main(with_pred=False, model_dirs=None, data_path=None,
         for m_idx, m_label in enumerate(model_list):
             color = MODEL_COLORS.get(m_label,
                                      DEFAULT_COLORS[m_idx % len(DEFAULT_COLORS)])
-            for col, (row, ttl) in enumerate(cases[:min(n_cases, n_cols - 1)]):
+            for col, (row, ttl) in enumerate(cases):
                 ax    = fig.add_subplot(gs[1 + m_idx, col])
                 seq   = row['circRNA']
                 sites = np.array(row['sites'])
@@ -472,7 +473,7 @@ def main(with_pred=False, model_dirs=None, data_path=None,
                                     title=f'[{m_label}] {ttl.split(chr(10))[0]}')
     else:
         # 단일 모델 or 데모
-        for col, (row, ttl) in enumerate(cases[:min(n_cases, n_cols - 1)]):
+        for col, (row, ttl) in enumerate(cases):
             ax    = fig.add_subplot(gs[1, col])
             seq   = row['circRNA']
             sites = np.array(row['sites'])
