@@ -258,24 +258,29 @@ def draw_linear_heatmap(ax, seq, sites, pred_circmac, pred_linear=None,
     import matplotlib.colors as mcolors
     L = len(seq)
     sites_arr = np.array(sites, dtype=float)
-    pred_c    = np.array(pred_circmac, dtype=float)
+
+    def _pad(arr, length):
+        """모델 max_len < 서열 길이일 경우 0으로 패딩."""
+        arr = np.array(arr, dtype=float)
+        if len(arr) < length:
+            arr = np.pad(arr, (0, length - len(arr)), constant_values=0.0)
+        return arr[:length]
+
+    pred_c = _pad(pred_circmac, L)
 
     # row 구성: GT, CircMAC, (optional) pred_linear
     rows = [sites_arr, pred_c]
     row_labels  = ['GT', 'CircMAC']
-    row_colors  = ['#E74C3C', '#E74C3C']
     row_cmaps   = [
         mcolors.LinearSegmentedColormap.from_list('gt', [NOBIND_COLOR, BIND_COLOR]),
         plt.cm.Reds,
     ]
     if pred_linear is not None:
-        rows.append(np.array(pred_linear, dtype=float))
+        rows.append(_pad(pred_linear, L))
         row_labels.append('Linear')
-        row_colors.append('#3498DB')
         row_cmaps.append(plt.cm.Blues)
 
     n_rows = len(rows)
-    mat = np.vstack([r[np.newaxis, :] for r in rows])  # (n_rows, L)
 
     # 각 row를 별도로 imshow (cmap이 다르므로)
     ax.set_xlim(0, L)
