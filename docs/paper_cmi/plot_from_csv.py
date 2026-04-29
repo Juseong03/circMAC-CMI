@@ -600,7 +600,6 @@ if __name__ == '__main__':
                         help='Skip PDF output, save PNG only')
     args = parser.parse_args()
 
-    global _SAVE_PDF
     if args.no_pdf:
         _SAVE_PDF = False
 
