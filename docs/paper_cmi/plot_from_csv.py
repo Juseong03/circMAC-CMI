@@ -7,7 +7,7 @@ CSV raw prediction 값을 이용한 다양한 시각화
   3. per_model      - 모델별 개별 저장 (circular + linear)
   4. bsj_zoom       - BSJ 근처 확대 뷰
   5. region_overlap - 모델간 region-overlap 기반 성능 비교
-                      (Site Recall, Mean IoU, GT Coverage)
+                      (Site Recall, Site Precision, Site F1, Mean IoU)
                       BSJ-proximal / Middle 구분
 
 사용법:
@@ -74,37 +74,57 @@ def _compute_region_metrics(gt_arr, pred_prob, threshold=0.5, iou_thresh=0.3):
     GT binary array와 pred probability array로 region-overlap 기반 지표 계산.
 
     Returns dict:
-      site_recall   - GT region 중 IoU >= iou_thresh 인 비율
-      mean_iou      - GT region별 best-match IoU 평균
-      gt_coverage   - GT region별 best-match GT coverage 평균
-      n_gt          - GT region 수
-      n_pred        - Pred region 수
+      site_recall    - GT region 중 IoU >= iou_thresh 인 비율  (= TP_gt / n_gt)
+      site_precision - Pred region 중 IoU >= iou_thresh 인 비율 (= TP_pred / n_pred)
+      site_f1        - 2 * precision * recall / (precision + recall)
+      mean_iou       - GT region별 best-match IoU 평균
+      n_gt           - GT region 수
+      n_pred         - Pred region 수
     """
-    pred_bin = (np.asarray(pred_prob) >= threshold).astype(int)
+    pred_bin     = (np.asarray(pred_prob) >= threshold).astype(int)
     gt_regions   = _get_regions(gt_arr)
     pred_regions = _get_regions(pred_bin)
 
     if not gt_regions:
-        return dict(site_recall=np.nan, mean_iou=np.nan,
-                    gt_coverage=np.nan, n_gt=0, n_pred=len(pred_regions))
+        return dict(site_recall=np.nan, site_precision=np.nan,
+                    site_f1=np.nan, mean_iou=np.nan,
+                    n_gt=0, n_pred=len(pred_regions))
 
-    ious, coverages, detected = [], [], []
+    # ── Recall: GT-centric ───────────────────────────────────────────────────
+    ious, detected_gt = [], []
     for gt_r in gt_regions:
         if pred_regions:
             best_iou = max(_region_iou(gt_r, p) for p in pred_regions)
-            best_cov = max(_region_coverage(gt_r, p) for p in pred_regions)
         else:
-            best_iou, best_cov = 0.0, 0.0
+            best_iou = 0.0
         ious.append(best_iou)
-        coverages.append(best_cov)
-        detected.append(float(best_iou >= iou_thresh))
+        detected_gt.append(float(best_iou >= iou_thresh))
+
+    site_recall = float(np.mean(detected_gt))
+
+    # ── Precision: Pred-centric ──────────────────────────────────────────────
+    if pred_regions:
+        detected_pred = []
+        for pred_r in pred_regions:
+            best_iou = max(_region_iou(pred_r, g) for g in gt_regions)
+            detected_pred.append(float(best_iou >= iou_thresh))
+        site_precision = float(np.mean(detected_pred))
+    else:
+        site_precision = np.nan   # 예측 region 없음 → precision 정의 불가
+
+    # ── F1 ──────────────────────────────────────────────────────────────────
+    if np.isnan(site_precision) or (site_recall + site_precision) == 0:
+        site_f1 = np.nan
+    else:
+        site_f1 = 2 * site_precision * site_recall / (site_precision + site_recall)
 
     return dict(
-        site_recall = float(np.mean(detected)),
-        mean_iou    = float(np.mean(ious)),
-        gt_coverage = float(np.mean(coverages)),
-        n_gt        = len(gt_regions),
-        n_pred      = len(pred_regions),
+        site_recall    = site_recall,
+        site_precision = site_precision,
+        site_f1        = site_f1,
+        mean_iou       = float(np.mean(ious)),
+        n_gt           = len(gt_regions),
+        n_pred         = len(pred_regions),
     )
 
 
@@ -459,9 +479,10 @@ def plot_region_overlap(sub, iso_full, model_cols, bsj_w=20,
     w = bsj_w if L > 2 * bsj_w else L // 3
 
     METRICS = [
-        ('site_recall', f'Site Recall\n(IoU ≥ {iou_thresh})', '#E74C3C'),
-        ('mean_iou',    'Mean IoU',                             '#2980B9'),
-        ('gt_coverage', 'GT Coverage',                          '#27AE60'),
+        ('site_recall',    f'Site Recall\n(IoU ≥ {iou_thresh})',    '#E74C3C'),
+        ('site_precision', f'Site Precision\n(IoU ≥ {iou_thresh})', '#E67E22'),
+        ('site_f1',        f'Site F1\n(IoU ≥ {iou_thresh})',        '#8E44AD'),
+        ('mean_iou',       'Mean IoU',                               '#2980B9'),
     ]
     REGIONS = [
         ('bsj',    f"BSJ-proximal (±{w}nt)"),
@@ -500,7 +521,7 @@ def plot_region_overlap(sub, iso_full, model_cols, bsj_w=20,
     n_metrics = len(METRICS)
     n_regions = len(REGIONS)
     fig, axes = plt.subplots(n_regions, n_metrics,
-                             figsize=(5 * n_metrics, 4 * n_regions))
+                             figsize=(4.5 * n_metrics, 4 * n_regions))
     fig.patch.set_facecolor('white')
 
     model_labels = list(model_cols.keys())
