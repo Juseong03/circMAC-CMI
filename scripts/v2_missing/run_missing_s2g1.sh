@@ -19,7 +19,7 @@ PT_SEED=42
 
 D_MODEL=128; N_LAYER=6; MAX_LEN=1022; NUM_WORKERS=4
 PT_DATA="df_pretrain"
-PT_BS=64; PT_LR=1e-3; PT_WD=0.01; PT_EP=300; PT_ES=30
+PT_BS=16; PT_LR=1e-3; PT_WD=0.01; PT_EP=300; PT_ES=30  # BS=16: all tasks combined uses much more memory
 FT_BS=64; FT_LR=1e-4; FT_EP=150; FT_ES=20
 
 mkdir -p logs/v2/ptm logs/v2/pt saved_models
