@@ -558,11 +558,18 @@ def plot_region_overlap(sub, iso_full, model_cols, bsj_w=20,
                             fontsize=8.5, fontweight='bold')
 
             ax.set_xticks(x)
-            ax.set_xticklabels(model_labels, fontsize=9, rotation=20, ha='right')
+            # 모델 이름은 마지막 행에만 표시
+            if r_i == n_regions - 1:
+                ax.set_xticklabels(model_labels, fontsize=9, rotation=20, ha='right')
+            else:
+                ax.set_xticklabels([], fontsize=9)
             ax.set_ylim(0, 1.15)
-            ax.set_ylabel(metric_label, fontsize=9.5)
-            ax.set_title(f'{r_title}\n{metric_label}',
-                         fontsize=10, fontweight='bold', color=bar_color)
+            # ylabel은 첫 번째 열에만 표시
+            if m_i == 0:
+                ax.set_ylabel(r_title, fontsize=9.5, fontweight='bold')
+            else:
+                ax.set_ylabel('')
+            ax.set_title(metric_label, fontsize=10, fontweight='bold', color=bar_color)
             ax.spines['top'].set_visible(False)
             ax.spines['right'].set_visible(False)
             ax.grid(axis='y', linestyle='--', alpha=0.3)
