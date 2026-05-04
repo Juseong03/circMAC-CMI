@@ -19,7 +19,7 @@ PT_SEED=42
 
 D_MODEL=128; N_LAYER=6; MAX_LEN=1022; NUM_WORKERS=4
 PT_DATA="df_pretrain"
-PT_BS=16; PT_LR=1e-3; PT_WD=0.01; PT_EP=300; PT_ES=30  # BS=16: all tasks combined uses much more memory
+PT_BS=32; PT_LR=1e-3; PT_WD=0.01; PT_EP=300; PT_ES=30  # BS=32: pairing removed, memory OK
 FT_BS=64; FT_LR=1e-4; FT_EP=150; FT_ES=20
 
 mkdir -p logs/v2/ptm logs/v2/pt saved_models
@@ -76,7 +76,7 @@ run_finetune() {
 # ══ v2_pt_all: All pretraining tasks ════════════════════════════════════════
 echo ""
 echo "━━━ v2_pt_all: MLM + NTP + SSP + Pairing + CPCL + BSJ_MLM ━━━"
-run_pretrain "all" --mlm --ntp --ssp --pairing --cpcl --bsj_mlm
+run_pretrain "all" --mlm --ntp --ssp --cpcl --bsj_mlm  # pairing excluded: memory expensive, marginal gain
 PT_PATH="saved_models/circmac/v2_ptm_all/${PT_SEED}/pretrain/model.pth"
 if [ -f "$PT_PATH" ]; then
     run_finetune "all" "$PT_PATH"

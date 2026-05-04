@@ -87,13 +87,13 @@ V2_EXP_GROUPS = {
     'pt': {
         'title': 'EXP2: Pretraining Strategy',
         'models': {
-            'nopt':    [('v2_pt_nopt_s{s}',    'circmac')],
-            'mlm':     [('v2_pt_mlm_s{s}',     'circmac')],
-            'ssp':     [('v2_pt_ssp_s{s}',     'circmac')],
-            'pairing': [('v2_pt_pairing_s{s}', 'circmac')],
-            'cpcl':    [('v2_pt_cpcl_s{s}',    'circmac')],
-            'bsj':     [('v2_pt_bsj_s{s}',     'circmac')],
-            'all':     [('v2_pt_all_s{s}',      'circmac')],
+            'nopt': [('v2_pt_nopt_s{s}', 'circmac')],
+            'mlm':  [('v2_pt_mlm_s{s}',  'circmac')],
+            'ntp':  [('v2_pt_ntp_s{s}',  'circmac')],
+            'ssp':  [('v2_pt_ssp_s{s}',  'circmac')],
+            'cpcl': [('v2_pt_cpcl_s{s}', 'circmac')],
+            'bsj':  [('v2_pt_bsj_s{s}',  'circmac')],
+            'all':  [('v2_pt_all_s{s}',  'circmac')],
         },
     },
 }
