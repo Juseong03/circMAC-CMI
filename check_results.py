@@ -46,14 +46,14 @@ V2_EXP_GROUPS = {
     'rna': {
         'title': 'EXP1: RNA LM Comparison',
         'models': {
-            'rnabert_frozen':     [('exp1_rnabert_frozen_s{s}',    'rnabert')],
-            'rnaernie_frozen':    [('exp1_rnaernie_frozen_s{s}',   'rnaernie')],
-            'rnafm_frozen':       [('exp1_rnafm_frozen_s{s}',      'rnafm')],
-            'rnamsm_frozen':      [('exp1_rnamsm_frozen_s{s}',     'rnamsm')],
-            'rnabert_trainable':  [('exp1_rnabert_trainable_s{s}', 'rnabert')],
-            'rnaernie_trainable': [('exp1_rnaernie_trainable_s{s}','rnaernie')],
-            'rnafm_trainable':    [('exp1_rnafm_trainable_s{s}',   'rnafm')],
-            'rnamsm_trainable':   [('exp1_rnamsm_trainable_s{s}',  'rnamsm')],
+            'rnabert_frozen':     [('exp1_fair_frozen_rnabert_s{s}',    'rnabert')],
+            'rnaernie_frozen':    [('exp1_fair_frozen_rnaernie_s{s}',   'rnaernie')],
+            'rnafm_frozen':       [('exp1_fair_frozen_rnafm_s{s}',      'rnafm')],
+            'rnamsm_frozen':      [('exp1_fair_frozen_rnamsm_s{s}',     'rnamsm')],
+            'rnabert_trainable':  [('exp1_fair_trainable_rnabert_s{s}', 'rnabert')],
+            'rnaernie_trainable': [('exp1_fair_trainable_rnaernie_s{s}','rnaernie')],
+            'rnafm_trainable':    [('exp1_fair_trainable_rnafm_s{s}',   'rnafm')],
+            'rnamsm_trainable':   [('exp1_fair_trainable_rnamsm_s{s}',  'rnamsm')],
         },
     },
     'abl': {
