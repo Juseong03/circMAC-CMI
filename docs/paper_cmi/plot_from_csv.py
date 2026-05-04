@@ -467,7 +467,8 @@ def plot_bsj_zoom(sub, iso_full, model_cols, top_n=6, zoom_w=50, out_dir=None):
 def plot_region_overlap(sub, iso_full, model_cols, bsj_w=20,
                         threshold=0.5, iou_thresh=0.3, out_dir=None):
     """
-    Region-overlap 기반 모델 성능 비교 (bar chart, 3 metrics × 2 regions).
+    Region-overlap 기반 모델 성능 비교 (bar chart, 4 metrics × 1 row).
+    전체 circRNA 기준으로 집계 (BSJ/Middle 구분 없음).
 
     threshold  : pred binarization threshold (default 0.5)
     iou_thresh : IoU >= 이 값이면 GT site 탐지 성공 (default 0.3)
@@ -475,106 +476,79 @@ def plot_region_overlap(sub, iso_full, model_cols, bsj_w=20,
     if not model_cols:
         print("region_overlap: no model columns found"); return
 
-    L = sub['position'].max() + 1
-    w = bsj_w if L > 2 * bsj_w else L // 3
-
     METRICS = [
         ('site_recall',    f'Site Recall\n(IoU ≥ {iou_thresh})',    '#E74C3C'),
         ('site_precision', f'Site Precision\n(IoU ≥ {iou_thresh})', '#E67E22'),
         ('site_f1',        f'Site F1\n(IoU ≥ {iou_thresh})',        '#8E44AD'),
         ('mean_iou',       'Mean IoU',                               '#2980B9'),
     ]
-    REGIONS = [
-        ('bsj',    f"BSJ-proximal (±{w}nt)"),
-        ('middle', f"Middle (pos {w}~{L-w})"),
-    ]
 
-    # ── 집계: miRNA × region × model ─────────────────────────────────────────
-    # results[region_key][model_label] = list of metric dicts
+    # ── 집계: miRNA × model (전체 circRNA 기준) ───────────────────────────────
     from collections import defaultdict
-    results = {rk: defaultdict(list) for rk, _ in REGIONS}
+    results = defaultdict(list)   # model_label → list of metric dicts
 
     for mirna, grp in sub.groupby('miRNA_ID'):
         grp = grp.sort_values('position')
-        pos = grp['position'].values
         gt  = grp['ground_truth'].values
 
-        if gt.sum() == 0:           # binding 없는 pair 전체 제외
+        if gt.sum() == 0:
             continue
 
-        bsj_idx = (pos < w) | (pos >= L - w)
-        mid_idx = ~bsj_idx
+        for m_label, m_col in model_cols.items():
+            pred = grp[m_col].values
+            m = _compute_region_metrics(gt, pred,
+                                        threshold=threshold,
+                                        iou_thresh=iou_thresh)
+            if m['n_gt'] > 0:
+                results[m_label].append(m)
 
-        for rk, mask in [('bsj', bsj_idx), ('middle', mid_idx)]:
-            gt_sub = gt[mask]
-            if gt_sub.sum() == 0:   # 이 region에 GT binding site 없음 → 스킵
-                continue
-            for m_label, m_col in model_cols.items():
-                pred_sub = grp[m_col].values[mask]
-                m = _compute_region_metrics(gt_sub, pred_sub,
-                                            threshold=threshold,
-                                            iou_thresh=iou_thresh)
-                if m['n_gt'] > 0:
-                    results[rk][m_label].append(m)
-
-    # ── 그리기 ────────────────────────────────────────────────────────────────
+    # ── 그리기: 1행 4열 ───────────────────────────────────────────────────────
     n_metrics = len(METRICS)
-    n_regions = len(REGIONS)
-    fig, axes = plt.subplots(n_regions, n_metrics,
-                             figsize=(4.5 * n_metrics, 4 * n_regions))
+    fig, axes = plt.subplots(1, n_metrics,
+                             figsize=(4.0 * n_metrics, 4.5),
+                             sharey=False)
     fig.patch.set_facecolor('white')
 
     model_labels = list(model_cols.keys())
     x = np.arange(len(model_labels))
     bar_w = 0.6
 
-    for r_i, (rk, r_title) in enumerate(REGIONS):
-        for m_i, (metric_key, metric_label, bar_color) in enumerate(METRICS):
-            ax = axes[r_i][m_i]
+    for m_i, (metric_key, metric_label, bar_color) in enumerate(METRICS):
+        ax = axes[m_i]
 
-            vals, errs = [], []
-            for ml in model_labels:
-                data = results[rk].get(ml, [])
-                v_list = [d[metric_key] for d in data
-                          if not np.isnan(d[metric_key])]
-                if v_list:
-                    vals.append(float(np.mean(v_list)))
-                    errs.append(float(np.std(v_list) / np.sqrt(len(v_list)))
-                                if len(v_list) > 1 else 0.0)
-                else:
-                    vals.append(0.0)
-                    errs.append(0.0)
-
-            colors = [get_model_color(ml, i) for i, ml in enumerate(model_labels)]
-            bars = ax.bar(x, vals, yerr=errs, color=colors,
-                          width=bar_w, edgecolor='white',
-                          capsize=4, error_kw=dict(lw=1.5, alpha=0.7))
-
-            for bar, v in zip(bars, vals):
-                if v > 0:
-                    ax.text(bar.get_x() + bar.get_width() / 2,
-                            bar.get_height() + max(errs) * 1.1 + 0.01,
-                            f'{v:.2f}', ha='center', va='bottom',
-                            fontsize=8.5, fontweight='bold')
-
-            ax.set_xticks(x)
-            # 모델 이름은 마지막 행에만 표시
-            if r_i == n_regions - 1:
-                ax.set_xticklabels(model_labels, fontsize=9, rotation=20, ha='right')
+        vals, errs = [], []
+        for ml in model_labels:
+            data = results.get(ml, [])
+            v_list = [d[metric_key] for d in data if not np.isnan(d[metric_key])]
+            if v_list:
+                vals.append(float(np.mean(v_list)))
+                errs.append(float(np.std(v_list) / np.sqrt(len(v_list)))
+                            if len(v_list) > 1 else 0.0)
             else:
-                ax.set_xticklabels([], fontsize=9)
-            ax.set_ylim(0, 1.15)
-            # ylabel은 첫 번째 열에만 표시
-            if m_i == 0:
-                ax.set_ylabel(r_title, fontsize=9.5, fontweight='bold')
-            else:
-                ax.set_ylabel('')
-            ax.set_title(metric_label, fontsize=10, fontweight='bold', color=bar_color)
-            ax.spines['top'].set_visible(False)
-            ax.spines['right'].set_visible(False)
-            ax.grid(axis='y', linestyle='--', alpha=0.3)
-            ax.axhline(iou_thresh if metric_key == 'mean_iou' else 0,
-                       color='#aaa', lw=0.8, linestyle=':')
+                vals.append(0.0)
+                errs.append(0.0)
+
+        colors = [get_model_color(ml, i) for i, ml in enumerate(model_labels)]
+        bars = ax.bar(x, vals, yerr=errs, color=colors,
+                      width=bar_w, edgecolor='white',
+                      capsize=4, error_kw=dict(lw=1.5, alpha=0.7))
+
+        for bar, v in zip(bars, vals):
+            if v > 0:
+                ax.text(bar.get_x() + bar.get_width() / 2,
+                        bar.get_height() + max(errs) * 1.1 + 0.01,
+                        f'{v:.2f}', ha='center', va='bottom',
+                        fontsize=8.5, fontweight='bold')
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(model_labels, fontsize=9, rotation=25, ha='right')
+        ax.set_ylim(0, 1.15)
+        ax.set_title(metric_label, fontsize=10.5, fontweight='bold', color=bar_color)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.grid(axis='y', linestyle='--', alpha=0.3)
+        if metric_key == 'mean_iou':
+            ax.axhline(iou_thresh, color='#aaa', lw=0.8, linestyle=':')
 
     iso_short = iso_full[:55] + '...' if len(iso_full) > 55 else iso_full
     fig.suptitle(
