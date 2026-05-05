@@ -1,9 +1,10 @@
 #!/bin/bash
 # 9개 모델 전체 binding site visualization 스크립트
 #
-# 모델 경로 규칙:
-#   base 5종  : saved_models/{model}/v2_enc_{model}_s{SEED}/{SEED}/
-#   RNA LM 4종: saved_models/{model}/exp1_{model}_frozen_s{SEED}/{SEED}/
+# 모델 경로 규칙 (models_for_viz/ 기준):
+#   circmac       : models_for_viz/circmac/v2_abl_full_s{SEED}/{SEED}/
+#   base 4종      : models_for_viz/{model}/v2_enc_{model}_s{SEED}/{SEED}/
+#   RNA LM frozen : models_for_viz/{model}/exp1_fair_frozen_{model}_s{SEED}/{SEED}/
 #
 # 사용법:
 #   ./docs/paper_cmi/run_viz_all_models.sh [DEVICE] [SEED] [CIRC_ID] [BSJ_W] \
@@ -74,17 +75,19 @@ add_model() {
     fi
 }
 
+MODEL_ROOT="${ROOT_DIR}/models_for_viz"
+
 echo ""
-echo "[Check] Model paths..."
-add_model "circmac"     "./saved_models/circmac/v2_enc_circmac_s${SEED}/${SEED}"
-add_model "mamba"       "./saved_models/mamba/v2_enc_mamba_s${SEED}/${SEED}"
-add_model "lstm"        "./saved_models/lstm/v2_enc_lstm_s${SEED}/${SEED}"
-add_model "transformer" "./saved_models/transformer/v2_enc_transformer_s${SEED}/${SEED}"
-add_model "hymba"       "./saved_models/hymba/v2_enc_hymba_s${SEED}/${SEED}"
-add_model "rnabert"     "./saved_models/rnabert/exp1_fair_frozen_rnabert_s${SEED}/${SEED}"
-add_model "rnaernie"    "./saved_models/rnaernie/exp1_fair_frozen_rnaernie_s${SEED}/${SEED}"
-add_model "rnamsm"      "./saved_models/rnamsm/exp1_fair_frozen_rnamsm_s${SEED}/${SEED}"
-add_model "rnafm"       "./saved_models/rnafm/exp1_fair_frozen_rnafm_s${SEED}/${SEED}"
+echo "[Check] Model paths (models_for_viz/)..."
+add_model "circmac"     "${MODEL_ROOT}/circmac/v2_abl_full_s${SEED}/${SEED}"
+add_model "mamba"       "${MODEL_ROOT}/mamba/v2_enc_mamba_s${SEED}/${SEED}"
+add_model "lstm"        "${MODEL_ROOT}/lstm/v2_enc_lstm_s${SEED}/${SEED}"
+add_model "transformer" "${MODEL_ROOT}/transformer/v2_enc_transformer_s${SEED}/${SEED}"
+add_model "hymba"       "${MODEL_ROOT}/hymba/v2_enc_hymba_s${SEED}/${SEED}"
+add_model "rnabert"     "${MODEL_ROOT}/rnabert/exp1_fair_frozen_rnabert_s${SEED}/${SEED}"
+add_model "rnaernie"    "${MODEL_ROOT}/rnaernie/exp1_fair_frozen_rnaernie_s${SEED}/${SEED}"
+add_model "rnamsm"      "${MODEL_ROOT}/rnamsm/exp1_fair_frozen_rnamsm_s${SEED}/${SEED}"
+add_model "rnafm"       "${MODEL_ROOT}/rnafm/exp1_fair_frozen_rnafm_s${SEED}/${SEED}"
 
 if [ ${#MODEL_ARGS[@]} -eq 0 ]; then
     echo "ERROR: No valid model paths found. Check saved_models/ and SEED=$SEED."
