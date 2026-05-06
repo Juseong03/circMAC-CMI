@@ -36,37 +36,92 @@ import pandas as pd
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Region Overlap 유틸
+# Position-level metrics 유틸
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _get_regions(binary_arr):
-    """Binary array → list of (start, end) tuples (end exclusive)."""
+def _fill_gaps(binary_arr, gap):
+    """예측 binary에서 ≤gap 크기의 빈틈을 채워 연속 region으로 합침."""
+    if gap <= 0:
+        return binary_arr.copy()
+    arr = np.asarray(binary_arr, dtype=int).copy()
+    i = 0
+    while i < len(arr):
+        if arr[i] == 0:
+            j = i
+            while j < len(arr) and arr[j] == 0:
+                j += 1
+            # 빈틈이 양쪽 모두 1로 둘러싸여 있고 크기 ≤ gap이면 채움
+            if (j - i) <= gap and i > 0 and j < len(arr):
+                arr[i:j] = 1
+            i = j
+        else:
+            i += 1
+    return arr
+
+
+def _dilate(binary_arr, tol):
+    """binary mask를 ±tol 만큼 확장 (각 양성 위치 주변 tol bp 허용)."""
+    if tol <= 0:
+        return np.asarray(binary_arr, dtype=int)
     arr = np.asarray(binary_arr, dtype=int)
-    regions = []
-    in_r, start = False, 0
-    for i, v in enumerate(arr):
-        if v and not in_r:
-            start, in_r = i, True
-        elif not v and in_r:
-            regions.append((start, i))
-            in_r = False
-    if in_r:
-        regions.append((start, len(arr)))
-    return regions
+    from scipy.ndimage import binary_dilation
+    struct = np.ones(2 * tol + 1, dtype=bool)
+    return binary_dilation(arr.astype(bool), structure=struct).astype(int)
 
 
-def _region_iou(a, b):
-    """IoU between two (start, end) regions."""
-    inter = max(0, min(a[1], b[1]) - max(a[0], b[0]))
-    union = max(a[1], b[1]) - min(a[0], b[0])
-    return inter / union if union > 0 else 0.0
+def _find_optimal_threshold(gt_arr, pred_prob):
+    """F1을 최대화하는 threshold 탐색 (precision_recall_curve 기반)."""
+    from sklearn.metrics import precision_recall_curve
+    gt = np.asarray(gt_arr, dtype=int)
+    if gt.sum() == 0 or (1 - gt).sum() == 0:
+        return 0.5
+    prec, rec, thrs = precision_recall_curve(gt, pred_prob)
+    f1s = 2 * prec * rec / (prec + rec + 1e-8)
+    best_idx = int(np.argmax(f1s))
+    return float(thrs[best_idx]) if best_idx < len(thrs) else 0.5
 
 
-def _region_coverage(gt_r, pred_r):
-    """Fraction of GT region covered by pred region."""
-    inter = max(0, min(gt_r[1], pred_r[1]) - max(gt_r[0], pred_r[0]))
-    gt_len = gt_r[1] - gt_r[0]
-    return inter / gt_len if gt_len > 0 else 0.0
+def _compute_position_metrics(gt_arr, pred_prob, threshold=0.5, tol=0, gap=0):
+    """
+    Position-level metrics with tolerance & gap-filling.
+
+    tol  : GT를 ±tol bp 확장 → 약간 어긋난 예측도 TP로 허용
+    gap  : 예측 binary에서 ≤gap 크기 빈틈을 채워 연속 region 형성
+
+    Recall    = GT 위치 중 ±tol 범위 안에 예측이 있는 비율
+    Precision = 예측(gap-filled) 위치 중 ±tol 범위 안에 GT가 있는 비율
+    F1        = 2*P*R / (P+R)
+    """
+    gt   = np.asarray(gt_arr, dtype=int)
+    pred = _fill_gaps((np.asarray(pred_prob) >= threshold).astype(int), gap)
+
+    # GT dilated → 예측이 근처에 있으면 TP
+    gt_dilated   = _dilate(gt, tol)
+    # Pred dilated → GT가 근처에 있으면 detected
+    pred_dilated = _dilate(pred, tol)
+
+    # Recall: 원래 GT 위치가 pred_dilated 안에 들어오는 비율
+    n_gt = int(gt.sum())
+    tp_r = int(((gt == 1) & (pred_dilated == 1)).sum())
+    recall = tp_r / n_gt if n_gt > 0 else 0.0
+
+    # Precision: pred(gap-filled) 위치가 gt_dilated 안에 들어오는 비율
+    n_pred = int(pred.sum())
+    tp_p   = int(((pred == 1) & (gt_dilated == 1)).sum())
+    precision = tp_p / n_pred if n_pred > 0 else np.nan
+
+    if np.isnan(precision) or (recall + precision) == 0:
+        f1 = np.nan
+    else:
+        f1 = 2 * precision * recall / (precision + recall)
+
+    return dict(
+        recall    = recall,
+        precision = precision,
+        f1        = f1,
+        n_gt      = n_gt,
+        n_pred    = n_pred,
+    )
 
 
 def _compute_region_metrics(gt_arr, pred_prob, threshold=0.5, iou_thresh=0.3):
@@ -458,59 +513,217 @@ def plot_bsj_zoom(sub, iso_full, model_cols, top_n=6, zoom_w=50, out_dir=None):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 5. Region Overlap: 모델간 region-overlap 기반 성능 비교
-#    - Site Recall  : GT region 중 IoU >= 0.3 인 비율
-#    - Mean IoU     : GT region별 best-match IoU 평균
-#    - GT Coverage  : GT region별 best-match coverage 평균
-#    BSJ-proximal / Middle 두 region으로 구분
+# 5. Per-pair: 각 miRNA pair별 개별 figure (전체 모델 오버레이 + F1 bar)
+# ══════════════════════════════════════════════════════════════════════════════
+def plot_per_pair(sub, iso_full, model_cols, bsj_w=20,
+                  threshold=0.5, iou_thresh=0.3, tol=0, gap=0,
+                  opt_threshold=False, val_thresholds=None, out_dir=None):
+    """miRNA pair마다 하나의 figure: 좌=라인 오버레이, 우=모델별 F1 bar.
+
+    threshold 우선순위: val_thresholds (from val set) > opt_threshold (oracle) > threshold (fixed)
+    """
+    if not model_cols:
+        print("per_pair: no model columns found"); return
+
+    model_list  = list(model_cols.keys())
+    iso_short   = iso_full[:45] + '...' if len(iso_full) > 45 else iso_full
+    generated   = 0
+
+    for mirna, grp in sub.groupby('miRNA_ID'):
+        grp = grp.sort_values('position')
+        gt  = grp['ground_truth'].values
+        if gt.sum() == 0:
+            continue
+        L = len(gt)
+        x = np.arange(L)
+
+        # ── 모델별 threshold 결정 및 metrics 계산 ────────────────────────────
+        # 우선순위: val_thresholds > opt_threshold (oracle) > fixed threshold
+        use_val = bool(val_thresholds)
+        model_thresholds = {}
+        metrics_per_model = {}
+        for m_label, m_col in model_cols.items():
+            pred = grp[m_col].values[:L]
+            if use_val and m_label in val_thresholds:
+                thr = float(val_thresholds[m_label])
+            elif opt_threshold:
+                thr = _find_optimal_threshold(gt, pred)
+            else:
+                thr = threshold
+            model_thresholds[m_label] = thr
+            m = _compute_position_metrics(gt, pred, threshold=thr, tol=tol, gap=gap)
+            try:
+                from sklearn.metrics import roc_auc_score
+                m['auroc'] = float(roc_auc_score(gt, pred)) if gt.sum() > 0 and (1-gt).sum() > 0 else np.nan
+            except Exception:
+                m['auroc'] = np.nan
+            metrics_per_model[m_label] = m
+
+        # ── Figure: 좌(3) line overlay / 우(2) AUROC+F1 bar ──────────────────
+        fig = plt.figure(figsize=(16, 4.5))
+        fig.patch.set_facecolor('white')
+        gs = GridSpec(1, 5, figure=fig, wspace=0.35,
+                      left=0.05, right=0.97, top=0.88, bottom=0.15)
+        ax_line  = fig.add_subplot(gs[0, :3])
+        ax_auroc = fig.add_subplot(gs[0, 3])
+        ax_f1    = fig.add_subplot(gs[0, 4])
+
+        # ── 라인 오버레이 ──────────────────────────────────────────────────────
+        ax_line.fill_between(x, gt, alpha=0.20, color=BIND_COLOR,
+                             label='Ground Truth', zorder=1)
+        ax_line.step(x, gt, color=BIND_COLOR, lw=0.8, alpha=0.5, zorder=2)
+        for m_idx, (m_label, m_col) in enumerate(model_cols.items()):
+            color = get_model_color(m_label, m_idx)
+            pred  = grp[m_col].values[:L]
+            ax_line.plot(x, pred, color=color, lw=1.3, alpha=0.85,
+                         label=m_label, zorder=3 + m_idx)
+            if opt_threshold:
+                thr = model_thresholds[m_label]
+                ax_line.axhline(thr, color=color, lw=0.7, ls=':',
+                                alpha=0.5, zorder=2)
+        if not opt_threshold:
+            ax_line.axhline(threshold, color='#888', lw=0.9, ls=':',
+                            alpha=0.7, label=f'threshold={threshold}')
+        ax_line.axvline(0,     color=BSJ_COLOR, lw=1.5, ls='--', alpha=0.7)
+        ax_line.axvline(L - 1, color=BSJ_COLOR, lw=1.5, ls='--', alpha=0.7)
+        ax_line.set_xlim(0, L - 1)
+        ax_line.set_ylim(-0.05, 1.15)
+        ax_line.set_xlabel('Position', fontsize=9)
+        ax_line.set_ylabel('Prediction probability', fontsize=9)
+        ax_line.legend(fontsize=7.5, loc='upper right', ncol=2,
+                       framealpha=0.85, edgecolor='#ccc')
+        ax_line.spines['top'].set_visible(False)
+        ax_line.spines['right'].set_visible(False)
+        ax_line.tick_params(labelsize=8)
+
+        bsj_prox = int(gt[:bsj_w].sum() + gt[max(0, L - bsj_w):].sum())
+        n_gt_sites = int(gt.sum())
+        ax_line.set_title(
+            f'{mirna}  |  GT binding sites: {n_gt_sites}/{L}'
+            f'  (BSJ-proximal: {bsj_prox})',
+            fontsize=10, fontweight='bold')
+
+        # ── AUROC horizontal bar ──────────────────────────────────────────────
+        colors_bar = [get_model_color(ml, i) for i, ml in enumerate(model_list)]
+        y = np.arange(len(model_list))
+
+        auroc_vals = []
+        for ml in model_list:
+            v = metrics_per_model[ml].get('auroc', np.nan)
+            auroc_vals.append(0.5 if (v is None or np.isnan(v)) else float(v))
+        ax_auroc.barh(y, auroc_vals, color=colors_bar, height=0.6, edgecolor='white')
+        ax_auroc.axvline(0.5, color='#aaa', lw=0.8, ls='--')
+        for yi, v in zip(y, auroc_vals):
+            ax_auroc.text(min(v + 0.01, 1.02), yi, f'{v:.2f}',
+                          va='center', fontsize=7.5, fontweight='bold')
+        ax_auroc.set_yticks(y)
+        ax_auroc.set_yticklabels(model_list, fontsize=8)
+        ax_auroc.set_xlim(0.3, 1.05)
+        ax_auroc.set_xlabel('AUROC', fontsize=8.5)
+        ax_auroc.set_title('AUROC', fontsize=9, fontweight='bold', color='#2980B9')
+        ax_auroc.spines['top'].set_visible(False)
+        ax_auroc.spines['right'].set_visible(False)
+        ax_auroc.tick_params(axis='x', labelsize=7)
+        ax_auroc.invert_yaxis()
+
+        # ── F1 horizontal bar ──────────────────────────────────────────────────
+        f1_vals = []
+        for ml in model_list:
+            v = metrics_per_model[ml].get('f1', 0.0)
+            f1_vals.append(0.0 if (v is None or np.isnan(v)) else float(v))
+        ax_f1.barh(y, f1_vals, color=colors_bar, height=0.6, edgecolor='white')
+        for yi, v in zip(y, f1_vals):
+            if v > 0.01:
+                ax_f1.text(v + 0.01, yi, f'{v:.2f}',
+                           va='center', fontsize=7.5, fontweight='bold')
+        ax_f1.set_yticks(y)
+        ax_f1.set_yticklabels(model_list, fontsize=8)
+        ax_f1.set_xlim(0, 1.05)
+        ax_f1.set_xlabel('F1', fontsize=8.5)
+        tol_gap_str = ''
+        if tol > 0 or gap > 0:
+            tol_gap_str = f'\ntol={tol} gap={gap}'
+        if use_val:
+            thr_str = 'val_thr'
+        elif opt_threshold:
+            thr_str = 'opt_thr'
+        else:
+            thr_str = f'thr={threshold}'
+        ax_f1.set_title(f'F1  ({thr_str}){tol_gap_str}',
+                        fontsize=9, fontweight='bold', color='#8E44AD')
+        ax_f1.spines['top'].set_visible(False)
+        ax_f1.spines['right'].set_visible(False)
+        ax_f1.tick_params(axis='x', labelsize=7)
+        ax_f1.invert_yaxis()
+
+        fig.suptitle(iso_short, fontsize=9, color='#555', y=0.97)
+        plt.tight_layout()
+
+        stem = f'viz_pair_{sanitize(mirna[:35])}_{sanitize(iso_full[:25])}'
+        _save(fig, out_dir, stem)
+        generated += 1
+
+    if generated == 0:
+        print("per_pair: no binding pairs found")
+    else:
+        print(f'per_pair: generated {generated} figures')
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 6. Site Metrics: position-level Recall / Precision / F1
 # ══════════════════════════════════════════════════════════════════════════════
 def plot_region_overlap(sub, iso_full, model_cols, bsj_w=20,
-                        threshold=0.5, iou_thresh=0.3, out_dir=None):
+                        threshold=0.5, iou_thresh=0.3, tol=0, gap=0,
+                        opt_threshold=False, val_thresholds=None, out_dir=None):
     """
-    Region-overlap 기반 모델 성능 비교 (bar chart, 4 metrics × 1 row).
-    전체 circRNA 기준으로 집계 (BSJ/Middle 구분 없음).
-
-    threshold  : pred binarization threshold (default 0.5)
-    iou_thresh : IoU >= 이 값이면 GT site 탐지 성공 (default 0.3)
+    Position-level Recall / Precision / F1 모델 비교 (bar chart, 4 metrics × 1 row).
+    tol: GT ±tol bp 허용 / gap: 예측 빈틈 gap bp까지 채움
+    각 miRNA pair별로 계산 후 평균.
+    threshold 우선순위: val_thresholds > opt_threshold (oracle) > threshold (fixed)
     """
     if not model_cols:
         print("region_overlap: no model columns found"); return
 
     METRICS = [
-        ('site_recall',    f'Site Recall\n(IoU ≥ {iou_thresh})',    '#E74C3C'),
-        ('site_precision', f'Site Precision\n(IoU ≥ {iou_thresh})', '#E67E22'),
-        ('site_f1',        f'Site F1\n(IoU ≥ {iou_thresh})',        '#8E44AD'),
-        ('mean_iou',       'Mean IoU',                               '#2980B9'),
+        ('recall',    'Recall',    '#E74C3C'),
+        ('precision', 'Precision', '#E67E22'),
+        ('f1',        'F1',        '#8E44AD'),
+        ('auroc',     'AUROC',     '#2980B9'),
     ]
 
-    # ── 집계: miRNA × model (전체 circRNA 기준) ───────────────────────────────
+    # ── 집계: miRNA × model ───────────────────────────────────────────────────
     from collections import defaultdict
-    results = defaultdict(list)   # model_label → list of metric dicts
+    results = defaultdict(list)
 
     for mirna, grp in sub.groupby('miRNA_ID'):
         grp = grp.sort_values('position')
         gt  = grp['ground_truth'].values
-
         if gt.sum() == 0:
             continue
-
+        use_val = bool(val_thresholds)
         for m_label, m_col in model_cols.items():
             pred = grp[m_col].values
-            m = _compute_region_metrics(gt, pred,
-                                        threshold=threshold,
-                                        iou_thresh=iou_thresh)
+            if use_val and m_label in (val_thresholds or {}):
+                thr = float(val_thresholds[m_label])
+            elif opt_threshold:
+                thr = _find_optimal_threshold(gt, pred)
+            else:
+                thr = threshold
+            m = _compute_position_metrics(gt, pred, threshold=thr, tol=tol, gap=gap)
+            try:
+                from sklearn.metrics import roc_auc_score
+                m['auroc'] = float(roc_auc_score(gt, pred)) if gt.sum() > 0 and (1-gt).sum() > 0 else np.nan
+            except Exception:
+                m['auroc'] = np.nan
             if m['n_gt'] > 0:
                 results[m_label].append(m)
 
-    # ── 그리기: 1행 4열 ───────────────────────────────────────────────────────
-    n_metrics = len(METRICS)
-    fig, axes = plt.subplots(1, n_metrics,
-                             figsize=(4.0 * n_metrics, 4.5),
-                             sharey=False)
+    # ── 그리기: 1행 3열 ───────────────────────────────────────────────────────
+    fig, axes = plt.subplots(1, 4, figsize=(15.0, 4.5), sharey=False)
     fig.patch.set_facecolor('white')
 
     model_labels = list(model_cols.keys())
-    x = np.arange(len(model_labels))
+    x     = np.arange(len(model_labels))
     bar_w = 0.6
 
     for m_i, (metric_key, metric_label, bar_color) in enumerate(METRICS):
@@ -518,8 +731,9 @@ def plot_region_overlap(sub, iso_full, model_cols, bsj_w=20,
 
         vals, errs = [], []
         for ml in model_labels:
-            data = results.get(ml, [])
-            v_list = [d[metric_key] for d in data if not np.isnan(d[metric_key])]
+            data   = results.get(ml, [])
+            v_list = [d[metric_key] for d in data
+                      if d[metric_key] is not None and not np.isnan(d[metric_key])]
             if v_list:
                 vals.append(float(np.mean(v_list)))
                 errs.append(float(np.std(v_list) / np.sqrt(len(v_list)))
@@ -533,31 +747,41 @@ def plot_region_overlap(sub, iso_full, model_cols, bsj_w=20,
                       width=bar_w, edgecolor='white',
                       capsize=4, error_kw=dict(lw=1.5, alpha=0.7))
 
+        max_err = max(errs) if errs else 0
         for bar, v in zip(bars, vals):
-            if v > 0:
+            if v > 0.005:
                 ax.text(bar.get_x() + bar.get_width() / 2,
-                        bar.get_height() + max(errs) * 1.1 + 0.01,
+                        bar.get_height() + max_err * 1.1 + 0.01,
                         f'{v:.2f}', ha='center', va='bottom',
                         fontsize=8.5, fontweight='bold')
 
         ax.set_xticks(x)
-        ax.set_xticklabels(model_labels, fontsize=9, rotation=25, ha='right')
+        ax.set_xticklabels(model_labels, fontsize=9, rotation=30, ha='right')
         ax.set_ylim(0, 1.15)
-        ax.set_title(metric_label, fontsize=10.5, fontweight='bold', color=bar_color)
+        ax.set_title(metric_label, fontsize=12, fontweight='bold', color=bar_color)
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
         ax.grid(axis='y', linestyle='--', alpha=0.3)
-        if metric_key == 'mean_iou':
-            ax.axhline(iou_thresh, color='#aaa', lw=0.8, linestyle=':')
+        if metric_key == 'auroc':
+            ax.axhline(0.5, color='#aaa', lw=0.8, linestyle='--')
 
     iso_short = iso_full[:55] + '...' if len(iso_full) > 55 else iso_full
+    n_pairs   = sum(1 for _, grp in sub.groupby('miRNA_ID')
+                    if grp['ground_truth'].sum() > 0)
+    tol_gap_str = f',  tol=±{tol}bp  gap={gap}bp' if (tol > 0 or gap > 0) else ''
+    if val_thresholds:
+        thr_label = 'val_thr (per-model, from val set)'
+    elif opt_threshold:
+        thr_label = 'opt_thr (per-model, oracle)'
+    else:
+        thr_label = f'threshold={threshold}'
     fig.suptitle(
-        f'Region Overlap Evaluation  |  {iso_short}\n'
-        f'(threshold={threshold}, IoU≥{iou_thresh} = detected)',
+        f'Binding Site Prediction  |  {iso_short}\n'
+        f'({thr_label}{tol_gap_str},  averaged over {n_pairs} miRNA pairs)',
         fontsize=11, fontweight='bold'
     )
     plt.tight_layout()
-    _save(fig, out_dir, f'viz_region_overlap_{sanitize(iso_full[:40])}')
+    _save(fig, out_dir, f'viz_site_metrics_{sanitize(iso_full[:40])}')
 
 
 # ── 저장 유틸 ──────────────────────────────────────────────────────────────────
@@ -591,19 +815,43 @@ if __name__ == '__main__':
     parser.add_argument('--list_isoforms', action='store_true')
     parser.add_argument('--plots', nargs='+',
                         choices=['heatmap', 'overlay', 'per_model',
-                                 'bsj_zoom', 'region_overlap', 'all'],
+                                 'bsj_zoom', 'region_overlap', 'per_pair', 'all'],
                         default=['all'],
                         help='Which plots to generate (default: all)')
     parser.add_argument('--threshold', type=float, default=0.5,
-                        help='Pred binarization threshold for region_overlap (default: 0.5)')
+                        help='Pred binarization threshold (default: 0.5)')
     parser.add_argument('--iou_thresh', type=float, default=0.3,
-                        help='IoU threshold to count a GT site as detected (default: 0.3)')
+                        help='IoU threshold (legacy, unused) (default: 0.3)')
+    parser.add_argument('--tol', type=int, default=5,
+                        help='GT tolerance: ±tol bp 범위 안 예측도 TP로 허용 (default: 5)')
+    parser.add_argument('--gap', type=int, default=3,
+                        help='Prediction gap-fill: ≤gap bp 빈틈은 연속 region으로 합침 (default: 3)')
+    parser.add_argument('--opt_threshold', action='store_true',
+                        help='Use per-model optimal threshold (F1-maximizing on TEST data — oracle). '
+                             'For proper evaluation use --threshold_file instead.')
+    parser.add_argument('--threshold_file', type=str, default=None,
+                        help='JSON file with per-model thresholds from val set '
+                             '(e.g. docs/paper_cmi/model_thresholds_s1.json). '
+                             'Overrides --threshold and --opt_threshold.')
     parser.add_argument('--no_pdf', action='store_true',
                         help='Skip PDF output, save PNG only')
+    parser.add_argument('--mirna_ids', nargs='+', default=None,
+                        help='Filter to specific miRNA IDs (e.g. hsa-miR-449a hsa-miR-34b-5p). '
+                             'If not given, all binding pairs are used.')
     args = parser.parse_args()
 
     if args.no_pdf:
         _SAVE_PDF = False
+
+    # ── per-model threshold 결정 ─────────────────────────────────────────────
+    # 우선순위: --threshold_file > --opt_threshold > --threshold (fixed)
+    import json as _json
+    val_thresholds = {}   # {'circmac': 0.712, ...}  — 비어 있으면 fixed threshold 사용
+    if args.threshold_file:
+        with open(args.threshold_file) as _f:
+            val_thresholds = _json.load(_f)
+        print(f'Loaded val thresholds from: {args.threshold_file}')
+        print(f'  {val_thresholds}')
 
     df = pd.read_csv(args.csv)
     model_cols = get_model_cols(df)
@@ -629,6 +877,13 @@ if __name__ == '__main__':
     else:
         sub, iso_full = load_isoform(df, args.isoform)
 
+    # miRNA 필터링
+    if args.mirna_ids:
+        before = sub['miRNA_ID'].nunique()
+        sub = sub[sub['miRNA_ID'].isin(args.mirna_ids)]
+        print(f'miRNA filter: {before} → {sub["miRNA_ID"].nunique()} pairs '
+              f'({args.mirna_ids})')
+
     L = sub['position'].max() + 1
     print(f'isoform: {iso_full[:60]}  L={L}  miRNAs={sub["miRNA_ID"].nunique()}')
 
@@ -653,4 +908,18 @@ if __name__ == '__main__':
                             bsj_w=args.bsj_w,
                             threshold=args.threshold,
                             iou_thresh=args.iou_thresh,
+                            tol=args.tol,
+                            gap=args.gap,
+                            opt_threshold=args.opt_threshold,
+                            val_thresholds=val_thresholds,
                             out_dir=args.out_dir)
+    if do_plot('per_pair'):
+        plot_per_pair(sub, iso_full, model_cols,
+                      bsj_w=args.bsj_w,
+                      threshold=args.threshold,
+                      iou_thresh=args.iou_thresh,
+                      tol=args.tol,
+                      gap=args.gap,
+                      opt_threshold=args.opt_threshold,
+                      val_thresholds=val_thresholds,
+                      out_dir=args.out_dir)

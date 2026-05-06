@@ -2,7 +2,7 @@
 # 9개 모델 전체 binding site visualization 스크립트
 #
 # 모델 경로 규칙 (models_for_viz/ 기준):
-#   circmac       : models_for_viz/circmac/v2_abl_full_s{SEED}/{SEED}/
+#   circmac       : models_for_viz/circmac/v2_pt_mlm_s{SEED}/{SEED}/
 #   base 4종      : models_for_viz/{model}/v2_enc_{model}_s{SEED}/{SEED}/
 #   RNA LM frozen : models_for_viz/{model}/exp1_fair_frozen_{model}_s{SEED}/{SEED}/
 #
@@ -30,11 +30,14 @@ DEVICE=${1:-0}
 SEED=${2:-1}
 CIRC_ID=${3:-"chr11|102114144"}
 BSJ_W=${4:-20}
-THRESHOLD=${5:-0.5}    # pred binarization threshold for region overlap
-IOU_THRESH=${6:-0.3}   # IoU >= this → GT site detected
+THRESHOLD=${5:-0.5}    # pred binarization threshold
+IOU_THRESH=${6:-0.3}   # (legacy)
 NO_PDF=${7:-0}         # 1 이면 PDF 저장 안 함
 SPLIT=${8:-"test"}     # test | train | all
 ALL_PAIRS=${9:-0}      # 0=binding only (default), 1=모든 pair 포함
+TOL=${10:-5}           # GT tolerance: ±TOL bp 범위 예측 허용
+GAP=${11:-3}           # Prediction gap-fill: ≤GAP bp 빈틈 채움
+OPT_THR=${12:-0}      # 1이면 모델별 optimal threshold 사용
 
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 BASE_DIR="${ROOT_DIR}/docs/paper_cmi"
@@ -57,7 +60,9 @@ echo "  split     : $SPLIT"
 echo "  pairs     : $PAIR_TAG"
 echo "  bsj_w     : $BSJ_W"
 echo "  threshold : $THRESHOLD"
-echo "  iou_thresh: $IOU_THRESH"
+echo "  tol       : $TOL"
+echo "  gap       : $GAP"
+echo "  opt_thr   : $OPT_THR"
 echo "  no_pdf    : $NO_PDF"
 echo "  out_dir   : $OUT_DIR"
 echo "========================================"
@@ -79,7 +84,7 @@ MODEL_ROOT="${ROOT_DIR}/models_for_viz"
 
 echo ""
 echo "[Check] Model paths (models_for_viz/)..."
-add_model "circmac"     "${MODEL_ROOT}/circmac/v2_abl_full_s${SEED}/${SEED}"
+add_model "circmac"     "${MODEL_ROOT}/circmac/v2_pt_mlm_s${SEED}/${SEED}"
 add_model "mamba"       "${MODEL_ROOT}/mamba/v2_enc_mamba_s${SEED}/${SEED}"
 add_model "lstm"        "${MODEL_ROOT}/lstm/v2_enc_lstm_s${SEED}/${SEED}"
 add_model "transformer" "${MODEL_ROOT}/transformer/v2_enc_transformer_s${SEED}/${SEED}"
@@ -128,6 +133,17 @@ echo "  CSV: $CSV_FILE"
 PDF_FLAG=""
 [ "$NO_PDF" = "1" ] && PDF_FLAG="--no_pdf"
 
+# threshold 우선순위: val threshold file > opt_threshold > fixed
+OPT_THR_FLAG=""
+THR_FILE="${BASE_DIR}/model_thresholds_s${SEED}.json"
+if [ -f "$THR_FILE" ]; then
+    OPT_THR_FLAG="--threshold_file $THR_FILE"
+    echo "  [Info] Using val thresholds: $THR_FILE"
+elif [ "$OPT_THR" = "1" ]; then
+    OPT_THR_FLAG="--opt_threshold"
+    echo "  [Info] Using oracle opt_threshold (test data — not recommended for paper)"
+fi
+
 python docs/paper_cmi/plot_from_csv.py \
     --csv "$CSV_FILE" \
     --isoform "$CIRC_ID" \
@@ -136,6 +152,9 @@ python docs/paper_cmi/plot_from_csv.py \
     --zoom_w 50 \
     --threshold "$THRESHOLD" \
     --iou_thresh "$IOU_THRESH" \
+    --tol "$TOL" \
+    --gap "$GAP" \
+    $OPT_THR_FLAG \
     --out_dir "$OUT_DIR" \
     --plots all \
     $PDF_FLAG

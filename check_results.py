@@ -72,9 +72,9 @@ V2_EXP_GROUPS = {
     'int': {
         'title': 'EXP5: Interaction Mechanism',
         'models': {
-            'cross_attention': [('v2_int_cross_attention_s{s}', 'circmac')],
-            'concat':          [('v2_int_concat_s{s}',          'circmac')],
-            'elementwise':     [('v2_int_elementwise_s{s}',     'circmac')],
+            'cross_attention': [('v2_int_cross_attn_s{s}',  'circmac')],
+            'concat':          [('v2_int_concat_s{s}',       'circmac')],
+            'elementwise':     [('v2_int_elementwise_s{s}',  'circmac')],
         },
     },
     'head': {
@@ -87,13 +87,14 @@ V2_EXP_GROUPS = {
     'pt': {
         'title': 'EXP2: Pretraining Strategy',
         'models': {
-            'nopt': [('v2_pt_nopt_s{s}', 'circmac')],
-            'mlm':  [('v2_pt_mlm_s{s}',  'circmac')],
-            'ntp':  [('v2_pt_ntp_s{s}',  'circmac')],
-            'ssp':  [('v2_pt_ssp_s{s}',  'circmac')],
-            'cpcl': [('v2_pt_cpcl_s{s}', 'circmac')],
-            'bsj':  [('v2_pt_bsj_s{s}',  'circmac')],
-            'all':  [('v2_pt_all_s{s}',  'circmac')],
+            'nopt':    [('v2_pt_nopt_s{s}',    'circmac')],
+            'mlm':     [('v2_pt_mlm_s{s}',     'circmac')],
+            'ntp':     [('v2_pt_ntp_s{s}',     'circmac')],
+            'ssp':     [('v2_pt_ssp_s{s}',     'circmac')],
+            'mlm_ssp': [('v2_ptm_mlm_ssp',     'circmac')],   # seed=42
+            'cpcl':    [('v2_ptm_cpcl',        'circmac')],   # seed=42
+            'bsj':     [('v2_ptm_bsj',         'circmac')],   # seed=42
+            'all':     [('v2_ptm_all',         'circmac')],   # seed=42
         },
     },
 }
@@ -136,11 +137,19 @@ def get_status_and_score(exp_name: str, model: str, seed: int, logs_root: Path):
     """
     Returns (status, f1_score)
     status: 'done' | 'running' | 'pending'
+    Falls back to seed=42 for v2_ptm_* style experiments (single-seed).
     """
     json_path = logs_root / model / exp_name / str(seed) / 'training.json'
     if json_path.exists():
         f1 = get_f1(json_path)
         return ('done', f1)
+
+    # v2_ptm_* style: no _s{seed} suffix, uses seed=42
+    if not re.search(r'_s\d+$', exp_name):
+        json_path42 = logs_root / model / exp_name / '42' / 'training.json'
+        if json_path42.exists():
+            f1 = get_f1(json_path42)
+            return ('done', f1)
 
     # log 파일이라도 있으면 running
     log_candidates = list((logs_root / model).glob(f'{exp_name}/**/*.log')) if \

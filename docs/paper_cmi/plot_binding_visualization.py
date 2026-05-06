@@ -39,26 +39,49 @@ PRED_CMAP   = LinearSegmentedColormap.from_list('pred', ['#EBF5FB', '#1A5276'])
 DATA_PATH = str(Path(__file__).parent.parent.parent / 'data' / 'df_test_final.pkl')
 
 # ── 데이터 로드 ───────────────────────────────────────────────────────────────
+def _add_mirna_seq(df):
+    """
+    df에 'miRNA' 컬럼이 없으면 binding_miRNA_seq.csv에서 merge.
+    dataset._get_sequence_data()가 'miRNA' 컬럼을 기대하므로 필수.
+    """
+    if 'miRNA' in df.columns:
+        return df
+    root = Path(DATA_PATH).parent
+    seq_csv = root / 'binding_miRNA_seq.csv'
+    if not seq_csv.exists():
+        print("[WARN] binding_miRNA_seq.csv not found — miRNA sequences will be empty (predictions may be identical across pairs)")
+        return df
+    df_seq = pd.read_csv(seq_csv)[['isoform_ID', 'miRNA_ID', 'miRNA']]
+    df = df.merge(df_seq, on=['isoform_ID', 'miRNA_ID'], how='left')
+    n_missing = df['miRNA'].isna().sum()
+    if n_missing:
+        print(f"[WARN] {n_missing} rows without miRNA sequence (will use empty string for those pairs)")
+        df['miRNA'] = df['miRNA'].fillna('')
+    print(f"[Info] miRNA sequences merged: {(df['miRNA'] != '').sum()}/{len(df)} rows have sequence")
+    return df
+
+
 def load_data(data_path=None, split='test'):
     """
     split: 'test' | 'train' | 'all'
     data_path이 명시되면 그 파일을 직접 사용.
     """
-    import pandas as pd
     if data_path:
-        return pickle.load(open(data_path, 'rb'))
+        df = pickle.load(open(data_path, 'rb'))
+        return _add_mirna_seq(df)
 
     root = Path(DATA_PATH).parent
     if split == 'test':
-        return pickle.load(open(root / 'df_test_final.pkl', 'rb'))
+        df = pickle.load(open(root / 'df_test_final.pkl', 'rb'))
     elif split == 'train':
-        return pickle.load(open(root / 'df_train_final.pkl', 'rb'))
+        df = pickle.load(open(root / 'df_train_final.pkl', 'rb'))
     elif split == 'all':
         df_test  = pickle.load(open(root / 'df_test_final.pkl',  'rb'))
         df_train = pickle.load(open(root / 'df_train_final.pkl', 'rb'))
-        return pd.concat([df_test, df_train], ignore_index=True)
+        df = pd.concat([df_test, df_train], ignore_index=True)
     else:
         raise ValueError(f"split must be 'test', 'train', or 'all'. Got: {split}")
+    return _add_mirna_seq(df)
 
 # ── Model Inference ───────────────────────────────────────────────────────────
 _trainer_cache = {}   # model_dir → trainer (재사용으로 속도 향상)
@@ -87,13 +110,23 @@ def _build_trainer(model_dir, row):
     exp_name   = model_dir_path.parent.name
     model_name = model_dir_path.parent.parent.name
 
+    import torch as _torch
     max_len = MAX_LEN_MAP.get(model_name, 1022)
     df_single = pd.DataFrame([row])
     dataset   = CircRNABindingSitesDataset(df_single, max_len=max_len, k=1, k_target=1)
 
+    # vocab_size: checkpoint에서 직접 읽어서 mismatch 방지
+    model_pth_check = model_dir_path / 'train' / 'model.pth'
+    if model_pth_check.exists():
+        ckpt = _torch.load(str(model_pth_check), map_location='cpu', weights_only=False)
+        emb_key = 'embedding.word_embeddings.weight'
+        vocab_size = ckpt[emb_key].shape[0] if emb_key in ckpt else dataset.vocab_size
+    else:
+        vocab_size = dataset.vocab_size
+
     device_obj = get_device(0)
     config = get_model_config(model_name, d_model=128, n_layer=6,
-                              vocab_size=dataset.vocab_size)
+                              vocab_size=vocab_size)
     trainer = Trainer(seed=seed, device=device_obj,
                       experiment_name=exp_name, verbose=False)
     trainer.define_model(model_name=model_name, config=config,
@@ -108,7 +141,12 @@ def _build_trainer(model_dir, row):
     if model_name in PRETRAINED_MODELS:
         trainer.define_pretrained_model(model_name)
 
-    trainer.load_model(epoch=None, pretrain=False, verbose=True)
+    # model_dir 내부의 model.pth 직접 로드 (saved_models/ 하드코딩 우회)
+    model_pth = model_dir_path / 'train' / 'model.pth'
+    if model_pth.exists():
+        trainer.load_model_from_path(str(model_pth), verbose=True)
+    else:
+        trainer.load_model(epoch=None, pretrain=False, verbose=True)
     trainer.model.eval()
 
     _trainer_cache[model_dir] = trainer
@@ -565,9 +603,12 @@ def main(with_pred=False, model_dirs=None, data_path=None,
                 bsj_adj = int(i < w or i >= L - w)
                 row_data = [iso, mirna, L, i, seq[i], int(sites[i]), bsj_adj]
                 for m in model_labels:
-                    p = pred_vals.get(m, pred_vals.get('pred',
-                            np.zeros(L)))[i] if pred_vals else 0.0
-                    row_data.append(round(float(p), 6))
+                    if pred_vals:
+                        pred_arr = pred_vals.get(m, pred_vals.get('pred', np.zeros(L)))
+                        p = float(pred_arr[i]) if i < len(pred_arr) else 0.0
+                    else:
+                        p = 0.0
+                    row_data.append(round(p, 6))
                 writer.writerow(row_data)
     print(f'Saved: {out_csv}')
 
