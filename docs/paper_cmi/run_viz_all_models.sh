@@ -84,7 +84,7 @@ MODEL_ROOT="${ROOT_DIR}/models_for_viz"
 
 echo ""
 echo "[Check] Model paths (models_for_viz/)..."
-add_model "circmac"     "${MODEL_ROOT}/circmac/v2_pt_mlm_s${SEED}/${SEED}"
+add_model "circmac"     "${MODEL_ROOT}/circmac/v2_abl_full_s${SEED}/${SEED}"
 add_model "mamba"       "${MODEL_ROOT}/mamba/v2_enc_mamba_s${SEED}/${SEED}"
 add_model "lstm"        "${MODEL_ROOT}/lstm/v2_enc_lstm_s${SEED}/${SEED}"
 add_model "transformer" "${MODEL_ROOT}/transformer/v2_enc_transformer_s${SEED}/${SEED}"

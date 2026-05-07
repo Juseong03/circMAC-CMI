@@ -1,0 +1,11 @@
+{
+  "circmac": 0.8691,
+  "mamba": 0.894,
+  "lstm": 0.8223,
+  "transformer": 0.8191,
+  "hymba": 0.8654,
+  "rnabert": 0.0259,
+  "rnaernie": 0.3448,
+  "rnamsm": 0.1132,
+  "rnafm": 0.3698
+}

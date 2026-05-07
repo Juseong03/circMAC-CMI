@@ -35,7 +35,7 @@ def get_model_paths(model_root, seed):
     """run_viz_all_models.sh와 동일한 경로 규칙."""
     r = Path(model_root)
     candidates = {
-        'circmac':     r / 'circmac'     / f'v2_pt_mlm_s{seed}'            / str(seed),
+        'circmac':     r / 'circmac'     / f'v2_abl_full_s{seed}'          / str(seed),
         'mamba':       r / 'mamba'        / f'v2_enc_mamba_s{seed}'          / str(seed),
         'lstm':        r / 'lstm'         / f'v2_enc_lstm_s{seed}'           / str(seed),
         'transformer': r / 'transformer'  / f'v2_enc_transformer_s{seed}'    / str(seed),

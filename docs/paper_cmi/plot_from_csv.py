@@ -540,8 +540,10 @@ def plot_per_pair(sub, iso_full, model_cols, bsj_w=20,
         # ── 모델별 threshold 결정 및 metrics 계산 ────────────────────────────
         # 우선순위: val_thresholds > opt_threshold (oracle) > fixed threshold
         use_val = bool(val_thresholds)
+        show_both = (tol > 0 or gap > 0)
         model_thresholds = {}
-        metrics_per_model = {}
+        metrics_strict = {}    # tol=0, gap=0
+        metrics_constr = {}    # tol, gap as passed
         for m_label, m_col in model_cols.items():
             pred = grp[m_col].values[:L]
             if use_val and m_label in val_thresholds:
@@ -551,13 +553,17 @@ def plot_per_pair(sub, iso_full, model_cols, bsj_w=20,
             else:
                 thr = threshold
             model_thresholds[m_label] = thr
-            m = _compute_position_metrics(gt, pred, threshold=thr, tol=tol, gap=gap)
+            ms = _compute_position_metrics(gt, pred, threshold=thr, tol=0, gap=0)
+            mc = _compute_position_metrics(gt, pred, threshold=thr, tol=tol, gap=gap)
             try:
                 from sklearn.metrics import roc_auc_score
-                m['auroc'] = float(roc_auc_score(gt, pred)) if gt.sum() > 0 and (1-gt).sum() > 0 else np.nan
+                auroc = float(roc_auc_score(gt, pred)) if gt.sum() > 0 and (1-gt).sum() > 0 else np.nan
             except Exception:
-                m['auroc'] = np.nan
-            metrics_per_model[m_label] = m
+                auroc = np.nan
+            ms['auroc'] = auroc
+            mc['auroc'] = auroc
+            metrics_strict[m_label] = ms
+            metrics_constr[m_label] = mc
 
         # ── Figure: 좌(3) line overlay / 우(2) AUROC+F1 bar ──────────────────
         fig = plt.figure(figsize=(16, 4.5))
@@ -603,13 +609,13 @@ def plot_per_pair(sub, iso_full, model_cols, bsj_w=20,
             f'  (BSJ-proximal: {bsj_prox})',
             fontsize=10, fontweight='bold')
 
-        # ── AUROC horizontal bar ──────────────────────────────────────────────
+        # ── AUROC horizontal bar (threshold-independent) ──────────────────────
         colors_bar = [get_model_color(ml, i) for i, ml in enumerate(model_list)]
         y = np.arange(len(model_list))
 
         auroc_vals = []
         for ml in model_list:
-            v = metrics_per_model[ml].get('auroc', np.nan)
+            v = metrics_strict[ml].get('auroc', np.nan)
             auroc_vals.append(0.5 if (v is None or np.isnan(v)) else float(v))
         ax_auroc.barh(y, auroc_vals, color=colors_bar, height=0.6, edgecolor='white')
         ax_auroc.axvline(0.5, color='#aaa', lw=0.8, ls='--')
@@ -626,31 +632,51 @@ def plot_per_pair(sub, iso_full, model_cols, bsj_w=20,
         ax_auroc.tick_params(axis='x', labelsize=7)
         ax_auroc.invert_yaxis()
 
-        # ── F1 horizontal bar ──────────────────────────────────────────────────
-        f1_vals = []
-        for ml in model_list:
-            v = metrics_per_model[ml].get('f1', 0.0)
-            f1_vals.append(0.0 if (v is None or np.isnan(v)) else float(v))
-        ax_f1.barh(y, f1_vals, color=colors_bar, height=0.6, edgecolor='white')
-        for yi, v in zip(y, f1_vals):
-            if v > 0.01:
-                ax_f1.text(v + 0.01, yi, f'{v:.2f}',
-                           va='center', fontsize=7.5, fontweight='bold')
-        ax_f1.set_yticks(y)
-        ax_f1.set_yticklabels(model_list, fontsize=8)
-        ax_f1.set_xlim(0, 1.05)
-        ax_f1.set_xlabel('F1', fontsize=8.5)
-        tol_gap_str = ''
-        if tol > 0 or gap > 0:
-            tol_gap_str = f'\ntol={tol} gap={gap}'
+        # ── F1 horizontal bar: strict + constrained ────────────────────────────
         if use_val:
             thr_str = 'val_thr'
         elif opt_threshold:
             thr_str = 'opt_thr'
         else:
             thr_str = f'thr={threshold}'
-        ax_f1.set_title(f'F1  ({thr_str}){tol_gap_str}',
-                        fontsize=9, fontweight='bold', color='#8E44AD')
+
+        if show_both:
+            bh = 0.28
+            ys = y - bh / 2 - 0.03
+            yc = y + bh / 2 + 0.03
+            f1_strict = [max(0.0, v if not np.isnan(v) else 0.0)
+                         for v in [metrics_strict[ml].get('f1', 0.0) or 0.0 for ml in model_list]]
+            f1_constr = [max(0.0, v if not np.isnan(v) else 0.0)
+                         for v in [metrics_constr[ml].get('f1', 0.0) or 0.0 for ml in model_list]]
+            ax_f1.barh(ys, f1_strict, color=colors_bar, height=bh, edgecolor='white',
+                       alpha=0.50, hatch='////', label='strict (nt-level)')
+            ax_f1.barh(yc, f1_constr, color=colors_bar, height=bh, edgecolor='white',
+                       alpha=1.0, label=f'tol={tol},gap={gap}')
+            for yi, v in zip(ys, f1_strict):
+                if v > 0.01:
+                    ax_f1.text(v + 0.01, yi, f'{v:.2f}',
+                               va='center', fontsize=6.5, alpha=0.7)
+            for yi, v in zip(yc, f1_constr):
+                if v > 0.01:
+                    ax_f1.text(v + 0.01, yi, f'{v:.2f}',
+                               va='center', fontsize=7.5, fontweight='bold')
+            ax_f1.legend(fontsize=6.5, loc='lower right', framealpha=0.85)
+            ax_f1.set_title(f'F1  ({thr_str})\nstrict vs constrained',
+                            fontsize=8.5, fontweight='bold', color='#8E44AD')
+        else:
+            f1_vals = [max(0.0, v if not np.isnan(v) else 0.0)
+                       for v in [metrics_strict[ml].get('f1', 0.0) or 0.0 for ml in model_list]]
+            ax_f1.barh(y, f1_vals, color=colors_bar, height=0.6, edgecolor='white')
+            for yi, v in zip(y, f1_vals):
+                if v > 0.01:
+                    ax_f1.text(v + 0.01, yi, f'{v:.2f}',
+                               va='center', fontsize=7.5, fontweight='bold')
+            ax_f1.set_title(f'F1  ({thr_str})',
+                            fontsize=9, fontweight='bold', color='#8E44AD')
+        ax_f1.set_yticks(y)
+        ax_f1.set_yticklabels(model_list, fontsize=8)
+        ax_f1.set_xlim(0, 1.05)
+        ax_f1.set_xlabel('F1', fontsize=8.5)
         ax_f1.spines['top'].set_visible(False)
         ax_f1.spines['right'].set_visible(False)
         ax_f1.tick_params(axis='x', labelsize=7)
@@ -676,24 +702,27 @@ def plot_region_overlap(sub, iso_full, model_cols, bsj_w=20,
                         threshold=0.5, iou_thresh=0.3, tol=0, gap=0,
                         opt_threshold=False, val_thresholds=None, out_dir=None):
     """
-    Position-level Recall / Precision / F1 모델 비교 (bar chart, 4 metrics × 1 row).
-    tol: GT ±tol bp 허용 / gap: 예측 빈틈 gap bp까지 채움
-    각 miRNA pair별로 계산 후 평균.
+    Position-level Recall / Precision / F1 모델 비교 (bar chart).
+    tol>0 or gap>0인 경우, strict (nt-level, tol=0, gap=0) 와
+    constrained (tol, gap) 를 grouped bar로 나란히 표시.
+    AUROC는 threshold-independent이므로 하나만 표시.
     threshold 우선순위: val_thresholds > opt_threshold (oracle) > threshold (fixed)
     """
     if not model_cols:
         print("region_overlap: no model columns found"); return
 
-    METRICS = [
+    show_both = (tol > 0 or gap > 0)
+
+    METRICS_DUAL = [
         ('recall',    'Recall',    '#E74C3C'),
         ('precision', 'Precision', '#E67E22'),
         ('f1',        'F1',        '#8E44AD'),
-        ('auroc',     'AUROC',     '#2980B9'),
     ]
 
     # ── 집계: miRNA × model ───────────────────────────────────────────────────
     from collections import defaultdict
-    results = defaultdict(list)
+    results_strict = defaultdict(list)      # tol=0, gap=0
+    results_constr = defaultdict(list)      # tol, gap as passed
 
     for mirna, grp in sub.groupby('miRNA_ID'):
         grp = grp.sort_values('position')
@@ -709,76 +738,137 @@ def plot_region_overlap(sub, iso_full, model_cols, bsj_w=20,
                 thr = _find_optimal_threshold(gt, pred)
             else:
                 thr = threshold
-            m = _compute_position_metrics(gt, pred, threshold=thr, tol=tol, gap=gap)
+            m_s = _compute_position_metrics(gt, pred, threshold=thr, tol=0, gap=0)
+            m_c = _compute_position_metrics(gt, pred, threshold=thr, tol=tol, gap=gap)
             try:
                 from sklearn.metrics import roc_auc_score
-                m['auroc'] = float(roc_auc_score(gt, pred)) if gt.sum() > 0 and (1-gt).sum() > 0 else np.nan
+                auroc = float(roc_auc_score(gt, pred)) if gt.sum() > 0 and (1-gt).sum() > 0 else np.nan
             except Exception:
-                m['auroc'] = np.nan
-            if m['n_gt'] > 0:
-                results[m_label].append(m)
+                auroc = np.nan
+            m_s['auroc'] = auroc
+            m_c['auroc'] = auroc
+            if m_s['n_gt'] > 0:
+                results_strict[m_label].append(m_s)
+                results_constr[m_label].append(m_c)
 
-    # ── 그리기: 1행 3열 ───────────────────────────────────────────────────────
-    fig, axes = plt.subplots(1, 4, figsize=(15.0, 4.5), sharey=False)
+    # ── 그리기 ────────────────────────────────────────────────────────────────
+    # Layout: 3 dual-metric panels (Recall/Prec/F1) + 1 AUROC panel
+    n_panels = 4
+    fig, axes = plt.subplots(1, n_panels, figsize=(16.0, 4.8), sharey=False)
     fig.patch.set_facecolor('white')
 
     model_labels = list(model_cols.keys())
-    x     = np.arange(len(model_labels))
-    bar_w = 0.6
+    x = np.arange(len(model_labels))
 
-    for m_i, (metric_key, metric_label, bar_color) in enumerate(METRICS):
-        ax = axes[m_i]
-
+    def _agg(results_dict, key):
         vals, errs = [], []
         for ml in model_labels:
-            data   = results.get(ml, [])
-            v_list = [d[metric_key] for d in data
-                      if d[metric_key] is not None and not np.isnan(d[metric_key])]
-            if v_list:
-                vals.append(float(np.mean(v_list)))
-                errs.append(float(np.std(v_list) / np.sqrt(len(v_list)))
-                            if len(v_list) > 1 else 0.0)
+            data = results_dict.get(ml, [])
+            vl = [d[key] for d in data if d[key] is not None and not np.isnan(d[key])]
+            if vl:
+                vals.append(float(np.mean(vl)))
+                errs.append(float(np.std(vl) / np.sqrt(len(vl))) if len(vl) > 1 else 0.0)
             else:
                 vals.append(0.0)
                 errs.append(0.0)
+        return vals, errs
 
-        colors = [get_model_color(ml, i) for i, ml in enumerate(model_labels)]
-        bars = ax.bar(x, vals, yerr=errs, color=colors,
-                      width=bar_w, edgecolor='white',
-                      capsize=4, error_kw=dict(lw=1.5, alpha=0.7))
+    colors_bar = [get_model_color(ml, i) for i, ml in enumerate(model_labels)]
 
-        max_err = max(errs) if errs else 0
-        for bar, v in zip(bars, vals):
-            if v > 0.005:
-                ax.text(bar.get_x() + bar.get_width() / 2,
-                        bar.get_height() + max_err * 1.1 + 0.01,
-                        f'{v:.2f}', ha='center', va='bottom',
-                        fontsize=8.5, fontweight='bold')
+    # ── Recall / Precision / F1: grouped bars (strict + constrained) ──────────
+    for m_i, (metric_key, metric_label, bar_color) in enumerate(METRICS_DUAL):
+        ax = axes[m_i]
+
+        vals_s, errs_s = _agg(results_strict, metric_key)
+        vals_c, errs_c = _agg(results_constr, metric_key)
+
+        if show_both:
+            bw = 0.38
+            xs = x - bw / 2 - 0.01
+            xc = x + bw / 2 + 0.01
+            # strict bars (hatched)
+            bars_s = ax.bar(xs, vals_s, yerr=errs_s, color=colors_bar,
+                            width=bw, edgecolor='white', alpha=0.55,
+                            hatch='////', capsize=3,
+                            error_kw=dict(lw=1.2, alpha=0.6), label='strict (nt-level)')
+            # constrained bars (solid)
+            bars_c = ax.bar(xc, vals_c, yerr=errs_c, color=colors_bar,
+                            width=bw, edgecolor='white', alpha=1.0,
+                            capsize=3, error_kw=dict(lw=1.2, alpha=0.6),
+                            label=f'constrained (tol={tol}, gap={gap})')
+            max_e = max(max(errs_s), max(errs_c)) if (errs_s or errs_c) else 0
+            for bar, v in zip(bars_s, vals_s):
+                if v > 0.02:
+                    ax.text(bar.get_x() + bar.get_width() / 2,
+                            bar.get_height() + max_e + 0.01,
+                            f'{v:.2f}', ha='center', va='bottom',
+                            fontsize=7.0, fontweight='bold', alpha=0.65)
+            for bar, v in zip(bars_c, vals_c):
+                if v > 0.02:
+                    ax.text(bar.get_x() + bar.get_width() / 2,
+                            bar.get_height() + max_e + 0.01,
+                            f'{v:.2f}', ha='center', va='bottom',
+                            fontsize=7.5, fontweight='bold')
+            if m_i == 0:
+                ax.legend(fontsize=7, loc='upper right', framealpha=0.85)
+        else:
+            bw = 0.6
+            bars = ax.bar(x, vals_s, yerr=errs_s, color=colors_bar,
+                          width=bw, edgecolor='white',
+                          capsize=4, error_kw=dict(lw=1.5, alpha=0.7))
+            max_e = max(errs_s) if errs_s else 0
+            for bar, v in zip(bars, vals_s):
+                if v > 0.005:
+                    ax.text(bar.get_x() + bar.get_width() / 2,
+                            bar.get_height() + max_e * 1.1 + 0.01,
+                            f'{v:.2f}', ha='center', va='bottom',
+                            fontsize=8.5, fontweight='bold')
 
         ax.set_xticks(x)
         ax.set_xticklabels(model_labels, fontsize=9, rotation=30, ha='right')
-        ax.set_ylim(0, 1.15)
+        ax.set_ylim(0, 1.22)
         ax.set_title(metric_label, fontsize=12, fontweight='bold', color=bar_color)
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
         ax.grid(axis='y', linestyle='--', alpha=0.3)
-        if metric_key == 'auroc':
-            ax.axhline(0.5, color='#aaa', lw=0.8, linestyle='--')
+
+    # ── AUROC: single bar (threshold-independent) ─────────────────────────────
+    ax_a = axes[3]
+    vals_a, errs_a = _agg(results_strict, 'auroc')
+    bw = 0.6
+    bars_a = ax_a.bar(x, vals_a, yerr=errs_a, color=colors_bar,
+                      width=bw, edgecolor='white',
+                      capsize=4, error_kw=dict(lw=1.5, alpha=0.7))
+    max_e = max(errs_a) if errs_a else 0
+    for bar, v in zip(bars_a, vals_a):
+        if v > 0.005:
+            ax_a.text(bar.get_x() + bar.get_width() / 2,
+                      bar.get_height() + max_e * 1.1 + 0.01,
+                      f'{v:.2f}', ha='center', va='bottom',
+                      fontsize=8.5, fontweight='bold')
+    ax_a.set_xticks(x)
+    ax_a.set_xticklabels(model_labels, fontsize=9, rotation=30, ha='right')
+    ax_a.set_ylim(0, 1.22)
+    ax_a.set_title('AUROC', fontsize=12, fontweight='bold', color='#2980B9')
+    ax_a.axhline(0.5, color='#aaa', lw=0.8, linestyle='--')
+    ax_a.spines['top'].set_visible(False)
+    ax_a.spines['right'].set_visible(False)
+    ax_a.grid(axis='y', linestyle='--', alpha=0.3)
 
     iso_short = iso_full[:55] + '...' if len(iso_full) > 55 else iso_full
     n_pairs   = sum(1 for _, grp in sub.groupby('miRNA_ID')
                     if grp['ground_truth'].sum() > 0)
-    tol_gap_str = f',  tol=±{tol}bp  gap={gap}bp' if (tol > 0 or gap > 0) else ''
     if val_thresholds:
         thr_label = 'val_thr (per-model, from val set)'
     elif opt_threshold:
         thr_label = 'opt_thr (per-model, oracle)'
     else:
         thr_label = f'threshold={threshold}'
+    dual_note = f'  |  hatched=strict(nt-level), solid=constrained(tol={tol},gap={gap})' if show_both else ''
     fig.suptitle(
         f'Binding Site Prediction  |  {iso_short}\n'
-        f'({thr_label}{tol_gap_str},  averaged over {n_pairs} miRNA pairs)',
-        fontsize=11, fontweight='bold'
+        f'({thr_label},  averaged over {n_pairs} miRNA pairs{dual_note})',
+        fontsize=10, fontweight='bold'
     )
     plt.tight_layout()
     _save(fig, out_dir, f'viz_site_metrics_{sanitize(iso_full[:40])}')
