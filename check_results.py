@@ -3,15 +3,15 @@
 v2 실험 결과 확인 스크립트
 
 사용법:
-    python check_results.py                    # 전체 요약
+    python check_results.py                    # 전체 요약 (정의된 실험)
     python check_results.py --exp enc          # Encoder 비교만
     python check_results.py --exp abl          # Ablation만
     python check_results.py --exp int          # Interaction만
     python check_results.py --exp head         # Site Head만
     python check_results.py --exp rna          # RNA LM 비교만
-    python check_results.py --exp pt           # Pretraining만
-    python check_results.py --all              # 모든 실험 (old포함)
-    python check_results.py --logs logs_0427   # 다른 logs 폴더 지정
+    python check_results.py --exp pt           # Pretraining 전략 비교 (EXP2)
+    python check_results.py --scan             # logs 폴더 전체 스캔 (미정의 실험 포함)
+    python check_results.py --logs logs_0507   # 다른 logs 폴더 지정
 """
 
 import argparse
@@ -87,14 +87,17 @@ V2_EXP_GROUPS = {
     'pt': {
         'title': 'EXP2: Pretraining Strategy',
         'models': {
-            'nopt':    [('v2_pt_nopt_s{s}',    'circmac')],
-            'mlm':     [('v2_pt_mlm_s{s}',     'circmac')],
-            'ntp':     [('v2_pt_ntp_s{s}',     'circmac')],
-            'ssp':     [('v2_pt_ssp_s{s}',     'circmac')],
-            'mlm_ssp': [('v2_ptm_mlm_ssp',     'circmac')],   # seed=42
-            'cpcl':    [('v2_ptm_cpcl',        'circmac')],   # seed=42
-            'bsj':     [('v2_ptm_bsj',         'circmac')],   # seed=42
-            'all':     [('v2_ptm_all',         'circmac')],   # seed=42
+            'nopt':     [('v2_pt_nopt_s{s}',     'circmac')],
+            'mlm':      [('v2_pt_mlm_s{s}',      'circmac')],
+            'ntp':      [('v2_pt_ntp_s{s}',      'circmac')],
+            'ssp':      [('v2_pt_ssp_s{s}',      'circmac')],
+            'cpcl':     [('v2_pt_cpcl_s{s}',     'circmac')],
+            'bsj':      [('v2_pt_bsj_s{s}',      'circmac')],
+            'all':      [('v2_pt_all_s{s}',      'circmac')],
+            'mlm_ssp':  [('v2_pt_mlm_ssp_s{s}',  'circmac')],
+            'mlm_cpcl': [('v2_pt_mlm_cpcl_s{s}', 'circmac')],
+            'mlm_ntp':  [('v2_pt_mlm_ntp_s{s}',  'circmac')],
+            'mlm_bsj':  [('v2_pt_mlm_bsj_s{s}',  'circmac')],
         },
     },
 }
