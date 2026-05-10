@@ -97,7 +97,8 @@ V2_EXP_GROUPS = {
             'mlm_ssp':  [('v2_pt_mlm_ssp_s{s}',  'circmac')],
             'mlm_cpcl': [('v2_pt_mlm_cpcl_s{s}', 'circmac')],
             'mlm_ntp':  [('v2_pt_mlm_ntp_s{s}',  'circmac')],
-            'mlm_bsj':  [('v2_pt_mlm_bsj_s{s}',  'circmac')],
+            'mlm_bsj':      [('v2_pt_mlm_bsj_s{s}',      'circmac')],
+            'mlm_cpcl_ssp': [('v2_pt_mlm_cpcl_ssp_s{s}', 'circmac')],
         },
     },
 }
