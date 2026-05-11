@@ -106,10 +106,6 @@ def main():
                color=color, alpha=0.85, zorder=2, linewidth=0)
         ax.errorbar(i, mean, yerr=std, fmt='none', color='#222222',
                     capsize=4, capthick=1.4, elinewidth=1.4, zorder=4)
-        jitter = np.random.default_rng(42).uniform(-0.07, 0.07, len(vals))
-        ax.scatter(np.full(len(vals), i) + jitter, vals,
-                   color='white', edgecolors=color, s=32, linewidths=1.5,
-                   zorder=5, alpha=0.75)
         ax.text(i, mean + std + (ylim[1] - ylim[0]) * 0.025,
                 f'{mean:.3f}',
                 ha='center', va='bottom', fontsize=9, fontweight='bold',

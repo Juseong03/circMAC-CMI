@@ -57,7 +57,7 @@ def load_scores(model_dir, exp_base):
     return scores
 
 
-def plot_panel(ax, data, metric, ylabel, ylim):
+def plot_panel(ax, data, metric, title, ylim):
     ylo = ylim[0]
     for i, (label, color, vals) in enumerate(data):
         if not vals:
@@ -68,10 +68,6 @@ def plot_panel(ax, data, metric, ylabel, ylim):
                alpha=0.82, zorder=2, linewidth=0)
         ax.errorbar(i, mean, yerr=std, fmt='none', color='#222222',
                     capsize=4, capthick=1.4, elinewidth=1.4, zorder=4)
-        jitter = np.random.default_rng(42).uniform(-0.07, 0.07, len(vals))
-        ax.scatter(np.full(len(vals), i) + jitter, vals,
-                   color='white', edgecolors=color, s=32, linewidths=1.5,
-                   zorder=5, alpha=0.75)
         ax.text(i, mean + std + (ylim[1] - ylim[0]) * 0.025,
                 f'{mean:.3f}',
                 ha='center', va='bottom', fontsize=9, fontweight='bold',
@@ -79,8 +75,8 @@ def plot_panel(ax, data, metric, ylabel, ylim):
                 bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.85))
     ax.set_xticks(range(len(data)))
     ax.set_xticklabels([d[0] for d in data], rotation=20, ha='right')
-    ax.set_ylabel(ylabel)
     ax.set_ylim(*ylim)
+    ax.set_title(title, fontsize=10, fontweight='bold')
     ax.yaxis.grid(True, linestyle='--', alpha=0.4, zorder=0)
     ax.set_axisbelow(True)
 
@@ -113,13 +109,13 @@ def main():
     fig.suptitle('RNA Language Model Comparison (Trainable)', fontsize=12, fontweight='bold', y=1.01)
 
     metrics = [
-        ('f1_macro', 'F1-macro', (0.55, 0.85)),
-        ('roc_auc',  'AUROC',    (0.65, 0.97)),
-        ('auprc',    'AUPRC',    (0.15, 0.65)),
+        ('f1_macro', '(a) F1-macro', (0.55, 0.85)),
+        ('roc_auc',  '(b) AUROC',    (0.65, 0.97)),
+        ('auprc',    '(c) AUPRC',    (0.15, 0.65)),
     ]
-    for ax, (metric, ylabel, ylim) in zip(axes, metrics):
+    for ax, (metric, title, ylim) in zip(axes, metrics):
         panel_data = [(label, color, sc[metric]) for label, color, sc in all_data]
-        plot_panel(ax, panel_data, metric, ylabel, ylim)
+        plot_panel(ax, panel_data, metric, title, ylim)
 
     for ax in axes:
         for tick in ax.get_xticklabels():
