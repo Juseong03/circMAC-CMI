@@ -1,0 +1,9 @@
+model,f1_mean,f1_std
+Attn Only,0.6322,0.0024
+CNN Only,0.6746,0.0012
+Full,0.7457,0.0012
+Mamba Only,0.7075,0.0011
+No Circ Bias,0.7464,0.0003
+w/o Attn,0.7422,0.0037
+w/o Conv,0.6976,0.0075
+w/o Mamba,0.6792,0.0017
