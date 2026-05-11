@@ -1,0 +1,53 @@
+#!/bin/bash
+#===============================================================================
+# Phase 1 — GPU 1: Pretrain v2_ptm_pairing  (--pairing)
+#
+# Run in PARALLEL with phase1_g0_pt.sh and phase1_g2_pt.sh.
+# After all 3 finish, run phase2_g{0,1,2}_ft.sh.
+#
+# Note: v2_ptm_pairing log already exists in logs_0510 but saved model was
+#       not carried over — needs to be rerun.
+#
+# Usage: ./scripts/v2_pt_split/phase1_g1_pt.sh [GPU_ID]
+#===============================================================================
+set -e
+
+GPU=${1:-1}
+PT_SEED=42
+D_MODEL=128; N_LAYER=6; MAX_LEN=1022; NUM_WORKERS=4
+PT_DATA="df_pretrain"
+PT_BS=64; PT_LR=1e-3; PT_WD=0.01; PT_EP=300; PT_ES=30
+
+mkdir -p logs/v2/ptm saved_models
+
+PT_EXP="v2_ptm_pairing"
+PT_PATH="saved_models/circmac/${PT_EXP}/${PT_SEED}/pretrain/model.pth"
+
+echo "========================================"
+echo "  Phase 1 GPU $GPU — PT: $PT_EXP"
+echo "  Flags: --pairing"
+echo "  BS=$PT_BS LR=$PT_LR epochs=$PT_EP es=$PT_ES"
+echo "========================================"
+
+if [ -f "$PT_PATH" ]; then
+    echo "[SKIP] pretrain: $PT_EXP (already done)"
+else
+    echo "[RUN]  pretrain: $PT_EXP"
+    python pretraining.py \
+        --model_name circmac --data_file "$PT_DATA" \
+        --max_len $MAX_LEN --d_model $D_MODEL --n_layer $N_LAYER \
+        --batch_size $PT_BS --num_workers $NUM_WORKERS \
+        --optimizer adamw --lr $PT_LR --w_decay $PT_WD \
+        --epochs $PT_EP --earlystop $PT_ES \
+        --device $GPU --exp "$PT_EXP" --seed $PT_SEED \
+        --verbose --pairing \
+        2>&1 | tee "logs/v2/ptm/${PT_EXP}.log"
+fi
+
+if [ ! -f "$PT_PATH" ]; then
+    echo "ERROR: Pretrained model not found: $PT_PATH"; exit 1
+fi
+
+echo ""
+echo "✓ Phase 1 GPU $GPU done — $PT_EXP pretrained."
+echo "  Now run: ./scripts/v2_pt_split/phase2_g1_ft.sh $GPU"
