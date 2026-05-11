@@ -37,7 +37,7 @@ run_ft() {
     TOTAL=$((TOTAL+1))
 
     if [ ! -f "$PT_PATH" ]; then
-        echo "[ERROR] PT model not found: $PT_PATH  (run phase1 first)"; exit 1
+        echo "[SKIP] PT model not found: $PT_PATH  (run phase1 first)"; TOTAL=$((TOTAL-1)); return
     fi
 
     if find "saved_models/circmac/${EXP}" -name "training.json" 2>/dev/null | grep -q .; then
