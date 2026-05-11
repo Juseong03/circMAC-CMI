@@ -31,3 +31,15 @@ Thumbs.db
 # Jupyter
 .ipynb_checkpoints/
 notebooks/.ipynb_checkpoints/
+
+# Generated figure outputs (PDF/PNG/CSV) — regenerate from scripts
+figures_paper/**/*.pdf
+figures_paper/**/*.png
+figures_paper/**/*.csv
+
+# Large untracked dirs
+figures_claude/
+figures_gemini/
+logs_*/
+models_for_viz/
+*.zip
