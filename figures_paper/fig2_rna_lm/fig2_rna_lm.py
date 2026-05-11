@@ -22,10 +22,10 @@ SEEDS = [1, 2, 3]
 
 MODELS = [
     ('CircMAC',  'circmac',  'v2_enc_circmac'),
-    ('RNABert',  'rnabert',  'exp1_fair_trainable_rnabert'),
-    ('RNAErnie', 'rnaernie', 'exp1_fair_trainable_rnaernie'),
-    ('RNA-FM',   'rnafm',    'exp1_fair_trainable_rnafm'),
-    ('RNA-MSM',  'rnamsm',   'exp1_fair_trainable_rnamsm'),
+    ('RNABert\n(fine-tuned)',  'rnabert',  'exp1_fair_trainable_rnabert'),
+    ('RNAErnie\n(fine-tuned)', 'rnaernie', 'exp1_fair_trainable_rnaernie'),
+    ('RNA-FM\n(fine-tuned)',   'rnafm',    'exp1_fair_trainable_rnafm'),
+    ('RNA-MSM\n(fine-tuned)',  'rnamsm',   'exp1_fair_trainable_rnamsm'),
 ]
 
 PROPOSED = '#E05C2A'

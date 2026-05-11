@@ -32,23 +32,25 @@ import pandas as pd
 
 
 # ── 색상 ──────────────────────────────────────────────────────────────────────
-BSJ_COLOR    = '#F39C12'
-BIND_COLOR   = '#E74C3C'
-NOBIND_COLOR = '#BDC3C7'
+BSJ_COLOR    = '#1F77B4' # Blue
+BIND_COLOR   = '#D62728' # Crimson Red
+NOBIND_COLOR = '#F0F0F0'
 
 MODEL_COLORS = {
-    'circmac':     '#E67E22',
-    'mamba':       '#2980B9',
-    'transformer': '#27AE60',
-    'lstm':        '#8E44AD',
-    'hymba':       '#16A085',
-    'rnabert':     '#C0392B',
-    'rnaernie':    '#E74C3C',
-    'rnafm':       '#F39C12',
-    'rnamsm':      '#95A5A6',
+    'circmac':     '#FF7F0E', # Bright Orange (Highlight)
+    # Pretrained RNA LMs (using the "better" palette)
+    'rnabert':     '#1F77B4', # Deep Blue
+    'rnaernie':    '#9467BD', # Purple
+    'rnamsm':      '#2CA02C', # Forest Green
+    'rnafm':       '#17BECF', # Cyan
+    # General Encoders (using the warmer palette)
+    'mamba':       '#D62728', # Red
+    'lstm':        '#E377C2', # Pink
+    'transformer': '#8C564B', # Brown
+    'hymba':       '#BCBD22', # Olive
 }
-FALLBACK = ['#E67E22','#2980B9','#27AE60','#8E44AD',
-            '#16A085','#C0392B','#F39C12','#95A5A6']
+FALLBACK = ['#FF7F0E','#1F77B4','#9467BD','#2CA02C','#17BECF',
+            '#D62728','#E377C2','#8C564B','#BCBD22']
 
 def mcolor(label, idx=0):
     return MODEL_COLORS.get(label, FALLBACK[idx % len(FALLBACK)])
@@ -94,8 +96,8 @@ def compute_metrics(gt, pred_prob, thr, tol=0, gap=0):
 # ── Model group definitions ───────────────────────────────────────────────────
 MODEL_GROUPS = {
     'all':        None,   # all models in CSV
-    'encoder':    ['circmac', 'mamba', 'lstm', 'transformer', 'hymba'],
-    'pretrained': ['circmac', 'rnabert', 'rnaernie', 'rnamsm', 'rnafm'],
+    'encoder':    ['lstm', 'transformer', 'mamba', 'hymba', 'circmac', 'circmac_mlm'],
+    'pretrained': ['rnabert', 'rnaernie', 'rnamsm', 'rnafm', 'circmac', 'circmac_mlm'],
 }
 
 # ── Case definitions: single representative pair per case ─────────────────────
@@ -336,14 +338,11 @@ def draw_circular(ax, sub, rep_mirna, model_cols, val_thresholds,
     ], fontsize=6.5, loc='lower center', framealpha=0.75,
        bbox_to_anchor=(0.5, -0.12), ncol=2)
 
-    n_bind = int((gt > 0.5).sum())
-    ax.text(0,  0.08, f'{n_bind}/{L}', ha='center', fontsize=11,
-            fontweight='bold', color='#2C3E50')
-    ax.text(0, -0.12, 'binding\nsites', ha='center', fontsize=8, color='#777')
-
+    # Internal text removed as requested
+    
     mirna_short = rep_mirna.replace('hsa-','')
     full_title  = f'{title}\n{mirna_short}' if title else mirna_short
-    ax.set_title(full_title, fontsize=8.5, fontweight='bold', pad=4, color=color)
+    ax.set_title(full_title, fontsize=8.5, fontweight='bold', pad=15, color=color)
 
 
 def draw_bsj_zoom(ax, sub, iso, rep_mirna, model_cols, val_thresholds,
@@ -463,100 +462,94 @@ def draw_metrics_4(axes, metrics, model_cols):
 # ══════════════════════════════════════════════════════════════════════════════
 # Comparison Figure A: GT + All-model Heatmaps (10 rows × 3 cols)
 # ══════════════════════════════════════════════════════════════════════════════
-def make_heatmap_comparison(case_data, val_thresholds, bsj_w=20, top_n=4,
+def make_heatmap_comparison(case_data, val_thresholds, bsj_w=20, top_n=1,
                             out_dir='.', no_pdf=False, suffix=''):
     """
-    viz_heatmap_comparison.png/pdf
-    Row 0       : GT  heatmap
-    Row 1..N    : model prediction heatmap (one row per model)
-    Col 0..2    : case (circCDYL2 / circMAPK1 / circAPP)
+    viz_heatmap_comparison_gemini.png/pdf
+    Stacked heatmaps for each case.
+    Rows: Ground Truth, Model 1, Model 2, ..., Model N (Attached)
+    Columns: Case 1, Case 2, Case 3
     """
     model_list = list(case_data[0]['model_cols'].keys())
     n_models   = len(model_list)
     n_cols     = len(case_data)
-    top_n      = min(top_n, 6)
-    hm_h       = max(top_n * 0.28 + 0.4, 1.2)   # height per heatmap row
-
-    fig_w = 6.0 * n_cols
-    fig_h = hm_h * (1 + n_models) + 1.5
+    
+    # Height per model row. Since they are attached, we can make them slimmer.
+    row_h = 0.5 
+    fig_w = 4.5 * n_cols + 1.0 # Extra width for labels
+    fig_h = row_h * (1 + n_models) + 1.5
     fig   = plt.figure(figsize=(fig_w, fig_h))
     fig.patch.set_facecolor('white')
 
+    # GridSpec with zero hspace
     gs = GridSpec(1 + n_models, n_cols, figure=fig,
-                  hspace=0.60, wspace=0.30,
-                  top=0.93, bottom=0.03, left=0.08, right=0.97,
-                  height_ratios=[hm_h] * (1 + n_models))
+                  hspace=0.0, wspace=0.25,
+                  top=0.88, bottom=0.10, left=0.18, right=0.96)
 
     for col_i, cd in enumerate(case_data):
         sub        = cd['sub']
         model_cols = cd['model_cols']
         L          = sub['position'].max() + 1
+        rep        = cd['rep'] # Representative miRNA
 
-        # ── pick top miRNAs (BSJ-proximal) ────────────────────────────────────
-        w    = bsj_w
-        rows = []
-        for mirna, grp in sub.groupby('miRNA_ID'):
-            grp = grp.sort_values('position')
-            gt  = grp['ground_truth'].values
-            if gt.sum() == 0: continue
-            bsj = int(gt[:w].sum() + gt[max(0,L-w):].sum())
-            rows.append((mirna, bsj, gt))
-        rows.sort(key=lambda x: -x[1])
-        rows = rows[:top_n]
-        if not rows: continue
+        grp = sub[sub['miRNA_ID'] == rep].sort_values('position')
+        gt  = grp['ground_truth'].values
+        if len(gt) == 0: continue
+        
+        # Prepare GT matrix (1, L)
+        gt_mat = np.zeros((1, L))
+        gt_mat[0, :min(len(gt), L)] = gt[:L]
 
-        mirna_labels = [r[0].replace('hsa-','') for r in rows]
-        gt_mat = np.zeros((len(rows), L), dtype=float)
-        for i, (_, _, gt_arr) in enumerate(rows):
-            gt_mat[i, :min(len(gt_arr), L)] = gt_arr[:L]
-
-        def _hm(ax, mat, cmap, title, title_color, show_yticks=True):
+        def _hm(ax, mat, cmap, is_bottom, is_left, model_name):
             ax.imshow(mat, aspect='auto', cmap=cmap, vmin=0, vmax=1,
                       interpolation='nearest')
-            ax.set_yticks(range(len(mirna_labels)))
-            ax.set_yticklabels(mirna_labels if show_yticks else ['']*len(mirna_labels),
-                               fontsize=6.5)
-            ax.set_title(title, fontsize=8, fontweight='bold', pad=2, color=title_color)
+            ax.set_yticks([])
+            # No individual titles
             for x in [0, L-1]:
-                ax.axvline(x, color=BSJ_COLOR, lw=1.2, ls='--', alpha=0.75)
-            ax.tick_params(axis='x', labelsize=6)
+                ax.axvline(x, color=BSJ_COLOR, lw=1.2, ls='--', alpha=0.7)
+            
+            if is_left:
+                # Add model name on the far left
+                ax.set_ylabel(model_name, rotation=0, ha='right', va='center',
+                              fontsize=9, fontweight='bold', labelpad=10)
+            
+            if is_bottom:
+                ax.set_xlabel('Sequence Position', fontsize=9)
+                ax.tick_params(axis='x', labelsize=8)
+            else:
+                ax.set_xticks([])
 
+        # Title for the column (Case ID + miRNA)
+        mirna_short = rep.replace('hsa-', '')
+        col_title = f"{cd['label']}\n{mirna_short}"
+        
         # Row 0: GT
         ax_gt = fig.add_subplot(gs[0, col_i])
-        _hm(ax_gt, gt_mat, 'Reds',
-            f'{cd["label"]}  (n={cd["n_pairs"]} pairs)\nGround Truth',
-            BIND_COLOR, show_yticks=True)
-        ax_gt.set_xlabel('Position', fontsize=7)
+        _hm(ax_gt, gt_mat, 'Reds', False, (col_i == 0), 'Ground Truth')
+        ax_gt.set_title(col_title, fontsize=11, fontweight='bold', pad=15)
 
-        # Rows 1..N: per-model prediction
+        # Rows 1..N: Models
         for m_i, m_label in enumerate(model_list):
             m_col = model_cols.get(m_label)
-            if m_col is None: continue
-            pred_mat = np.zeros_like(gt_mat)
-            for i, (mirna, _, _) in enumerate(rows):
-                grp  = sub[sub['miRNA_ID']==mirna].sort_values('position')
+            pred_mat = np.zeros((1, L))
+            if m_col in grp.columns:
                 vals = grp[m_col].values
-                n    = min(len(vals), L)
-                pred_mat[i, :n] = vals[:n]
+                pred_mat[0, :min(len(vals), L)] = vals[:L]
+            
             color = mcolor(m_label, m_i)
             cmap  = matplotlib.colors.LinearSegmentedColormap.from_list(
                         m_label, ['#f8f8f8', color])
+            
             ax = fig.add_subplot(gs[1 + m_i, col_i])
-            _hm(ax, pred_mat, cmap, m_label, color, show_yticks=(col_i==0))
-            if m_i == n_models - 1:
-                ax.set_xlabel('Position', fontsize=7)
+            is_bottom = (m_i == n_models - 1)
+            _hm(ax, pred_mat, cmap, is_bottom, (col_i == 0), m_label)
 
-    model_list = list(case_data[0]['model_cols'].keys())
-    grp_label = f'Models: {", ".join(model_list)}'
-    fig.suptitle(f'Heatmap Comparison  |  {grp_label}',
-                 fontsize=11, fontweight='bold')
     out = Path(out_dir)
     stem = f'viz_heatmap_comparison{suffix}'
-    fig.savefig(out / f'{stem}.png', bbox_inches='tight', dpi=150)
+    fig.savefig(out / f'{stem}.png', bbox_inches='tight', dpi=200)
     print(f'Saved: {out}/{stem}.png')
     if not no_pdf:
         fig.savefig(out / f'{stem}.pdf', bbox_inches='tight', dpi=300)
-        print(f'Saved: {out}/{stem}.pdf')
     plt.close(fig)
 
 
@@ -650,19 +643,17 @@ def make_circular_comparison(case_data, val_thresholds, out_dir='.', no_pdf=Fals
                         arrowprops=dict(arrowstyle='->', color=BSJ_COLOR, lw=1.5))
             ax.text(0, R_P_OUT+0.20, 'BSJ', ha='center', fontsize=7,
                     color=BSJ_COLOR, fontweight='bold')
-            n_bind = int((gt>0.5).sum())
-            ax.text(0,  0.06, f'{n_bind}/{L}', ha='center', fontsize=9,
-                    fontweight='bold', color='#2C3E50')
-            ax.text(0, -0.12, 'bind\nsites', ha='center', fontsize=7, color='#777')
+            # Internal text removed as requested
+            
             ax.set_title(m_label, fontsize=8.5, fontweight='bold',
-                         pad=3, color=color)
+                         pad=12, color=color)
 
             # case label on top-left cell only
             if m_i == 0:
                 mirna_short = rep.replace('hsa-','')
-                ax.text(0.02, 1.10,
+                ax.text(0.02, 1.30,
                         f'{cd["label"]}\n{mirna_short}',
-                        transform=ax.transAxes, fontsize=7.5,
+                        transform=ax.transAxes, fontsize=8.0,
                         fontweight='bold', va='top', color='#2C3E50')
 
     # shared legend

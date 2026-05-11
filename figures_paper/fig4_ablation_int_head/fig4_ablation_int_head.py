@@ -84,10 +84,6 @@ def plot_bars(ax, entries, ylim, title):
                 color='#222222', zorder=6,
                 bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.85))
 
-    if best_mean:
-        ax.axhline(best_mean, color=PROPOSED, linestyle='--',
-                   linewidth=1.2, alpha=0.55, zorder=1)
-
     ax.set_xticks(range(len(entries)))
     ax.set_xticklabels([e[0] for e in entries])
     ax.set_ylim(*ylim)

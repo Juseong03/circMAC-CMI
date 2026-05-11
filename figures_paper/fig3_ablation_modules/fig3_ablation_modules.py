@@ -23,14 +23,13 @@ SEEDS = [1, 2, 3]
 # (display_label, exp_suffix, group)
 # group: 'full' | 'remove' | 'single'
 MODELS = [
-    ('Full',         'v2_abl_full',         'full'),
-    ('No Circ Bias', 'v2_abl_no_circ_bias', 'remove'),
-    ('w/o Attn',     'v2_abl_no_attn',      'remove'),
-    ('w/o Conv',     'v2_abl_no_conv',       'remove'),
-    ('w/o Mamba',    'v2_abl_no_mamba',     'remove'),
-    ('Mamba Only',   'v2_abl_mamba_only',   'single'),
-    ('CNN Only',     'v2_abl_cnn_only',     'single'),
-    ('Attn Only',    'v2_abl_attn_only',    'single'),
+    ('Full',       'v2_abl_full',       'full'),
+    ('w/o Attn',   'v2_abl_no_attn',    'remove'),
+    ('w/o Conv',   'v2_abl_no_conv',    'remove'),
+    ('w/o Mamba',  'v2_abl_no_mamba',   'remove'),
+    ('Mamba Only', 'v2_abl_mamba_only', 'single'),
+    ('CNN Only',   'v2_abl_cnn_only',   'single'),
+    ('Attn Only',  'v2_abl_attn_only',  'single'),
 ]
 
 COLORS = {
@@ -112,11 +111,6 @@ def main():
                 color='#222222', zorder=6,
                 bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.85))
 
-    # Dashed reference line at Full model mean
-    if full_mean:
-        ax.axhline(full_mean, color=COLORS['full'], linestyle='--',
-                   linewidth=1.2, alpha=0.6, zorder=1)
-
     ax.set_xticks(range(len(data)))
     ax.set_xticklabels([d[0] for d in data], rotation=20, ha='right')
     ax.set_ylabel('F1-macro')
@@ -138,7 +132,7 @@ def main():
         Patch(facecolor=COLORS['remove'], label='Remove branch'),
         Patch(facecolor=COLORS['single'], label='Single branch only'),
     ]
-    ax.legend(handles=legend_elems, loc='lower right', fontsize=9,
+    ax.legend(handles=legend_elems, loc='upper right', fontsize=9,
               framealpha=0.9, edgecolor='#cccccc')
 
     fig.tight_layout()
