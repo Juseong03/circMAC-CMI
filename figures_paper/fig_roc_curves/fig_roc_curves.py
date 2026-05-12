@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """
-fig_roc_curves.py — ROC Curve figures for Fig1 (encoder) and Fig2 (RNA-LM)
+fig_roc_curves.py — ROC Curve figures
 
-Reads cached prediction data from compute_roc_data.py output.
-Plots mean ROC curve ± std band across 3 seeds.
+fig1b_roc_rna_lm.{pdf,png}  — Fig 1b (main): fine-tuned RNA-LMs vs CircMAC+Pairing
+fig1b_roc_rna_lm_full.{pdf,png} — Fig 1b extended: frozen + fine-tuned + CircMAC+Pairing (2 panels)
+fig2b_roc_encoder.{pdf,png}  — Fig 2b (ablation): encoder architecture ROC curves
 
-Output:
-    fig_roc_encoder.{pdf,png}   — Fig1: encoder model comparison
-    fig_roc_rna_lm.{pdf,png}    — Fig2: RNA-LM frozen vs fine-tuned vs circMAC
+Reads cached prediction data produced by compute_roc_data.py.
+
+Usage:
+    python figures_paper/fig_roc_curves/fig_roc_curves.py
 """
 
 import pickle
@@ -19,178 +21,177 @@ from pathlib import Path
 from sklearn.metrics import roc_curve, auc
 
 OUT   = Path(__file__).resolve().parent
-CACHE = OUT  # same directory
+CACHE = OUT
 
-# ── Colors ───────────────────────────────────────────────────────────────────
-MODEL_COLORS = {
-    "circMAC (ours)":        "#FF7F0E",
-    "LSTM":                  "#E377C2",
-    "Transformer":           "#8C564B",
-    "Mamba":                 "#D62728",
-    "Hymba":                 "#BCBD22",
-    "RNABERT (frozen)":      "#1F77B4",
-    "RNAErnie (frozen)":     "#9467BD",
-    "RNAMSM (frozen)":       "#2CA02C",
-    "RNA-FM (frozen)":       "#17BECF",
-    "RNABERT (fine-tuned)":  "#1F77B4",
-    "RNAErnie (fine-tuned)": "#9467BD",
-    "RNAMSM (fine-tuned)":   "#2CA02C",
-    "RNA-FM (fine-tuned)":   "#17BECF",
+# ── Colors ────────────────────────────────────────────────────────────────────
+LM_COLORS = {
+    "RNABERT":  "#4878CF",
+    "RNAErnie": "#9467BD",
+    "RNAMSM":   "#2CA02C",
+    "RNA-FM":   "#17BECF",
+}
+PROPOSED_COLOR = "#E05C2A"
+ENCODER_COLORS = {
+    "LSTM":        "#E377C2",
+    "Transformer": "#8C564B",
+    "Mamba":       "#D62728",
+    "Hymba":       "#BCBD22",
+    "CircMAC":     "#E05C2A",
 }
 
-# Line style: frozen = dashed, fine-tuned / encoder = solid
-def get_ls(label):
-    return "--" if "frozen" in label else "-"
-
-def get_lw(label):
-    return 2.4 if "circMAC" in label else 1.4
-
 plt.rcParams.update({
-    "font.family":  "DejaVu Sans",
-    "font.size":    9,
+    "font.family":    "DejaVu Sans",
+    "font.size":      9,
     "axes.linewidth": 0.9,
-    "pdf.fonttype": 42,
-    "ps.fonttype":  42,
+    "axes.spines.top":   False,
+    "axes.spines.right": False,
+    "pdf.fonttype":   42,
+    "ps.fonttype":    42,
 })
 
 
-# ── Core: compute mean ROC across seeds ──────────────────────────────────────
 def mean_roc(seed_results):
-    """
-    Interpolate per-seed ROC onto a common FPR grid and return
-    mean_tpr, std_tpr, mean_auc.
-    """
+    """Interpolate per-seed ROC onto common FPR grid → mean ± std."""
     base_fpr = np.linspace(0, 1, 300)
     tprs, aucs = [], []
-
     for r in seed_results:
         fpr, tpr, _ = roc_curve(r["labels"], r["preds"])
         tprs.append(np.interp(base_fpr, fpr, tpr))
         aucs.append(auc(fpr, tpr))
-
     mean_tpr = np.mean(tprs, axis=0)
     std_tpr  = np.std(tprs, axis=0)
-    mean_auc = np.mean(aucs)
-    std_auc  = np.std(aucs)
-
-    return base_fpr, mean_tpr, std_tpr, mean_auc, std_auc
+    return base_fpr, mean_tpr, std_tpr, np.mean(aucs), np.std(aucs)
 
 
-# ── Plot helpers ─────────────────────────────────────────────────────────────
-def plot_roc_panel(ax, cache, model_order, title):
-    """Draw ROC curves for models in model_order onto ax."""
-    for label in model_order:
-        if label not in cache or not cache[label]:
-            print(f"  [WARN] No data for: {label}")
+def plot_roc_panel(ax, cache, entries, title):
+    """
+    entries: list of (label_in_cache, display_label, color, linestyle, linewidth)
+    """
+    for cache_key, disp_label, color, ls, lw in entries:
+        if cache_key not in cache or not cache[cache_key]:
+            print(f"  [WARN] No data: {cache_key}")
             continue
 
-        base_fpr, mean_tpr, std_tpr, mean_auc, std_auc = mean_roc(cache[label])
-
-        color = MODEL_COLORS.get(label, "#888888")
-        ls    = get_ls(label)
-        lw    = get_lw(label)
-        alpha_band = 0.12 if "circMAC" in label else 0.08
+        base_fpr, mean_tpr, std_tpr, mean_auc, std_auc = mean_roc(cache[cache_key])
+        alpha_band = 0.14 if lw > 1.8 else 0.08
 
         ax.plot(base_fpr, mean_tpr,
                 color=color, lw=lw, ls=ls, zorder=3,
-                label=f"{label}  (AUC={mean_auc:.3f}±{std_auc:.3f})")
-
+                label=f"{disp_label}  ({mean_auc:.3f}±{std_auc:.3f})")
         ax.fill_between(base_fpr,
                         np.clip(mean_tpr - std_tpr, 0, 1),
                         np.clip(mean_tpr + std_tpr, 0, 1),
                         color=color, alpha=alpha_band, zorder=2)
 
-    # Diagonal
-    ax.plot([0, 1], [0, 1], "k--", lw=0.8, alpha=0.4, zorder=1)
-
+    ax.plot([0, 1], [0, 1], "k--", lw=0.8, alpha=0.35, zorder=1)
     ax.set_xlim(-0.02, 1.02)
     ax.set_ylim(-0.02, 1.05)
     ax.set_xlabel("False Positive Rate", fontsize=9)
     ax.set_ylabel("True Positive Rate", fontsize=9)
-    ax.set_title(title, fontsize=10, fontweight="bold", pad=7)
+    ax.set_title(title, fontsize=10, fontweight="bold", pad=6)
     ax.grid(True, linestyle="--", alpha=0.3, zorder=0)
-
-    legend = ax.legend(
-        loc="lower right",
-        fontsize=7.5,
-        frameon=True,
-        framealpha=0.92,
-        edgecolor="#cccccc",
-        handlelength=2.2,
-    )
-    return legend
+    ax.legend(loc="lower right", fontsize=7.5, frameon=True,
+              framealpha=0.92, edgecolor="#cccccc", handlelength=2.2)
 
 
-# ── Fig1: Encoder ROC ─────────────────────────────────────────────────────────
-def make_encoder_roc():
-    cache_path = CACHE / "roc_cache_encoder.pkl"
+# ── Fig 1b: RNA-LM ROC (main, fine-tuned only + CircMAC+Pairing) ─────────────
+def make_fig1b_rna_lm():
+    cache_path = CACHE / "roc_cache_rna_lm.pkl"
     if not cache_path.exists():
-        raise FileNotFoundError(
-            f"Cache not found: {cache_path}\n"
-            "Run compute_roc_data.py --group encoder first."
-        )
+        raise FileNotFoundError(f"Cache not found: {cache_path}\nRun compute_roc_data.py first.")
     with open(cache_path, "rb") as f:
         cache = pickle.load(f)
 
-    model_order = ["LSTM", "Transformer", "Mamba", "Hymba", "circMAC (ours)"]
+    entries = [
+        ("RNABERT (fine-tuned)",  "RNABERT",      LM_COLORS["RNABERT"],  "-",  1.3),
+        ("RNAErnie (fine-tuned)", "RNAErnie",      LM_COLORS["RNAErnie"], "-",  1.3),
+        ("RNAMSM (fine-tuned)",   "RNAMSM",        LM_COLORS["RNAMSM"],  "-",  1.3),
+        ("RNA-FM (fine-tuned)",   "RNA-FM",        LM_COLORS["RNA-FM"],  "-",  1.3),
+        ("CircMAC+Pairing",       "CircMAC+Pairing (Ours)", PROPOSED_COLOR, "-", 2.4),
+    ]
 
     fig, ax = plt.subplots(figsize=(5.5, 5.0))
-    plot_roc_panel(ax, cache, model_order,
-                   "ROC Curve — General Encoder Models")
-
+    plot_roc_panel(ax, cache, entries,
+                   "ROC Curves — RNA-LM Comparison\n(Fine-tuned encoders)")
     fig.tight_layout()
     for ext in ["pdf", "png"]:
-        p = OUT / f"fig_roc_encoder.{ext}"
+        p = OUT / f"fig1b_roc_rna_lm.{ext}"
         fig.savefig(p, dpi=200, bbox_inches="tight")
         print(f"Saved → {p}")
     plt.close(fig)
 
 
-# ── Fig2: RNA-LM ROC (frozen vs fine-tuned, two panels) ──────────────────────
-def make_rna_lm_roc():
+# ── Fig 1b (full): frozen + fine-tuned + CircMAC+Pairing (2 panels) ──────────
+def make_fig1b_rna_lm_full():
     cache_path = CACHE / "roc_cache_rna_lm.pkl"
     if not cache_path.exists():
-        raise FileNotFoundError(
-            f"Cache not found: {cache_path}\n"
-            "Run compute_roc_data.py --group rna_lm first."
-        )
+        raise FileNotFoundError(f"Cache not found: {cache_path}")
     with open(cache_path, "rb") as f:
         cache = pickle.load(f)
 
-    frozen_order    = ["RNABERT (frozen)", "RNAErnie (frozen)",
-                       "RNAMSM (frozen)", "RNA-FM (frozen)", "circMAC (ours)"]
-    finetune_order  = ["RNABERT (fine-tuned)", "RNAErnie (fine-tuned)",
-                       "RNAMSM (fine-tuned)", "RNA-FM (fine-tuned)", "circMAC (ours)"]
+    lm_names = ["RNABERT", "RNAErnie", "RNAMSM", "RNA-FM"]
+
+    entries_frozen = [
+        (f"{n} (frozen)", n, LM_COLORS[n], "--", 1.3) for n in lm_names
+    ] + [("CircMAC+Pairing", "CircMAC+Pairing (Ours)", PROPOSED_COLOR, "-", 2.4)]
+
+    entries_ft = [
+        (f"{n} (fine-tuned)", n, LM_COLORS[n], "-", 1.3) for n in lm_names
+    ] + [("CircMAC+Pairing", "CircMAC+Pairing (Ours)", PROPOSED_COLOR, "-", 2.4)]
 
     fig, axes = plt.subplots(1, 2, figsize=(11, 5.0),
-                             gridspec_kw={"wspace": 0.28})
-
-    plot_roc_panel(axes[0], cache, frozen_order,
-                   "(a) Frozen RNA language models")
-    plot_roc_panel(axes[1], cache, finetune_order,
-                   "(b) Fine-tuned RNA language models")
-
+                              gridspec_kw={"wspace": 0.28})
     fig.suptitle("ROC Curves — RNA Language Model Comparison",
                  fontsize=11, fontweight="bold", y=1.01)
-    fig.tight_layout()
 
+    plot_roc_panel(axes[0], cache, entries_frozen,  "(a) Frozen encoders")
+    plot_roc_panel(axes[1], cache, entries_ft,       "(b) Fine-tuned encoders")
+
+    fig.tight_layout()
     for ext in ["pdf", "png"]:
-        p = OUT / f"fig_roc_rna_lm.{ext}"
+        p = OUT / f"fig1b_roc_rna_lm_full.{ext}"
+        fig.savefig(p, dpi=200, bbox_inches="tight")
+        print(f"Saved → {p}")
+    plt.close(fig)
+
+
+# ── Fig 2b: Encoder ROC ───────────────────────────────────────────────────────
+def make_fig2b_encoder():
+    cache_path = CACHE / "roc_cache_encoder.pkl"
+    if not cache_path.exists():
+        raise FileNotFoundError(f"Cache not found: {cache_path}")
+    with open(cache_path, "rb") as f:
+        cache = pickle.load(f)
+
+    entries = [
+        ("LSTM",        "LSTM",        ENCODER_COLORS["LSTM"],        "-", 1.3),
+        ("Transformer", "Transformer", ENCODER_COLORS["Transformer"], "-", 1.3),
+        ("Mamba",       "Mamba",       ENCODER_COLORS["Mamba"],       "-", 1.3),
+        ("Hymba",       "Hymba",       ENCODER_COLORS["Hymba"],       "-", 1.3),
+        ("CircMAC",     "CircMAC (Ours)", ENCODER_COLORS["CircMAC"],  "-", 2.4),
+    ]
+
+    fig, ax = plt.subplots(figsize=(5.5, 5.0))
+    plot_roc_panel(ax, cache, entries, "ROC Curves — Encoder Architecture")
+    fig.tight_layout()
+    for ext in ["pdf", "png"]:
+        p = OUT / f"fig2b_roc_encoder.{ext}"
         fig.savefig(p, dpi=200, bbox_inches="tight")
         print(f"Saved → {p}")
     plt.close(fig)
 
 
 def main():
-    print("=== Encoder ROC ===")
+    print("=== Fig 1b: RNA-LM ROC ===")
     try:
-        make_encoder_roc()
+        make_fig1b_rna_lm()
+        make_fig1b_rna_lm_full()
     except FileNotFoundError as e:
         print(f"  Skip: {e}")
 
-    print("\n=== RNA-LM ROC ===")
+    print("\n=== Fig 2b: Encoder ROC ===")
     try:
-        make_rna_lm_roc()
+        make_fig2b_encoder()
     except FileNotFoundError as e:
         print(f"  Skip: {e}")
 

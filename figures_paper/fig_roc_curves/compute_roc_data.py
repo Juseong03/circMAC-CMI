@@ -2,8 +2,8 @@
 """
 compute_roc_data.py — Run inference on test set and cache ROC data
 
-Loads each model checkpoint, runs on the test set, and saves
-(preds, labels) as a pickle cache for downstream ROC plotting.
+Loads each model checkpoint from models_for_viz/, runs on the test set,
+and saves (preds, labels) as a pickle cache for downstream ROC plotting.
 
 Usage:
     python figures_paper/fig_roc_curves/compute_roc_data.py --device 0
@@ -33,6 +33,8 @@ from utils_config import get_model_config
 OUT = Path(__file__).resolve().parent
 OUT.mkdir(parents=True, exist_ok=True)
 
+VIZ  = ROOT / "models_for_viz"   # all checkpoints live here
+
 MAX_LEN  = 1022
 D_MODEL  = 128
 N_LAYER  = 6
@@ -44,23 +46,23 @@ SEEDS    = [1, 2, 3]
 # ── Model definitions ─────────────────────────────────────────────────────────
 # (label, model_name, exp_template, interaction, trainable_pretrained)
 ENCODER_MODELS = [
-    ("LSTM",           "lstm",        "v2_enc_lstm",        "cross_attention", False),
-    ("Transformer",    "transformer", "v2_enc_transformer", "cross_attention", False),
-    ("Mamba",          "mamba",       "v2_enc_mamba",       "cross_attention", False),
-    ("Hymba",          "hymba",       "v2_enc_hymba",       "cross_attention", False),
-    ("circMAC (ours)", "circmac",     "v2_abl_full",        "cross_attention", False),
+    ("LSTM",        "lstm",        "v2_enc_lstm",        "cross_attention", False),
+    ("Transformer", "transformer", "v2_enc_transformer", "cross_attention", False),
+    ("Mamba",       "mamba",       "v2_enc_mamba",       "cross_attention", False),
+    ("Hymba",       "hymba",       "v2_enc_hymba",       "cross_attention", False),
+    ("CircMAC",     "circmac",     "v2_enc_circmac",     "cross_attention", False),
 ]
 
 RNA_LM_MODELS = [
-    ("RNABERT (frozen)",         "rnabert",  "exp1_fair_frozen_rnabert",     "cross_attention", False),
-    ("RNAErnie (frozen)",        "rnaernie", "exp1_fair_frozen_rnaernie",    "cross_attention", False),
-    ("RNAMSM (frozen)",          "rnamsm",   "exp1_fair_frozen_rnamsm",      "cross_attention", False),
-    ("RNA-FM (frozen)",          "rnafm",    "exp1_fair_frozen_rnafm",       "cross_attention", False),
-    ("RNABERT (fine-tuned)",     "rnabert",  "exp1_fair_trainable_rnabert",  "cross_attention", True),
-    ("RNAErnie (fine-tuned)",    "rnaernie", "exp1_fair_trainable_rnaernie", "cross_attention", True),
-    ("RNAMSM (fine-tuned)",      "rnamsm",   "exp1_fair_trainable_rnamsm",   "cross_attention", True),
-    ("RNA-FM (fine-tuned)",      "rnafm",    "exp1_fair_trainable_rnafm",    "cross_attention", True),
-    ("circMAC (ours)",           "circmac",  "v2_abl_full",                  "cross_attention", False),
+    ("RNABERT (frozen)",      "rnabert",  "exp1_fair_frozen_rnabert",     "cross_attention", False),
+    ("RNAErnie (frozen)",     "rnaernie", "exp1_fair_frozen_rnaernie",    "cross_attention", False),
+    ("RNAMSM (frozen)",       "rnamsm",   "exp1_fair_frozen_rnamsm",      "cross_attention", False),
+    ("RNA-FM (frozen)",       "rnafm",    "exp1_fair_frozen_rnafm",       "cross_attention", False),
+    ("RNABERT (fine-tuned)",  "rnabert",  "exp1_fair_trainable_rnabert",  "cross_attention", True),
+    ("RNAErnie (fine-tuned)", "rnaernie", "exp1_fair_trainable_rnaernie", "cross_attention", True),
+    ("RNAMSM (fine-tuned)",   "rnamsm",   "exp1_fair_trainable_rnamsm",   "cross_attention", True),
+    ("RNA-FM (fine-tuned)",   "rnafm",    "exp1_fair_trainable_rnafm",    "cross_attention", True),
+    ("CircMAC+Pairing",       "circmac",  "v2_pt_pairing",                "cross_attention", False),
 ]
 
 
@@ -75,20 +77,19 @@ def load_test_data():
 
 def run_inference(label, model_name, exp_template, interaction,
                   trainable_pretrained, df_test, device):
-    """Run inference for all seeds and return list of (preds, labels) arrays."""
+    """Run inference for all seeds and return list of {seed, preds, labels} dicts."""
     results = []
 
     for seed in SEEDS:
-        exp = f"{exp_template}_s{seed}"
-        model_path = ROOT / f"saved_models/{model_name}/{exp}/{seed}/train/model.pth"
+        exp        = f"{exp_template}_s{seed}"
+        model_path = VIZ / model_name / exp / str(seed) / "train" / "model.pth"
 
         if not model_path.exists():
-            print(f"  [SKIP] {exp} — model not found: {model_path}")
+            print(f"  [SKIP] {exp} — not found: {model_path}")
             continue
 
         print(f"  [RUN]  {exp}")
 
-        # ── Dataset ───────────────────────────────────────────────────────────
         import pandas as pd
         df_dummy = pd.read_pickle(ROOT / "data/df_train_final.pkl")
         df_dummy["length"] = df_dummy["circRNA"].apply(len)
@@ -104,7 +105,6 @@ def run_inference(label, model_name, exp_template, interaction,
             kmer=1,
         )
 
-        # ── Trainer setup ──────────────────────────────────────────────────────
         trainer = Trainer(seed=seed, device=device,
                           experiment_name=exp, verbose=False)
         trainer.set_dataloader(test_dataset, part=2,
@@ -142,10 +142,8 @@ def run_inference(label, model_name, exp_template, interaction,
         trainer.set_pretrained_target(target="mirna", rna_model=None)
         trainer.task = TASK
 
-        # Load fine-tuned weights
         trainer.load_model_from_path(str(model_path), verbose=False)
 
-        # ── Inference ─────────────────────────────────────────────────────────
         _, tensors, _ = trainer.step_loader(
             trainer.test_loader, 0, is_train=False, data_type="Test"
         )
@@ -153,7 +151,6 @@ def run_inference(label, model_name, exp_template, interaction,
         preds  = tensors["preds_sites"].numpy()
         labels = tensors["labels_sites"].numpy()
 
-        # preds shape: (N, 2) logits → softmax → positive class prob
         if preds.ndim == 2 and preds.shape[1] == 2:
             preds_prob = torch.softmax(torch.tensor(preds), dim=-1)[:, 1].numpy()
         else:
@@ -173,7 +170,7 @@ def main():
                         default="all")
     args = parser.parse_args()
 
-    print(f"Loading test data...")
+    print("Loading test data...")
     df_test = load_test_data()
     print(f"  Test set: {len(df_test)} samples")
 
@@ -183,8 +180,7 @@ def main():
         for label, model_name, exp_tpl, interaction, trainable in ENCODER_MODELS:
             print(f"\n[{label}]")
             cache[label] = run_inference(
-                label, model_name, exp_tpl, interaction, trainable,
-                df_test, args.device
+                label, model_name, exp_tpl, interaction, trainable, df_test, args.device
             )
         out_path = OUT / "roc_cache_encoder.pkl"
         with open(out_path, "wb") as f:
@@ -197,8 +193,7 @@ def main():
         for label, model_name, exp_tpl, interaction, trainable in RNA_LM_MODELS:
             print(f"\n[{label}]")
             cache[label] = run_inference(
-                label, model_name, exp_tpl, interaction, trainable,
-                df_test, args.device
+                label, model_name, exp_tpl, interaction, trainable, df_test, args.device
             )
         out_path = OUT / "roc_cache_rna_lm.pkl"
         with open(out_path, "wb") as f:
