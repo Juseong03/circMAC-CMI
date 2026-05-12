@@ -24,14 +24,13 @@ SEEDS = [1, 2, 3]
 # (display_label, exp_suffix, group)
 # group: 'full' | 'remove' | 'single'
 MODELS = [
-    ('Full',            'v2_abl_full',          'full'),
-    ('w/o Attn',        'v2_abl_no_attn',       'remove'),
-    ('w/o Conv',        'v2_abl_no_conv',       'remove'),
-    ('w/o Mamba',       'v2_abl_no_mamba',      'remove'),
-    ('w/o Circ Bias',   'v2_abl_no_circ_bias',  'remove'),
-    ('Mamba Only',      'v2_abl_mamba_only',    'single'),
-    ('CNN Only',        'v2_abl_cnn_only',      'single'),
-    ('Attn Only',       'v2_abl_attn_only',     'single'),
+    ('Full',        'v2_abl_full',       'full'),
+    ('w/o Attn',    'v2_abl_no_attn',    'remove'),
+    ('w/o Conv',    'v2_abl_no_conv',    'remove'),
+    ('w/o Mamba',   'v2_abl_no_mamba',   'remove'),
+    ('Mamba Only',  'v2_abl_mamba_only', 'single'),
+    ('CNN Only',    'v2_abl_cnn_only',   'single'),
+    ('Attn Only',   'v2_abl_attn_only',  'single'),
 ]
 
 COLORS = {
