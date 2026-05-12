@@ -24,30 +24,22 @@ SEEDS = [1, 2, 3]
 # (display_label, exp_base, group)
 # group: 'baseline' | 'single' | 'combo'
 MODELS = [
-    ('No PT',        'v2_abl_full',        'baseline'),
-    ('MLM',          'v2_pt_mlm',          'single'),
-    ('SSP',          'v2_pt_ssp',          'single'),
-    ('CPCL',         'v2_pt_cpcl',         'single'),
-    ('Pairing',      'v2_pt_pairing',      'single'),
-    ('MLM+SSP',      'v2_pt_mlm_ssp',      'combo'),
-    ('MLM+CPCL',     'v2_pt_mlm_cpcl',     'combo'),
-    ('MLM+CPCL+SSP', 'v2_pt_mlm_cpcl_ssp', 'combo'),
+    ('No PT',   'v2_abl_full',   'baseline'),
+    ('MLM',     'v2_pt_mlm',     'single'),
+    ('SSP',     'v2_pt_ssp',     'single'),
+    ('Pairing', 'v2_pt_pairing', 'single'),
 ]
 
 COLORS = {
     'baseline': '#AAAAAA',
     'single':   '#6B9CC7',
-    'combo':    '#7CBB8F',
 }
 
 METRICS = [
-    ('f1_macro', '(a) F1-macro', (0.67, 0.81)),
-    ('roc_auc',  '(b) AUROC',    (0.87, 0.92)),
-    ('auprc',    '(c) AUPRC',    (0.40, 0.57)),
+    ('f1_macro', '(a) F1-macro', (0.72, 0.80)),
+    ('roc_auc',  '(b) AUROC',    (0.88, 0.92)),
+    ('auprc',    '(c) AUPRC',    (0.47, 0.57)),
 ]
-
-# separator x position: between single-task and combination groups
-SEP_SINGLE_COMBO = 4.5   # between Pairing and MLM+SSP
 
 plt.rcParams.update({
     'font.family':       'DejaVu Sans',
@@ -121,11 +113,8 @@ def plot_panel(ax, data, metric, title, ylim):
         ax.axhline(nopt_mean, color=COLORS['baseline'], linestyle=':',
                    linewidth=1.4, alpha=0.8, zorder=1)
 
-    # Separator between single-task and combination
-    ax.axvline(SEP_SINGLE_COMBO, color='#cccccc', linewidth=1.0, zorder=1)
-
     ax.set_xticks(range(len(data)))
-    ax.set_xticklabels([d[0] for d in data], rotation=30, ha='right')
+    ax.set_xticklabels([d[0] for d in data], rotation=20, ha='right')
     ax.set_ylim(*ylim)
     ax.yaxis.grid(True, linestyle='--', alpha=0.4, zorder=0)
     ax.set_axisbelow(True)
@@ -168,28 +157,21 @@ def main():
     summary.to_csv(OUT / 'fig5_pretraining_summary.csv')
     print(summary.to_string())
 
-    fig, axes = plt.subplots(1, 3, figsize=(13, 4.6))
+    fig, axes = plt.subplots(1, 3, figsize=(9, 4.4))
     fig.suptitle('Pretraining Strategy Comparison', fontsize=12, fontweight='bold', y=1.01)
 
     for ax, (metric, title, ylim) in zip(axes, METRICS):
         plot_panel(ax, data, metric, title, ylim)
 
-    # Group labels on first panel
-    axes[0].text(2.5, METRICS[0][2][1] - 0.003, 'Single-task',
-                 ha='center', va='top', fontsize=8.5, color='#555555')
-    axes[0].text(6.0, METRICS[0][2][1] - 0.003, 'Combination',
-                 ha='center', va='top', fontsize=8.5, color='#555555')
-
     legend_elems = [
         Patch(facecolor=COLORS['baseline'], label='CircMAC (No PT)'),
-        Patch(facecolor=COLORS['single'],   label='Single-task PT'),
-        Patch(facecolor=COLORS['combo'],    label='Combination PT'),
+        Patch(facecolor=COLORS['single'],   label='Pretraining'),
     ]
-    fig.legend(handles=legend_elems, loc='upper center', ncol=3,
+    fig.legend(handles=legend_elems, loc='upper center', ncol=2,
                fontsize=9, frameon=False, bbox_to_anchor=(0.5, 0.0))
 
     fig.tight_layout()
-    fig.subplots_adjust(bottom=0.22)
+    fig.subplots_adjust(bottom=0.18)
 
     for ext in ['pdf', 'png']:
         p = OUT / f'fig5_pretraining.{ext}'
