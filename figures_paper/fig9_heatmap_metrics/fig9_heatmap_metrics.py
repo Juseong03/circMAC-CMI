@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Fig 9 — Heatmap + Per-case Metrics (AUROC / AUPRC)
+Fig 9 — Heatmap + Per-case Metrics (F1 / Recall / Precision / AUROC)
 
 Two subplots per figure:
   (a) Nucleotide-level prediction heatmap  (GT row + model rows, BSJ lines)
-  (b) Per-case AUROC and AUPRC bar charts  (3 cases × model bars)
+  (b) Per-case bar charts: F1, Recall, Precision, AUROC  (3 cases × model bars)
 
 Two figures generated (encoder / pretrained).
 
@@ -21,7 +21,8 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 from pathlib import Path
-from sklearn.metrics import roc_auc_score, average_precision_score
+from sklearn.metrics import (roc_auc_score, f1_score,
+                             recall_score, precision_score)
 
 
 # ── Paths ────────────────────────────────────────────────────────────────────
@@ -116,20 +117,25 @@ def load_case(case):
 
 
 def compute_metrics(df, models):
-    """Return dict {pred_col: {auroc, auprc}}."""
+    """Return dict {pred_col: {f1, recall, precision, auroc}} at threshold=0.5."""
     gt  = df["ground_truth"].values
     out = {}
     for mkey, mname, mcol in models:
+        nan4 = dict(f1=float("nan"), recall=float("nan"),
+                    precision=float("nan"), auroc=float("nan"))
         if mcol not in df.columns:
-            out[mcol] = dict(auroc=float("nan"), auprc=float("nan"))
+            out[mcol] = nan4
             continue
-        p = df[mcol].values
+        p    = df[mcol].values
+        pred = (p >= 0.5).astype(int)
         try:
-            auroc = roc_auc_score(gt, p)  if gt.sum() > 0 else float("nan")
-            auprc = average_precision_score(gt, p) if gt.sum() > 0 else float("nan")
+            f1   = f1_score(gt, pred, zero_division=0)
+            rec  = recall_score(gt, pred, zero_division=0)
+            pre  = precision_score(gt, pred, zero_division=0)
+            auroc = roc_auc_score(gt, p) if gt.sum() > 0 else float("nan")
         except Exception:
-            auroc, auprc = float("nan"), float("nan")
-        out[mcol] = dict(auroc=auroc, auprc=auprc)
+            f1, rec, pre, auroc = (float("nan"),) * 4
+        out[mcol] = dict(f1=f1, recall=rec, precision=pre, auroc=auroc)
     return out
 
 
@@ -224,23 +230,27 @@ def draw_heatmap_section(fig, gs_slot, models, first_case=True):
 # ── Metrics bar chart section ────────────────────────────────────────────────
 def draw_metrics_section(fig, gs_slot, models):
     """
-    Draw per-case metrics (AUROC, AUPRC) inside gs_slot.
-    Layout: n_cases columns × 2 metrics rows (AUROC top, AUPRC bottom).
+    Draw per-case metrics (F1 / Recall / Precision / AUROC) inside gs_slot.
+    Layout: 4 metric rows × n_cases columns.
+    X-axis labels shown only on the bottom row.
     """
     n_cases  = len(CASES)
     n_models = len(models)
 
     gs_inner = GridSpecFromSubplotSpec(
-        2, n_cases,
+        4, n_cases,
         subplot_spec=gs_slot,
-        hspace=0.55,
+        hspace=0.50,
         wspace=0.14,
     )
 
     metric_info = [
-        ("auroc", "AUROC",  (0.0, 1.05)),
-        ("auprc", "AUPRC",  (0.0, 1.05)),
+        ("f1",        "F1",        (0.0, 1.12)),
+        ("recall",    "Recall",    (0.0, 1.12)),
+        ("precision", "Precision", (0.0, 1.12)),
+        ("auroc",     "AUROC",     (0.0, 1.12)),
     ]
+    n_metrics = len(metric_info)
 
     bar_positions = np.arange(n_models)
     bar_w = 0.62
@@ -261,8 +271,8 @@ def draw_metrics_section(fig, gs_slot, models):
                 if not np.isnan(val):
                     ax.bar(bi, val, width=bar_w, color=color, alpha=alpha,
                            zorder=2, linewidth=0)
-                    ax.text(bi, val + 0.02, f"{val:.2f}",
-                            ha="center", va="bottom", fontsize=6.5,
+                    ax.text(bi, val + 0.025, f"{val:.2f}",
+                            ha="center", va="bottom", fontsize=6,
                             fontweight="bold", color="#222",
                             bbox=dict(boxstyle="round,pad=0.1",
                                       fc="white", ec="none", alpha=0.85))
@@ -274,11 +284,10 @@ def draw_metrics_section(fig, gs_slot, models):
             ax.set_axisbelow(True)
             ax.tick_params(axis="x", length=0)
 
-            # x labels only on bottom metric row
-            if mi == 1:
+            # x-tick labels only on the bottom metric row
+            if mi == n_metrics - 1:
                 short_names = [m[1].split("\n")[0] for m in models]
                 ax.set_xticklabels(short_names, rotation=30, ha="right", fontsize=7.5)
-                # Highlight circMAC label
                 for tick, (mkey_m, _, _) in zip(ax.get_xticklabels(), models):
                     if mkey_m == "circmac":
                         tick.set_fontweight("bold")
@@ -288,7 +297,7 @@ def draw_metrics_section(fig, gs_slot, models):
 
             ax.set_ylabel(metric_label, fontsize=8, labelpad=4)
 
-            # Case title on top metric row
+            # Case title on the top metric row only
             if mi == 0:
                 ax.set_title(
                     f"{case['label_m']}\n× {mirna_short}",
@@ -307,7 +316,7 @@ def make_figure(group_key):
     #   Metrics: fixed ~3.8 inches for 2 metric rows
     hm_rows     = n_models + 1
     hm_h        = hm_rows * 0.52 + 0.6
-    metrics_h   = 4.2
+    metrics_h   = 7.5          # 4 metric rows
     fig_w       = 5.8 * n_cases
     fig_h       = hm_h + metrics_h + 0.9
 
@@ -324,11 +333,11 @@ def make_figure(group_key):
     draw_metrics_section(fig, gs[1], models)
 
     # Section labels (using figure text for consistent vertical placement)
-    label_x = 0.01
-    fig.text(label_x, 0.995, "(a) Nucleotide-level prediction heatmap",
+    label_x = 0.1
+    fig.text(label_x, 0.95, "(a) Nucleotide-level prediction heatmap",
              ha="left", va="top", fontsize=10, fontweight="bold",
              transform=fig.transFigure)
-    fig.text(label_x, 0.48, "(b) Per-case site-level metrics",
+    fig.text(label_x, 0.6, "(b) Per-case site-level metrics",
              ha="left", va="top", fontsize=10, fontweight="bold",
              transform=fig.transFigure)
 

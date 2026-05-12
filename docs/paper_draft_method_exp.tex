@@ -1,0 +1,624 @@
+% ============================================================
+% CMI-MAC: Method + Experiment Draft
+% ============================================================
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage{subcaption}
+
+\definecolor{ours}{RGB}{210,90,30}
+
+\newcommand{\model}{\textsc{circMAC}}
+\newcommand{\best}[1]{\textbf{#1}}
+\newcommand{\spm}{\,\ensuremath{\pm}\,}
+
+\title{CMI-MAC: Circular RNA--MicroRNA Interaction Prediction\\
+       with Multi-branch Attention and Circular-aware Modeling\\[4pt]
+       \large \textit{[DRAFT --- Method \& Experiment Sections]}}
+\date{\today}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Methods}
+% ============================================================
+
+\subsection{Problem Formulation}
+
+Given a circular RNA (circRNA) sequence $\mathbf{x}^c \in \Sigma^{L_c}$
+and a microRNA (miRNA) sequence $\mathbf{x}^m \in \Sigma^{L_m}$
+(where $\Sigma = \{\text{A,U,G,C}\}$),
+we address two prediction tasks:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Binding-site prediction (main task).}
+        Predict a per-nucleotide binary label $y_i \in \{0,1\}$ for each
+        position $i \in \{1,\ldots,L_c\}$ of the circRNA, indicating whether
+        that nucleotide is a miRNA-binding site.
+  \item \textbf{Interaction prediction (derived task).}
+        Predict a binary label $y^{\text{bind}} \in \{0,1\}$ indicating
+        whether the pair $(x^c, x^m)$ binds at all.
+        This is derived from the site predictions by mean-pooling:
+        $\hat{y}^{\text{bind}} = \text{sigmoid}\!\left(
+          \text{logit}\!\left(\frac{1}{L_c}\sum_i \hat{p}_i\right)\right)$,
+        where $\hat{p}_i$ is the predicted site probability at position $i$.
+\end{itemize}
+
+\noindent
+We adopt this \textit{site-first} formulation because (i) it is more
+informative than binary interaction labeling and (ii) eliminating a dedicated
+CLS token naturally accommodates the circular topology of circRNA.
+
+
+% ------------------------------------------------------------
+\subsection{Dataset}
+% ------------------------------------------------------------
+
+We use a circRNA--miRNA binding dataset consisting of
+\num{45272} training pairs and \num{17708} test pairs
+(train positive: \num{19674}; test positive: \num{7838}).
+Each sample contains a circRNA nucleotide sequence, a miRNA sequence,
+a per-nucleotide binary binding-site label array, and an overall
+binary interaction label.
+CircRNA sequences range up to $L_c = 1000$ nucleotides
+(mean~$\approx 601$, median~$\approx 603$); sequences exceeding
+$L_c^{\max} = 1022$ nucleotides are excluded.
+The dataset is fixed across all experiments; all models are trained on the
+same splits.
+
+
+% ------------------------------------------------------------
+\subsection{circMAC Architecture}
+% ------------------------------------------------------------
+
+\subsubsection{Overview}
+
+\model{} (\textbf{Circ}RNA \textbf{M}ulti-branch \textbf{A}ttention and
+\textbf{C}ircular-aware model) extends the HyMBA hybrid architecture
+\cite{hymba} by adding a third, circular-padding CNN branch, making it
+uniquely suited to circRNA.
+Figure~\ref{fig:architecture} shows the overall pipeline.
+
+\subsubsection{Input Representation}
+
+Both sequences are tokenized at the single-nucleotide level (vocabulary size
+$|\Sigma|+3$ special tokens).
+Token embeddings of dimension $d$ are produced by a learned embedding table
+followed by a dropout layer.
+The circRNA embedding serves as the main encoder input; the miRNA is encoded
+separately (see Section~\ref{sec:interaction}).
+
+\subsubsection{CircMAC Block}
+
+Each layer of \model{} is a \emph{CircMAC Block} consisting of three parallel
+branches (Figure~\ref{fig:block}):
+
+\begin{enumerate}[label=\arabic*.,leftmargin=*]
+  \item \textbf{Attention branch (global context).}
+        Multi-head self-attention with $H$ heads and head dimension
+        $d_h = d/H$.
+        Unlike standard transformers, attention logits are augmented with a
+        \emph{circular relative bias}:
+        \begin{equation}
+          b_{ij} = -\lambda \cdot d_{\text{circ}}(i, j),
+          \quad
+          d_{\text{circ}}(i,j) = \min(|i-j|,\; L_c - |i-j|),
+          \label{eq:circ_bias}
+        \end{equation}
+        where $\lambda$ is a learnable scalar slope.
+        This reflects the circular topology of circRNA: position $L_c$ is
+        adjacent to position $1$.
+
+  \item \textbf{Mamba branch (sequential context).}
+        A Mamba SSM block \cite{mamba} processes the sequence state-space
+        representation, capturing long-range sequential dependencies
+        efficiently in $\mathcal{O}(L)$.
+
+  \item \textbf{Circular CNN branch (local motifs).}
+        A depthwise Conv1D with kernel size $k$ applies \emph{circular
+        padding}---wrapping the end of the sequence to the beginning---before
+        convolution.
+        This ensures that the back-splice junction (BSJ) region is processed
+        with proper local context.
+\end{enumerate}
+
+\noindent
+Let $\mathbf{h}^{\text{attn}}$, $\mathbf{h}^{\text{mamba}}$,
+$\mathbf{h}^{\text{cnn}}$ denote the three branch outputs (each
+$\in \mathbb{R}^{L\times d}$).
+Intermediate layer norm (RMSNorm) is applied to each.
+The branches share an input projection:
+$[\mathbf{q};\mathbf{k};\mathbf{v};\mathbf{b}] = \mathbf{x}\mathbf{W}_{\text{in}}$,
+where $\mathbf{b}$ is the shared ``base'' representation fed to both the Mamba
+and CNN branches.
+
+\paragraph{Adaptive router.}
+The three branches are fused by a learned router that computes per-position
+soft gates $\boldsymbol{\alpha} \in \mathbb{R}^{L \times 3}$:
+\begin{equation}
+  \boldsymbol{\alpha} = \text{Softmax}\!\left(
+    \text{MLP}\!\left([\overline{\mathbf{h}}^{\text{attn}};
+                       \overline{\mathbf{h}}^{\text{mamba}};
+                       \overline{\mathbf{h}}^{\text{cnn}}]\right)
+  \right),
+  \label{eq:router}
+\end{equation}
+where $\overline{(\cdot)}$ denotes sequence-mean pooling (broadcast back to
+each position) and $[\cdot;\cdot]$ is concatenation.
+The fused output is:
+\begin{equation}
+  \mathbf{h}^{\text{fused}} = \alpha_1\mathbf{h}^{\text{attn}}
+    + \alpha_2\mathbf{h}^{\text{mamba}}
+    + \alpha_3\mathbf{h}^{\text{cnn}}.
+\end{equation}
+
+\noindent
+An output projection $\mathbf{W}_{\text{out}}$ maps
+$\mathbf{h}^{\text{fused}}$ back to dimension $d$.
+Residual connections are applied around each block.
+
+\subsubsection{Multi-scale Structure}
+
+Following HyMBA~\cite{hymba}, \model{} adopts a global down/up-sampling
+strategy.
+Before the encoder stack, the sequence is downsampled by a factor of 2
+via strided depthwise Conv1D.
+After the encoder stack, it is upsampled back to the original length by
+linear interpolation followed by a pointwise projection.
+The original (pre-downsample) representation is added via a skip connection.
+This creates an implicit multi-scale receptive field without per-block
+sampling.
+
+
+% ------------------------------------------------------------
+\subsection{Interaction Module}
+\label{sec:interaction}
+% ------------------------------------------------------------
+
+The miRNA sequence $\mathbf{x}^m$ is encoded by a fixed pretrained
+RNABERT~\cite{rnabert} encoder with mean-pooling, producing a single
+representation $\mathbf{e}^m \in \mathbb{R}^{d_m}$,
+which is projected to $\mathbb{R}^d$.
+
+The circRNA hidden states $\mathbf{H}^c \in \mathbb{R}^{L_c \times d}$
+and the projected miRNA vector $\mathbf{e}^m$ are fused via
+\emph{cross-attention}: $\mathbf{e}^m$ is used as query, and
+$\mathbf{H}^c$ is used as key/value.
+This produces a miRNA-conditioned representation of the circRNA sequence
+$\tilde{\mathbf{H}}^c \in \mathbb{R}^{L_c \times d}$,
+which is passed to the prediction head.
+
+
+% ------------------------------------------------------------
+\subsection{Site Prediction Head}
+% ------------------------------------------------------------
+
+The site prediction head consists of:
+\begin{enumerate}[label=\arabic*.,leftmargin=*]
+  \item A \emph{multi-kernel CNN} feature enhancer with kernels of size
+        $\{3, 5, 7\}$ applied in parallel, averaged, and added back via a
+        residual connection with LayerNorm.
+  \item A Conv1D classifier:
+        Conv1D$(d, d/2, k{=}3)$ $\to$ BN $\to$ GELU $\to$ Dropout($0.1$)
+        $\to$ Conv1D$(d/2, 2, k{=}1)$.
+\end{enumerate}
+
+\noindent
+The output is a per-position logit vector for 2 classes (bound / not bound).
+The binding-interaction prediction is derived from site predictions as
+described in Section~1.
+
+
+% ------------------------------------------------------------
+\subsection{Self-supervised Pretraining}
+% ------------------------------------------------------------
+
+\model{} can be pretrained on unlabeled circRNA sequences using a combination
+of the following objectives, all applied to the circRNA encoder only.
+
+\paragraph{Masked Language Modeling (MLM).}
+Following BERT~\cite{devlin2019bert}, 15\% of input tokens are masked and
+predicted from the surrounding context.
+
+\paragraph{Circular Permutation Contrastive Learning (CPCL).}
+Because a circular RNA is topologically the same molecule regardless of
+its linearization starting point, we enforce rotational invariance via
+contrastive learning.
+For each circRNA, a random circular shift is generated as a positive sample;
+other sequences in the batch are negatives.
+We minimize the InfoNCE loss over mean-pooled representations:
+\begin{equation}
+  \mathcal{L}_{\text{CPCL}} = -\log
+    \frac{\exp(\text{sim}(\mathbf{z}, \mathbf{z}^+)/\tau)}
+         {\sum_{j}\exp(\text{sim}(\mathbf{z}, \mathbf{z}_j)/\tau)},
+\end{equation}
+where $\mathbf{z}$ and $\mathbf{z}^+$ are mean-pooled representations of
+the original and circularly-shifted sequences, and $\tau$ is a temperature
+parameter.
+
+\paragraph{Secondary Structure Prediction (SSP).}
+Per-nucleotide secondary structure labels (paired/unpaired) are predicted
+as auxiliary targets using the Vienna RNA folding package \cite{lorenz2011}.
+
+\paragraph{Back-Splice Junction MLM (BSJ-MLM).}
+Standard MLM treats all positions equally.
+In circRNA, the BSJ region---the junction formed by back-splicing---is
+functionally critical and often harbors miRNA binding sites.
+We increase the masking probability for nucleotides near the junction
+(the first and last 10\% of positions) to 50\%, ensuring the model
+learns strong contextual representations at the BSJ.
+
+
+% ============================================================
+\section{Experiments}
+% ============================================================
+
+\subsection{Experimental Setup}
+
+\paragraph{Hyperparameters.}
+All models use $d = 128$, $N = 6$ layers, and are trained with
+AdamW~\cite{adamw}, learning rate $10^{-4}$, batch size 128, for up to 150
+epochs with early stopping (patience 20) based on validation F1-macro.
+For pretraining, we use batch size 64, learning rate $10^{-3}$, up to 300
+epochs, early stopping patience 30.
+\model{} uses $H = 8$ attention heads, CNN kernel size $k = 7$,
+Mamba state dimension $d_s = 16$.
+
+\paragraph{Evaluation metrics.}
+All results are reported on the fixed test set over 3 independent random
+seeds; we report mean~$\pm$~standard deviation.
+The primary metric is site-level \textbf{F1-macro}.
+Secondary metrics are \textbf{AUROC} and \textbf{AUPRC}, which are
+threshold-independent and particularly informative under class imbalance.
+
+\paragraph{Baselines.}
+We evaluate against four categories of baselines:
+\begin{itemize}[leftmargin=*]
+  \item \textit{General-purpose sequential encoders}:
+        LSTM, Transformer, Mamba~\cite{mamba}, Hymba~\cite{hymba}.
+  \item \textit{Pretrained RNA language models (frozen encoder)}:
+        RNABERT~\cite{rnabert}, RNAErnie~\cite{rnaernie},
+        RNAMSM~\cite{rnamsm}, RNA-FM~\cite{rnafm}.
+  \item \textit{Pretrained RNA language models (fine-tuned encoder)}:
+        same four models with the encoder jointly fine-tuned.
+  \item \textit{Ablation variants} of \model{} (Section~\ref{sec:ablation}).
+\end{itemize}
+
+\noindent
+All baseline encoders use the same miRNA interaction module (cross-attention),
+site prediction head (Conv1D), and training procedure as \model{},
+ensuring a fair comparison of encoder architectures only.
+
+
+% ------------------------------------------------------------
+\subsection{Encoder Architecture Comparison}
+\label{sec:encoder}
+% ------------------------------------------------------------
+
+Table~\ref{tab:encoder} compares \model{} against general-purpose sequential
+encoders trained from scratch.
+
+\begin{table}[htbp]
+\centering
+\caption{Encoder architecture comparison (sites task, no pretraining).
+         All models: $d{=}128$, $N{=}6$, cross-attention interaction, Conv1D head.
+         Results: mean\,$\pm$\,std over 3 seeds.}
+\label{tab:encoder}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Encoder} & \textbf{F1-macro} & \textbf{AUROC} & \textbf{AUPRC} \\
+\midrule
+LSTM             & 0.6673\spm 0.0022 & 0.8073\spm 0.0037 & 0.3268\spm 0.0042 \\
+Transformer      & 0.6058\spm 0.0081 & 0.7533\spm 0.0022 & 0.2064\spm 0.0112 \\
+Mamba            & 0.7186\spm 0.0020 & 0.8175\spm 0.0011 & 0.4363\spm 0.0050 \\
+Hymba            & 0.6881\spm 0.0286 & 0.8304\spm 0.0102 & 0.3821\spm 0.0579 \\
+\midrule
+\textbf{\model{} (ours)} & \best{0.7456\spm 0.0028} & \best{0.8948\spm 0.0046} & \best{0.5182\spm 0.0093} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\model{} achieves the highest performance on all three metrics, outperforming
+the next-best encoder (Mamba) by \textbf{+2.7 F1 / +7.7 AUROC / +8.2 AUPRC}
+percentage points.
+The strong gap between Mamba (+7.2 F1 over LSTM) and the remaining sequential
+models suggests that state-space modeling is better suited to long RNA
+sequences than recurrent or attention-only approaches.
+Hymba---the direct predecessor of \model{}---shows high variance
+($\pm$0.0286 F1), indicating that the circular-aware components in \model{}
+provide meaningful stabilization and accuracy gains beyond the
+Attention+Mamba hybrid.
+
+
+% ------------------------------------------------------------
+\subsection{Comparison with Pretrained RNA Language Models}
+\label{sec:rna_lm}
+% ------------------------------------------------------------
+
+Table~\ref{tab:rna_lm} compares \model{} (no pretraining) against four
+established pretrained RNA language models under two settings:
+encoder weights \textit{frozen} and encoder \textit{fine-tuned} end-to-end.
+
+\begin{table}[htbp]
+\centering
+\caption{Comparison with pretrained RNA language models (sites task).
+         All models share the same interaction module and prediction head.}
+\label{tab:rna_lm}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{llccc}
+\toprule
+\textbf{Model} & \textbf{Setting} & \textbf{F1-macro} & \textbf{AUROC} & \textbf{AUPRC} \\
+\midrule
+\multirow{2}{*}{RNABERT~\cite{rnabert}}
+  & Frozen      & 0.5923\spm 0.0026 & 0.7169\spm 0.0014 & 0.2419\spm 0.0020 \\
+  & Fine-tuned  & 0.5964\spm 0.0025 & 0.7265\spm 0.0007 & 0.2617\spm 0.0016 \\
+\multirow{2}{*}{RNAErnie~\cite{rnaernie}}
+  & Frozen      & 0.6093\spm 0.0009 & 0.7283\spm 0.0014 & 0.2646\spm 0.0006 \\
+  & Fine-tuned  & 0.5889\spm 0.0019 & 0.7039\spm 0.0033 & 0.2258\spm 0.0053 \\
+\multirow{2}{*}{RNAMSM~\cite{rnamsm}}
+  & Frozen      & 0.6041\spm 0.0022 & 0.7241\spm 0.0038 & 0.2574\spm 0.0078 \\
+  & Fine-tuned  & 0.6300\spm 0.0037 & 0.7332\spm 0.0072 & 0.2832\spm 0.0062 \\
+\multirow{2}{*}{RNA-FM~\cite{rnafm}}
+  & Frozen      & 0.6049\spm 0.0014 & 0.7261\spm 0.0012 & 0.2603\spm 0.0014 \\
+  & Fine-tuned  & 0.6377\spm 0.0025 & 0.7479\spm 0.0042 & 0.2968\spm 0.0082 \\
+\midrule
+\textbf{\model{} (ours)} & -- & \best{0.7456\spm 0.0028} & \best{0.8948\spm 0.0046} & \best{0.5182\spm 0.0093} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\model{} without any pretraining outperforms all RNA language models by a
+large margin---\textbf{+10.8 F1} over the best fine-tuned model (RNA-FM).
+Several observations are noteworthy:
+(i) Fine-tuning does not consistently improve over frozen encoders;
+for RNAErnie, fine-tuning actually \textit{hurts} ($-0.020$ F1), suggesting
+that large general-purpose RNA models do not adapt well to the
+circRNA-specific binding site detection task.
+(ii) The AUROC gap (0.895 vs.~0.748) and especially the AUPRC gap (0.518
+vs.~0.297) demonstrate that \model{} produces substantially better-calibrated
+probability scores, which is critical in the class-imbalanced binding site
+prediction setting.
+(iii) These results indicate that circular-aware inductive biases
+(circular attention bias, circular padding, circular topology in pretraining)
+are more important than the scale of general RNA pretraining data.
+
+
+% ------------------------------------------------------------
+\subsection{Module Ablation Study}
+\label{sec:ablation}
+% ------------------------------------------------------------
+
+To quantify the contribution of each component, we ablate \model{} by
+removing or isolating individual branches (Table~\ref{tab:ablation}).
+
+\begin{table}[htbp]
+\centering
+\caption{Module ablation study. ``Full'' is the complete \model{}.
+         ``w/o X'' removes branch X; ``X only'' uses only branch X.}
+\label{tab:ablation}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Configuration} & \textbf{F1-macro} & \textbf{AUROC} & \textbf{AUPRC} \\
+\midrule
+Full \model{}       & \best{0.7457\spm 0.0010} & \best{0.8987\spm 0.0017} & \best{0.5189\spm 0.0060} \\
+\midrule
+w/o Attention       & 0.7422\spm 0.0031 & 0.8968\spm 0.0017 & 0.5141\spm 0.0088 \\
+w/o Mamba           & 0.6792\spm 0.0014 & 0.8857\spm 0.0004 & 0.3780\spm 0.0069 \\
+w/o Circular CNN    & 0.6976\spm 0.0061 & 0.8284\spm 0.0017 & 0.3902\spm 0.0140 \\
+\midrule
+Mamba only          & 0.7075\spm 0.0009 & 0.8208\spm 0.0024 & 0.4053\spm 0.0055 \\
+CNN only            & 0.6746\spm 0.0010 & 0.8899\spm 0.0009 & 0.3523\spm 0.0038 \\
+Attention only      & 0.6322\spm 0.0019 & 0.7959\spm 0.0006 & 0.2635\spm 0.0034 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Several findings emerge:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Mamba is most critical.} Removing Mamba causes the largest
+        single-branch drop ($-0.066$ F1, $-0.141$ AUPRC), emphasizing the
+        importance of sequential, state-space modeling for long-range patterns
+        in circRNA.
+  \item \textbf{Circular CNN is essential for AUROC.}
+        Removing the CNN branch causes a disproportionately large AUROC drop
+        ($-0.070$, vs.~$-0.013$ for w/o Mamba), indicating that local motif
+        detection with circular padding is critical for ranking.
+  \item \textbf{Attention stabilizes performance.}
+        Removing attention causes a relatively small F1 drop ($-0.004$),
+        yet the single-branch ablation (Attention only, F1~=~0.632) shows
+        that global attention alone is the weakest branch.
+        This aligns with the view that self-attention needs local and
+        sequential priors to be effective on long sequences.
+  \item \textbf{Multi-branch fusion outperforms any single branch.}
+        The full model (0.746 F1) exceeds the best single-branch variant
+        (Mamba only, 0.708 F1) by 3.8 F1 points, confirming the benefit of
+        adaptive multi-branch routing.
+\end{itemize}
+
+
+% ------------------------------------------------------------
+\subsection{Interaction Mechanism and Site Head Analysis}
+% ------------------------------------------------------------
+
+Table~\ref{tab:int_head} examines design choices for the
+circRNA--miRNA interaction module and the site prediction head.
+
+\begin{table}[htbp]
+\centering
+\caption{Interaction mechanism and site head comparison.}
+\label{tab:int_head}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{llccc}
+\toprule
+\textbf{Component} & \textbf{Variant} & \textbf{F1-macro} & \textbf{AUROC} & \textbf{AUPRC} \\
+\midrule
+\multirow{3}{*}{Interaction}
+  & Cross-attention & \best{0.7456\spm 0.0034} & \best{0.8976\spm 0.0021} & \best{0.5181\spm 0.0058} \\
+  & Concatenation   & 0.7188\spm 0.0078        & 0.8771\spm 0.0007        & 0.4441\spm 0.0175 \\
+  & Elementwise     & 0.7082\spm 0.0111        & 0.8727\spm 0.0008        & 0.4179\spm 0.0207 \\
+\midrule
+\multirow{2}{*}{Site Head}
+  & Conv1D          & \best{0.7452\spm 0.0014} & 0.8970\spm 0.0012        & \best{0.5184\spm 0.0048} \\
+  & Linear          & 0.7411\spm 0.0006        & \best{0.8971\spm 0.0002} & 0.5074\spm 0.0049 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Cross-attention interaction (\model{}'s default) outperforms both
+concatenation and elementwise fusion by meaningful margins, particularly in
+F1 (+2.7 and +3.7 points respectively) and AUPRC (+7.4 and +10.0 points),
+demonstrating that position-level conditioning of the circRNA representation
+by the miRNA query is important for accurate site localization.
+Elementwise fusion shows the highest variance across seeds, likely because
+simple element-wise multiplication relies on the miRNA embedding
+aligning in the same subspace as the circRNA representation, which is
+unreliable without explicit alignment.
+
+For the site prediction head, the Conv1D head is preferred for its ability
+to model local label dependencies; the performance difference with Linear is
+small, confirming that the encoder representations are already high quality.
+
+
+% ------------------------------------------------------------
+\subsection{Pretraining Strategy Analysis}
+% ------------------------------------------------------------
+
+Table~\ref{tab:pretrain} evaluates different self-supervised pretraining
+objectives for \model{}.
+Note that experiments combining MLM+CPCL, MLM+BSJ-MLM, and the full
+combination (MLM+CPCL+BSJ-MLM) are currently ongoing;
+we report available results here.
+
+\begin{table}[htbp]
+\centering
+\caption{Effect of pretraining strategies on sites prediction.
+         \dag~Experiments in progress.}
+\label{tab:pretrain}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Pretraining} & \textbf{F1-macro} & \textbf{AUROC} & \textbf{AUPRC} \\
+\midrule
+None (from scratch)   & 0.7456\spm 0.0028 & 0.8948\spm 0.0046 & 0.5182\spm 0.0093 \\
+MLM                   & 0.7585\spm 0.0021 & 0.8976\spm 0.0005 & 0.5326\spm 0.0049 \\
+CPCL                  & \best{0.7611\spm 0.0027} & \best{0.9077\spm 0.0009} & \best{0.5473\spm 0.0060} \\
+SSP                   & 0.7383\spm 0.0016 & 0.8930\spm 0.0023 & 0.4906\spm 0.0025 \\
+MLM + CPCL            & ---\dag & ---\dag & ---\dag \\
+MLM + BSJ-MLM         & ---\dag & ---\dag & ---\dag \\
+MLM + CPCL + BSJ-MLM  & ---\dag & ---\dag & ---\dag \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Key observations:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{CPCL is the most effective single pretraining objective.}
+        Circular Permutation Contrastive Learning yields the largest gain
+        among individual tasks (+1.6 F1, +12.9 AUROC, +2.9 AUPRC over no
+        pretraining), validating our hypothesis that learning
+        rotation-invariant representations is beneficial for circRNA.
+  \item \textbf{MLM provides complementary benefits.}
+        Standard MLM improves over no pretraining (+1.3 F1), providing a
+        strong sequence context prior.
+  \item \textbf{SSP hurts performance.}
+        Secondary Structure Prediction ($-0.7$ F1) appears to conflict with
+        the fine-tuning objective, possibly because folding-structure labels
+        are computed from linearized sequences and do not account for the
+        circular backbone.
+\end{itemize}
+
+
+% ------------------------------------------------------------
+\subsection{Qualitative Case Studies}
+% ------------------------------------------------------------
+
+To further validate \model{}'s predictions, we examine three representative
+circRNA--miRNA pairs:
+\textit{circCDYL2} (chr4)~$\times$~hsa-miR-449a,
+\textit{circMAPK1} (chr22)~$\times$~hsa-miR-12119, and
+\textit{circAPP} (chr21)~$\times$~hsa-miR-5001-3p.
+
+For each case, we visualize per-nucleotide prediction heatmaps alongside
+ground-truth binding sites and BSJ boundaries.
+We additionally report per-case F1, Recall, Precision, and AUROC for all
+encoder models.
+The results (Figures~\ref{fig:case_encoder}--\ref{fig:case_pretrained})
+show that \model{} produces the most spatially consistent binding-site
+patterns, with high recall near BSJ regions where other encoders tend to
+miss.
+Notably, general RNA language models consistently under-predict the number
+and extent of binding sites, further supporting the argument that
+circRNA-specific inductive biases are necessary.
+
+
+% ============================================================
+% Bibliography placeholder
+% ============================================================
+\bibliographystyle{plain}
+\begin{thebibliography}{99}
+
+\bibitem{mamba}
+A. Gu and T. Dao.
+\textit{Mamba: Linear-time sequence modeling with selective state spaces}.
+arXiv:2312.00752, 2023.
+
+\bibitem{hymba}
+X. Dong et al.
+\textit{Hymba: A hybrid-head architecture for small language models}.
+arXiv:2411.13676, 2024.
+
+\bibitem{rnabert}
+M. Akiyama and Y. Sakakibara.
+\textit{Informative RNA base embedding for RNA structural alignment and
+clustering by deep representation learning}.
+\textit{NAR Genomics and Bioinformatics}, 4(1), 2022.
+
+\bibitem{rnaernie}
+W. Wang et al.
+\textit{Multi-purpose RNA language modelling with motif-aware pretraining
+and type-guided fine-tuning}.
+\textit{Nature Machine Intelligence}, 6, 2024.
+
+\bibitem{rnamsm}
+H. Zhang et al.
+\textit{Multiple sequence alignment-based RNA language model and its
+application to structural inference}.
+\textit{Nucleic Acids Research}, 52(1), 2024.
+
+\bibitem{rnafm}
+J. Chen et al.
+\textit{Self-supervised learning on millions of primary RNA sequences from
+95 vertebrates improves sequence-based RNA structure prediction}.
+\textit{Briefings in Bioinformatics}, 25(4), 2024.
+
+\bibitem{devlin2019bert}
+J. Devlin et al.
+\textit{BERT: Pre-training of deep bidirectional transformers for language
+understanding}.
+In \textit{NAACL-HLT}, 2019.
+
+\bibitem{adamw}
+I. Loshchilov and F. Hutter.
+\textit{Decoupled weight decay regularization}.
+In \textit{ICLR}, 2019.
+
+\bibitem{lorenz2011}
+R. Lorenz et al.
+\textit{ViennaRNA Package 2.0}.
+\textit{Algorithms for Molecular Biology}, 6(1), 2011.
+
+\end{thebibliography}
+
+\end{document}

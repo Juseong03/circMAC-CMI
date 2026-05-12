@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Fig 3: CircMAC Module Ablation Study (EXP4)
-  Single panel: F1-macro mean ± std, sorted by performance
-  Color: Full model = orange, remove-branch = red family, single-branch = blue family
+  Three panels: F1-macro / AUROC / AUPRC  mean ± std
+  Color: Full model = orange, remove-branch = blue, single-branch = green
 
 Output: figures_paper/fig3_ablation_modules.{pdf,png}
 """
@@ -13,6 +13,7 @@ import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
 from pathlib import Path
 
 ROOT  = Path(__file__).resolve().parents[2]
@@ -38,6 +39,12 @@ COLORS = {
     'single': '#8DC8A0',
 }
 
+METRICS = [
+    ('f1_macro', '(a) F1-macro', (0.60, 0.81)),
+    ('roc_auc',  '(b) AUROC',    (0.77, 0.92)),
+    ('auprc',    '(c) AUPRC',    (0.22, 0.55)),
+]
+
 plt.rcParams.update({
     'font.family':       'DejaVu Sans',
     'font.size':         10,
@@ -47,65 +54,46 @@ plt.rcParams.update({
     'axes.spines.right': False,
     'xtick.labelsize':   9.5,
     'ytick.labelsize':   9,
+    'pdf.fonttype':      42,
+    'ps.fonttype':       42,
 })
 
 
-def load_f1(exp_base):
-    vals = []
+def load_scores(exp_base):
+    scores = {'f1_macro': [], 'roc_auc': [], 'auprc': []}
     for s in SEEDS:
         p = LOGS / 'circmac' / f'{exp_base}_s{s}' / str(s) / 'training.json'
         if not p.exists():
             continue
         d = json.loads(p.read_text())
         final = d.get('final', {})
-        if final:
-            vals.append(list(final.values())[0]['scores']['sites']['f1_macro'])
-    return vals
+        if not final:
+            continue
+        site_scores = list(final.values())[0]['scores']['sites']
+        for metric in scores:
+            if metric in site_scores:
+                scores[metric].append(site_scores[metric])
+    return scores
 
 
-def main():
-    data = []
-    for label, exp, group in MODELS:
-        vals = load_f1(exp)
-        data.append((label, group, vals))
+def plot_panel(ax, data, metric, title, ylim):
+    ylo     = ylim[0]
+    y_range = ylim[1] - ylim[0]
+    bar_w   = 0.60
 
-    # Save data CSV
-    rows = []
-    for label, group, vals in data:
-        for i, s in enumerate(SEEDS):
-            if i < len(vals):
-                rows.append({'model': label, 'group': group, 'seed': s, 'f1_macro': vals[i]})
-    df = pd.DataFrame(rows)
-    summary = df.groupby('model').agg(
-        f1_mean=('f1_macro','mean'), f1_std=('f1_macro','std')
-    ).round(4)
-    df.to_csv(OUT / 'fig3_ablation_modules_data.csv', index=False)
-    summary.to_csv(OUT / 'fig3_ablation_modules_summary.csv')
-    print(summary.to_string())
-
-    ylim = (0.60, 0.81)
-    ylo  = ylim[0]
-
-    fig, ax = plt.subplots(figsize=(9, 4.2))
-
-    bar_w = 0.60
-    full_mean = None
-
-    for i, (label, group, vals) in enumerate(data):
+    for i, (label, group, scores) in enumerate(data):
+        vals = scores[metric]
         if not vals:
             continue
-        mean = np.mean(vals)
-        std  = np.std(vals)
+        mean  = np.mean(vals)
+        std   = np.std(vals)
         color = COLORS[group]
-
-        if group == 'full':
-            full_mean = mean
 
         ax.bar(i, mean - ylo, bottom=ylo, width=bar_w,
                color=color, alpha=0.85, zorder=2, linewidth=0)
         ax.errorbar(i, mean, yerr=std, fmt='none', color='#222222',
                     capsize=4, capthick=1.4, elinewidth=1.4, zorder=4)
-        ax.text(i, mean + std + (ylim[1] - ylim[0]) * 0.025,
+        ax.text(i, mean + std + y_range * 0.025,
                 f'{mean:.3f}',
                 ha='center', va='bottom', fontsize=9, fontweight='bold',
                 color='#222222', zorder=6,
@@ -113,29 +101,64 @@ def main():
 
     ax.set_xticks(range(len(data)))
     ax.set_xticklabels([d[0] for d in data], rotation=20, ha='right')
-    ax.set_ylabel('F1-macro')
     ax.set_ylim(*ylim)
     ax.yaxis.grid(True, linestyle='--', alpha=0.4, zorder=0)
     ax.set_axisbelow(True)
-    ax.set_title('CircMAC Module Ablation', fontsize=12, fontweight='bold')
+    ax.set_title(title, fontsize=11, fontweight='bold')
 
-    # Bold + color for Full
     for tick in ax.get_xticklabels():
         if tick.get_text() == 'Full':
             tick.set_fontweight('bold')
             tick.set_color(COLORS['full'])
 
-    # Legend
-    from matplotlib.patches import Patch
+
+def main():
+    data = []
+    for label, exp, group in MODELS:
+        scores = load_scores(exp)
+        data.append((label, group, scores))
+
+    # Save CSV
+    rows = []
+    for label, group, scores in data:
+        max_len = max(len(scores[m]) for m in scores)
+        for i in range(max_len):
+            seed = SEEDS[i] if i < len(SEEDS) else i + 1
+            rows.append({
+                'model':    label,
+                'group':    group,
+                'seed':     seed,
+                'f1_macro': scores['f1_macro'][i] if i < len(scores['f1_macro']) else float('nan'),
+                'roc_auc':  scores['roc_auc'][i]  if i < len(scores['roc_auc'])  else float('nan'),
+                'auprc':    scores['auprc'][i]     if i < len(scores['auprc'])    else float('nan'),
+            })
+    df = pd.DataFrame(rows)
+    summary = df.groupby('model').agg(
+        f1_mean=('f1_macro', 'mean'), f1_std=('f1_macro', 'std'),
+        roc_mean=('roc_auc',  'mean'), roc_std=('roc_auc',  'std'),
+        auprc_mean=('auprc',  'mean'), auprc_std=('auprc',  'std'),
+    ).round(4)
+    df.to_csv(OUT / 'fig3_ablation_modules_data.csv', index=False)
+    summary.to_csv(OUT / 'fig3_ablation_modules_summary.csv')
+    print(summary.to_string())
+
+    fig, axes = plt.subplots(1, 3, figsize=(13, 4.2))
+    fig.suptitle('CircMAC Module Ablation', fontsize=12, fontweight='bold', y=1.01)
+
+    for ax, (metric, title, ylim) in zip(axes, METRICS):
+        plot_panel(ax, data, metric, title, ylim)
+
     legend_elems = [
         Patch(facecolor=COLORS['full'],   label='Full model'),
         Patch(facecolor=COLORS['remove'], label='Remove branch'),
         Patch(facecolor=COLORS['single'], label='Single branch only'),
     ]
-    ax.legend(handles=legend_elems, loc='upper right', fontsize=9,
-              framealpha=0.9, edgecolor='#cccccc')
+    fig.legend(handles=legend_elems, loc='upper center', ncol=3,
+               fontsize=9, frameon=False, bbox_to_anchor=(0.5, 0.0))
 
     fig.tight_layout()
+    fig.subplots_adjust(bottom=0.16)
+
     for ext in ['pdf', 'png']:
         p = OUT / f'fig3_ablation_modules.{ext}'
         fig.savefig(p, dpi=200, bbox_inches='tight')
