@@ -1,7 +1,8 @@
 #!/bin/bash
 #===============================================================================
 # FT GPU 5 — seed 3
-#   1. v2_pt_mlm_cpcl_ssp_s3 ← v2_ptm_mlm_cpcl_ssp
+#   1. v2_pt_mlm_cpcl_pairing_s3 ← v2_ptm_mlm_cpcl_pairing
+#   2. v2_pt_mlm_cpcl_ssp_s3     ← v2_ptm_mlm_cpcl_ssp
 #
 # Usage: ./scripts/v2_new_pt/ft_g5.sh [GPU_ID]
 #===============================================================================
@@ -19,7 +20,7 @@ TOTAL=0; SKIPPED=0; RAN=0
 
 echo "========================================"
 echo "  FT GPU $GPU — seed=$SEED"
-echo "  Jobs: mlm_cpcl_ssp"
+echo "  Jobs: mlm_cpcl_pairing → mlm_cpcl_ssp"
 echo "  BS=$FT_BS LR=$FT_LR EP=$FT_EP ES=$FT_ES"
 echo "========================================"
 
@@ -51,7 +52,8 @@ run_ft() {
         2>&1 | tee "logs/v2/pt/${EXP}.log"
 }
 
-run_ft "mlm_cpcl_ssp" "v2_ptm_mlm_cpcl_ssp"
+run_ft "mlm_cpcl_pairing" "v2_ptm_mlm_cpcl_pairing"
+run_ft "mlm_cpcl_ssp"     "v2_ptm_mlm_cpcl_ssp"
 
 echo ""
 echo "━━━ Done: $RAN ran, $SKIPPED skipped / $TOTAL total ━━━"

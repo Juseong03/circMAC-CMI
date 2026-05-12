@@ -1,7 +1,7 @@
 #!/bin/bash
 #===============================================================================
 # FT GPU 1 — seed 2
-#   1. v2_pt_mlm_cpcl_pairing_s2     ← v2_ptm_mlm_cpcl_pairing
+#   1. v2_pt_mlm_pairing_s2          ← v2_ptm_mlm_pairing
 #   2. v2_pt_mlm_cpcl_pairing_ssp_s2 ← v2_ptm_mlm_cpcl_pairing_ssp
 #
 # Usage: ./scripts/v2_new_pt/ft_g1.sh [GPU_ID]
@@ -20,7 +20,7 @@ TOTAL=0; SKIPPED=0; RAN=0
 
 echo "========================================"
 echo "  FT GPU $GPU — seed=$SEED"
-echo "  Jobs: mlm_cpcl_pairing, mlm_cpcl_pairing_ssp"
+echo "  Jobs: mlm_pairing → mlm_cpcl_pairing_ssp"
 echo "  BS=$FT_BS LR=$FT_LR EP=$FT_EP ES=$FT_ES"
 echo "========================================"
 
@@ -52,7 +52,7 @@ run_ft() {
         2>&1 | tee "logs/v2/pt/${EXP}.log"
 }
 
-run_ft "mlm_cpcl_pairing"     "v2_ptm_mlm_cpcl_pairing"
+run_ft "mlm_pairing"          "v2_ptm_mlm_pairing"
 run_ft "mlm_cpcl_pairing_ssp" "v2_ptm_mlm_cpcl_pairing_ssp"
 
 echo ""
