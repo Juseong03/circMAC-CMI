@@ -17,20 +17,21 @@ from matplotlib.patches import Patch
 from pathlib import Path
 
 ROOT  = Path(__file__).resolve().parents[2]
-LOGS  = ROOT / 'logs_0510'
+LOGS  = ROOT / 'logs_0512'
 OUT   = Path(__file__).resolve().parent
 SEEDS = [1, 2, 3]
 
 # (display_label, exp_suffix, group)
 # group: 'full' | 'remove' | 'single'
 MODELS = [
-    ('Full',       'v2_abl_full',       'full'),
-    ('w/o Attn',   'v2_abl_no_attn',    'remove'),
-    ('w/o Conv',   'v2_abl_no_conv',    'remove'),
-    ('w/o Mamba',  'v2_abl_no_mamba',   'remove'),
-    ('Mamba Only', 'v2_abl_mamba_only', 'single'),
-    ('CNN Only',   'v2_abl_cnn_only',   'single'),
-    ('Attn Only',  'v2_abl_attn_only',  'single'),
+    ('Full',            'v2_abl_full',          'full'),
+    ('w/o Attn',        'v2_abl_no_attn',       'remove'),
+    ('w/o Conv',        'v2_abl_no_conv',       'remove'),
+    ('w/o Mamba',       'v2_abl_no_mamba',      'remove'),
+    ('w/o Circ Bias',   'v2_abl_no_circ_bias',  'remove'),
+    ('Mamba Only',      'v2_abl_mamba_only',    'single'),
+    ('CNN Only',        'v2_abl_cnn_only',      'single'),
+    ('Attn Only',       'v2_abl_attn_only',     'single'),
 ]
 
 COLORS = {
@@ -52,7 +53,7 @@ plt.rcParams.update({
     'axes.labelsize':    10,
     'axes.spines.top':   False,
     'axes.spines.right': False,
-    'xtick.labelsize':   9.5,
+    'xtick.labelsize':   9,
     'ytick.labelsize':   9,
     'pdf.fonttype':      42,
     'ps.fonttype':       42,
@@ -79,7 +80,7 @@ def load_scores(exp_base):
 def plot_panel(ax, data, metric, title, ylim):
     ylo     = ylim[0]
     y_range = ylim[1] - ylim[0]
-    bar_w   = 0.60
+    bar_w   = 0.58
 
     for i, (label, group, scores) in enumerate(data):
         vals = scores[metric]
@@ -95,12 +96,12 @@ def plot_panel(ax, data, metric, title, ylim):
                     capsize=4, capthick=1.4, elinewidth=1.4, zorder=4)
         ax.text(i, mean + std + y_range * 0.025,
                 f'{mean:.3f}',
-                ha='center', va='bottom', fontsize=9, fontweight='bold',
+                ha='center', va='bottom', fontsize=8.5, fontweight='bold',
                 color='#222222', zorder=6,
                 bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.85))
 
     ax.set_xticks(range(len(data)))
-    ax.set_xticklabels([d[0] for d in data], rotation=20, ha='right')
+    ax.set_xticklabels([d[0] for d in data], rotation=25, ha='right')
     ax.set_ylim(*ylim)
     ax.yaxis.grid(True, linestyle='--', alpha=0.4, zorder=0)
     ax.set_axisbelow(True)
@@ -121,7 +122,7 @@ def main():
     # Save CSV
     rows = []
     for label, group, scores in data:
-        max_len = max(len(scores[m]) for m in scores)
+        max_len = max((len(scores[m]) for m in scores), default=0)
         for i in range(max_len):
             seed = SEEDS[i] if i < len(SEEDS) else i + 1
             rows.append({
@@ -142,7 +143,7 @@ def main():
     summary.to_csv(OUT / 'fig3_ablation_modules_summary.csv')
     print(summary.to_string())
 
-    fig, axes = plt.subplots(1, 3, figsize=(13, 4.2))
+    fig, axes = plt.subplots(1, 3, figsize=(14, 4.4))
     fig.suptitle('CircMAC Module Ablation', fontsize=12, fontweight='bold', y=1.01)
 
     for ax, (metric, title, ylim) in zip(axes, METRICS):
@@ -157,7 +158,7 @@ def main():
                fontsize=9, frameon=False, bbox_to_anchor=(0.5, 0.0))
 
     fig.tight_layout()
-    fig.subplots_adjust(bottom=0.16)
+    fig.subplots_adjust(bottom=0.20)
 
     for ext in ['pdf', 'png']:
         p = OUT / f'fig3_ablation_modules.{ext}'

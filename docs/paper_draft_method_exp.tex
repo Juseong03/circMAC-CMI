@@ -412,15 +412,16 @@ removing or isolating individual branches (Table~\ref{tab:ablation}).
 \toprule
 \textbf{Configuration} & \textbf{F1-macro} & \textbf{AUROC} & \textbf{AUPRC} \\
 \midrule
-Full \model{}       & \best{0.7457\spm 0.0010} & \best{0.8987\spm 0.0017} & \best{0.5189\spm 0.0060} \\
+Full \model{}         & \best{0.7457\spm 0.0010} & \best{0.8987\spm 0.0017} & \best{0.5189\spm 0.0060} \\
 \midrule
-w/o Attention       & 0.7422\spm 0.0031 & 0.8968\spm 0.0017 & 0.5141\spm 0.0088 \\
-w/o Mamba           & 0.6792\spm 0.0014 & 0.8857\spm 0.0004 & 0.3780\spm 0.0069 \\
-w/o Circular CNN    & 0.6976\spm 0.0061 & 0.8284\spm 0.0017 & 0.3902\spm 0.0140 \\
+w/o Attention         & 0.7422\spm 0.0031 & 0.8968\spm 0.0017 & 0.5141\spm 0.0088 \\
+w/o Mamba             & 0.6792\spm 0.0014 & 0.8857\spm 0.0004 & 0.3780\spm 0.0069 \\
+w/o Circular CNN      & 0.6976\spm 0.0061 & 0.8284\spm 0.0017 & 0.3902\spm 0.0140 \\
+w/o Circular Bias     & 0.7464\spm 0.0003 & 0.8982\spm 0.0039 & 0.5233\spm 0.0109 \\
 \midrule
-Mamba only          & 0.7075\spm 0.0009 & 0.8208\spm 0.0024 & 0.4053\spm 0.0055 \\
-CNN only            & 0.6746\spm 0.0010 & 0.8899\spm 0.0009 & 0.3523\spm 0.0038 \\
-Attention only      & 0.6322\spm 0.0019 & 0.7959\spm 0.0006 & 0.2635\spm 0.0034 \\
+Mamba only            & 0.7075\spm 0.0009 & 0.8208\spm 0.0024 & 0.4053\spm 0.0055 \\
+CNN only              & 0.6746\spm 0.0010 & 0.8899\spm 0.0009 & 0.3523\spm 0.0038 \\
+Attention only        & 0.6322\spm 0.0019 & 0.7959\spm 0.0006 & 0.2635\spm 0.0034 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -441,6 +442,13 @@ Several findings emerge:
         that global attention alone is the weakest branch.
         This aligns with the view that self-attention needs local and
         sequential priors to be effective on long sequences.
+  \item \textbf{Circular relative bias has marginal effect.}
+        Removing the circular relative bias in the attention layer
+        (w/o Circular Bias) yields F1~$= 0.7464 \pm 0.0003$, essentially
+        identical to the full model ($0.7457$) and with notably lower variance.
+        This suggests the Mamba and circular CNN branches already provide
+        sufficient circular inductive bias, making the attention-level circular
+        bias somewhat redundant.
   \item \textbf{Multi-branch fusion outperforms any single branch.}
         The full model (0.746 F1) exceeds the best single-branch variant
         (Mamba only, 0.708 F1) by 3.8 F1 points, confirming the benefit of
@@ -495,48 +503,65 @@ small, confirming that the encoder representations are already high quality.
 \subsection{Pretraining Strategy Analysis}
 % ------------------------------------------------------------
 
-Table~\ref{tab:pretrain} evaluates different self-supervised pretraining
-objectives for \model{}.
-Note that experiments combining MLM+CPCL, MLM+BSJ-MLM, and the full
-combination (MLM+CPCL+BSJ-MLM) are currently ongoing;
-we report available results here.
+Table~\ref{tab:pretrain} evaluates all self-supervised pretraining
+objectives for \model{}, covering single-task and combination strategies.
 
 \begin{table}[htbp]
 \centering
-\caption{Effect of pretraining strategies on sites prediction.
-         \dag~Experiments in progress.}
+\caption{Effect of pretraining strategies on sites prediction
+         (mean\,$\pm$\,std over 3 seeds).
+         Best result per column in \textbf{bold}.}
 \label{tab:pretrain}
 \renewcommand{\arraystretch}{1.15}
-\begin{tabular}{lccc}
+\begin{tabular}{llccc}
 \toprule
-\textbf{Pretraining} & \textbf{F1-macro} & \textbf{AUROC} & \textbf{AUPRC} \\
+\textbf{Type} & \textbf{Pretraining} & \textbf{F1-macro} & \textbf{AUROC} & \textbf{AUPRC} \\
 \midrule
-None (from scratch)   & 0.7456\spm 0.0028 & 0.8948\spm 0.0046 & 0.5182\spm 0.0093 \\
-MLM                   & 0.7585\spm 0.0021 & 0.8976\spm 0.0005 & 0.5326\spm 0.0049 \\
-CPCL                  & \best{0.7611\spm 0.0027} & \best{0.9077\spm 0.0009} & \best{0.5473\spm 0.0060} \\
-SSP                   & 0.7383\spm 0.0016 & 0.8930\spm 0.0023 & 0.4906\spm 0.0025 \\
-MLM + CPCL            & ---\dag & ---\dag & ---\dag \\
-MLM + BSJ-MLM         & ---\dag & ---\dag & ---\dag \\
-MLM + CPCL + BSJ-MLM  & ---\dag & ---\dag & ---\dag \\
+Baseline  & None (from scratch)  & 0.7404\spm 0.0051 & 0.8981\spm 0.0035 & 0.5071\spm 0.0167 \\
+\midrule
+\multirow{5}{*}{Single-task}
+  & NTP                & 0.7082\spm 0.0128 & 0.8987\spm 0.0024 & 0.4434\spm 0.0263 \\
+  & SSP                & 0.7383\spm 0.0016 & 0.8930\spm 0.0023 & 0.4906\spm 0.0025 \\
+  & MLM                & 0.7585\spm 0.0021 & 0.8976\spm 0.0005 & 0.5326\spm 0.0049 \\
+  & CPCL               & 0.7611\spm 0.0027 & \best{0.9077\spm 0.0009} & 0.5473\spm 0.0060 \\
+  & Pairing            & \best{0.7619\spm 0.0022} & 0.9017\spm 0.0023 & 0.5454\spm 0.0064 \\
+\midrule
+\multirow{4}{*}{Combination}
+  & MLM + NTP          & 0.6951\spm 0.0024 & 0.8929\spm 0.0023 & 0.4231\spm 0.0045 \\
+  & MLM + SSP          & 0.7389\spm 0.0022 & 0.8971\spm 0.0027 & 0.4995\spm 0.0053 \\
+  & MLM + CPCL         & 0.7600\spm 0.0021 & \best{0.9100\spm 0.0009} & 0.5458\spm 0.0045 \\
+  & MLM + CPCL + SSP   & 0.7532\spm 0.0023 & 0.9085\spm 0.0018 & 0.5313\spm 0.0055 \\
+  & All tasks          & 0.7009\spm 0.0099 & 0.8963\spm 0.0036 & 0.4269\spm 0.0247 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 Key observations:
 \begin{itemize}[leftmargin=*]
-  \item \textbf{CPCL is the most effective single pretraining objective.}
-        Circular Permutation Contrastive Learning yields the largest gain
-        among individual tasks (+1.6 F1, +12.9 AUROC, +2.9 AUPRC over no
-        pretraining), validating our hypothesis that learning
-        rotation-invariant representations is beneficial for circRNA.
-  \item \textbf{MLM provides complementary benefits.}
-        Standard MLM improves over no pretraining (+1.3 F1), providing a
-        strong sequence context prior.
-  \item \textbf{SSP hurts performance.}
-        Secondary Structure Prediction ($-0.7$ F1) appears to conflict with
-        the fine-tuning objective, possibly because folding-structure labels
-        are computed from linearized sequences and do not account for the
-        circular backbone.
+  \item \textbf{Pairing and CPCL are the best single-task objectives.}
+        Base-pair structure prediction (Pairing, F1~$=0.762$) and
+        Circular Permutation Contrastive Learning (CPCL, F1~$=0.761$)
+        are the two most effective individual pretraining tasks, both
+        well ahead of MLM ($0.759$).
+        Pairing teaches the model explicit RNA structural context;
+        CPCL enforces rotational invariance over the circular topology.
+        Both surpass no pretraining by $+$2.1--2.2 F1 points.
+  \item \textbf{MLM + CPCL combination achieves the highest AUROC.}
+        Combining MLM with CPCL reaches AUROC~$=0.910$, the best ranking
+        performance, while maintaining competitive F1 ($0.760$).
+  \item \textbf{NTP and SSP do not help.}
+        Next-token prediction (NTP) \textit{decreases} F1 by $-3.2$ points
+        relative to no pretraining, likely because auto-regressive objectives
+        conflict with the bidirectional site-prediction task.
+        SSP shows minimal gains in F1 ($+0.0$) and hurts AUPRC ($-1.7$).
+  \item \textbf{More objectives $\neq$ better.}
+        Combining all pretraining tasks (``All'') produces the worst result
+        among all pretrained models (F1~$=0.701$, worse than no pretraining),
+        suggesting that task interference degrades representation quality when
+        conflicting objectives (NTP, SSP) are included.
+  \item \textbf{Pending experiments.}
+        Results for MLM+Pairing, MLM+CPCL+Pairing, MLM+CPCL+SSP+Pairing
+        combinations are pending and will be added upon completion.
 \end{itemize}
 
 

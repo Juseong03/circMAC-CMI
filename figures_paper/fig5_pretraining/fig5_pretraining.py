@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
 Fig 5: Pretraining Strategy Comparison (EXP2)
-  Single-task strategies + combination strategies
-  Missing entries (pairing, mlm_cpcl, mlm_cpcl_ssp) shown as placeholder.
+  Three panels: F1-macro / AUROC / AUPRC
+  Groups: baseline | single-task | combination
 
-Output: figures_paper/fig5_pretraining.{pdf,png}
+Output: figures_paper/fig5_pretraining/fig5_pretraining.{pdf,png}
 """
 
 import json
@@ -13,27 +13,28 @@ import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
 from pathlib import Path
 
 ROOT  = Path(__file__).resolve().parents[2]
-LOGS  = ROOT / 'logs_0510'
+LOGS  = ROOT / 'logs_0512'
 OUT   = Path(__file__).resolve().parent
 SEEDS = [1, 2, 3]
 
 # (display_label, exp_base, group)
 # group: 'baseline' | 'single' | 'combo'
 MODELS = [
-    ('No PT',        'v2_pt_nopt',        'baseline'),
-    ('MLM',          'v2_pt_mlm',         'single'),
-    ('NTP',          'v2_pt_ntp',         'single'),
-    ('SSP',          'v2_pt_ssp',         'single'),
-    ('CPCL',         'v2_pt_cpcl',        'single'),
-    ('Pairing',      'v2_pt_pairing',     'single'),
-    ('All',          'v2_pt_all',         'combo'),
-    ('MLM+NTP',      'v2_pt_mlm_ntp',     'combo'),
-    ('MLM+SSP',      'v2_pt_mlm_ssp',     'combo'),
-    ('MLM+CPCL',     'v2_pt_mlm_cpcl',    'combo'),
-    ('MLM+CPCL+SSP', 'v2_pt_mlm_cpcl_ssp','combo'),
+    ('No PT',        'v2_pt_nopt',         'baseline'),
+    ('MLM',          'v2_pt_mlm',          'single'),
+    ('NTP',          'v2_pt_ntp',          'single'),
+    ('SSP',          'v2_pt_ssp',          'single'),
+    ('CPCL',         'v2_pt_cpcl',         'single'),
+    ('Pairing',      'v2_pt_pairing',      'single'),
+    ('MLM+NTP',      'v2_pt_mlm_ntp',      'combo'),
+    ('MLM+SSP',      'v2_pt_mlm_ssp',      'combo'),
+    ('MLM+CPCL',     'v2_pt_mlm_cpcl',     'combo'),
+    ('MLM+CPCL+SSP', 'v2_pt_mlm_cpcl_ssp', 'combo'),
+    ('All',          'v2_pt_all',          'combo'),
 ]
 
 COLORS = {
@@ -41,6 +42,15 @@ COLORS = {
     'single':   '#6B9CC7',
     'combo':    '#7CBB8F',
 }
+
+METRICS = [
+    ('f1_macro', '(a) F1-macro', (0.67, 0.81)),
+    ('roc_auc',  '(b) AUROC',    (0.87, 0.92)),
+    ('auprc',    '(c) AUPRC',    (0.40, 0.57)),
+]
+
+# separator x position: between No PT and single-task group
+SEP_SINGLE_COMBO = 5.5   # between Pairing and MLM+NTP
 
 plt.rcParams.update({
     'font.family':       'DejaVu Sans',
@@ -51,58 +61,45 @@ plt.rcParams.update({
     'axes.spines.right': False,
     'xtick.labelsize':   9,
     'ytick.labelsize':   9,
+    'pdf.fonttype':      42,
+    'ps.fonttype':       42,
 })
 
 
-def load_f1(exp_base):
-    vals = []
+def load_scores(exp_base):
+    scores = {'f1_macro': [], 'roc_auc': [], 'auprc': []}
     for s in SEEDS:
         p = LOGS / 'circmac' / f'{exp_base}_s{s}' / str(s) / 'training.json'
         if not p.exists():
             continue
         d = json.loads(p.read_text())
         final = d.get('final', {})
-        if final:
-            vals.append(list(final.values())[0]['scores']['sites']['f1_macro'])
-    return vals
+        if not final:
+            continue
+        site_scores = list(final.values())[0]['scores']['sites']
+        for metric in scores:
+            if metric in site_scores:
+                scores[metric].append(site_scores[metric])
+    return scores
 
 
-def main():
-    data = [(label, exp, grp, load_f1(exp)) for label, exp, grp in MODELS]
-
-    # Save data CSV
-    rows = []
-    for label, exp, grp, vals in data:
-        for i, s in enumerate(SEEDS):
-            if i < len(vals):
-                rows.append({'model': label, 'group': grp, 'seed': s, 'f1_macro': vals[i]})
-            else:
-                rows.append({'model': label, 'group': grp, 'seed': s, 'f1_macro': None})
-    df = pd.DataFrame(rows)
-    df.to_csv(OUT / 'fig5_pretraining_data.csv', index=False)
-    summary = df.dropna().groupby('model').agg(
-        f1_mean=('f1_macro','mean'), f1_std=('f1_macro','std')
-    ).round(4)
-    summary.to_csv(OUT / 'fig5_pretraining_summary.csv')
-    print(summary.to_string())
-
-    ylim = (0.67, 0.81)
-    ylo  = ylim[0]
-
-    fig, ax = plt.subplots(figsize=(11, 4.4))
+def plot_panel(ax, data, metric, title, ylim):
+    ylo     = ylim[0]
+    y_range = ylim[1] - ylim[0]
+    bar_w   = 0.55
 
     nopt_mean = None
 
-    for i, (label, exp, grp, vals) in enumerate(data):
-        color = COLORS[grp]
+    for i, (label, group, scores) in enumerate(data):
+        vals = scores[metric]
+        color = COLORS[group]
 
         if not vals:
-            # placeholder — hatched empty bar
             ax.bar(i, ylim[1] - ylo - 0.002, bottom=ylo,
-                   width=0.55, color='none', edgecolor='#bbbbbb',
+                   width=bar_w, color='none', edgecolor='#bbbbbb',
                    linewidth=1.2, linestyle='--', zorder=2)
             ax.text(i, (ylo + ylim[1]) / 2, 'pending',
-                    ha='center', va='center', fontsize=8,
+                    ha='center', va='center', fontsize=7.5,
                     color='#999999', style='italic', zorder=3)
             continue
 
@@ -112,55 +109,91 @@ def main():
         if label == 'No PT':
             nopt_mean = mean
 
-        ax.bar(i, mean - ylo, bottom=ylo, width=0.55,
+        ax.bar(i, mean - ylo, bottom=ylo, width=bar_w,
                color=color, alpha=0.85, zorder=2, linewidth=0)
         ax.errorbar(i, mean, yerr=std, fmt='none', color='#222222',
                     capsize=4, capthick=1.4, elinewidth=1.4, zorder=4)
-        ax.text(i, mean + std + (ylim[1] - ylim[0]) * 0.025,
+        ax.text(i, mean + std + y_range * 0.025,
                 f'{mean:.3f}',
-                ha='center', va='bottom', fontsize=8.5, fontweight='bold',
+                ha='center', va='bottom', fontsize=8, fontweight='bold',
                 color='#222222', zorder=6,
-                bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.85))
+                bbox=dict(boxstyle='round,pad=0.13', fc='white', ec='none', alpha=0.85))
 
     # No PT baseline reference line
-    if nopt_mean:
+    if nopt_mean is not None:
         ax.axhline(nopt_mean, color=COLORS['baseline'], linestyle=':',
-                   linewidth=1.4, alpha=0.8, zorder=1,
-                   label=f'No PT baseline ({nopt_mean:.3f})')
+                   linewidth=1.4, alpha=0.8, zorder=1)
 
-    # Separator line between single and combo
-    ax.axvline(5.5, color='#cccccc', linewidth=1.0, linestyle='-', zorder=1)
-    ax.text(2.5, ylim[1] - 0.003, 'Single-task',
-            ha='center', va='top', fontsize=9, color='#555555')
-    ax.text(8.5, ylim[1] - 0.003, 'Combination',
-            ha='center', va='top', fontsize=9, color='#555555')
+    # Separator between single-task and combination
+    ax.axvline(SEP_SINGLE_COMBO, color='#cccccc', linewidth=1.0, zorder=1)
 
     ax.set_xticks(range(len(data)))
-    ax.set_xticklabels([d[0] for d in data], rotation=25, ha='right')
-    ax.set_ylabel('F1-macro')
+    ax.set_xticklabels([d[0] for d in data], rotation=30, ha='right')
     ax.set_ylim(*ylim)
     ax.yaxis.grid(True, linestyle='--', alpha=0.4, zorder=0)
     ax.set_axisbelow(True)
-    ax.set_title('Pretraining Strategy Comparison', fontsize=12, fontweight='bold')
+    ax.set_title(title, fontsize=11, fontweight='bold')
 
     # Highlight best
-    best_label = max([(d[0], np.mean(d[3])) for d in data if d[3]], key=lambda x: x[1])[0]
-    for tick in ax.get_xticklabels():
-        if tick.get_text() == best_label:
-            tick.set_fontweight('bold')
-            tick.set_color('#2B7A3A')
+    completed = [(d[0], np.mean(d[2][metric])) for d in data if d[2][metric]]
+    if completed:
+        best_label = max(completed, key=lambda x: x[1])[0]
+        for tick in ax.get_xticklabels():
+            if tick.get_text() == best_label:
+                tick.set_fontweight('bold')
+                tick.set_color('#2B7A3A')
 
-    # Legend
-    from matplotlib.patches import Patch
+
+def main():
+    data = [(label, grp, load_scores(exp)) for label, exp, grp in MODELS]
+
+    # Save CSV
+    rows = []
+    for (label, exp, grp), (_, _, scores) in zip(MODELS, data):
+        max_len = max((len(scores[m]) for m in scores), default=0)
+        for i in range(max(max_len, len(SEEDS))):
+            seed = SEEDS[i] if i < len(SEEDS) else i + 1
+            rows.append({
+                'model':    label,
+                'group':    grp,
+                'seed':     seed,
+                'f1_macro': scores['f1_macro'][i] if i < len(scores['f1_macro']) else float('nan'),
+                'roc_auc':  scores['roc_auc'][i]  if i < len(scores['roc_auc'])  else float('nan'),
+                'auprc':    scores['auprc'][i]     if i < len(scores['auprc'])    else float('nan'),
+            })
+    df = pd.DataFrame(rows)
+    summary = df.groupby('model').agg(
+        f1_mean=('f1_macro', 'mean'), f1_std=('f1_macro', 'std'),
+        roc_mean=('roc_auc',  'mean'), roc_std=('roc_auc',  'std'),
+        auprc_mean=('auprc',  'mean'), auprc_std=('auprc',  'std'),
+    ).round(4)
+    df.to_csv(OUT / 'fig5_pretraining_data.csv', index=False)
+    summary.to_csv(OUT / 'fig5_pretraining_summary.csv')
+    print(summary.to_string())
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4.6))
+    fig.suptitle('Pretraining Strategy Comparison', fontsize=12, fontweight='bold', y=1.01)
+
+    for ax, (metric, title, ylim) in zip(axes, METRICS):
+        plot_panel(ax, data, metric, title, ylim)
+
+    # Group labels on first panel
+    axes[0].text(2.5, METRICS[0][2][1] - 0.003, 'Single-task',
+                 ha='center', va='top', fontsize=8.5, color='#555555')
+    axes[0].text(8.0, METRICS[0][2][1] - 0.003, 'Combination',
+                 ha='center', va='top', fontsize=8.5, color='#555555')
+
     legend_elems = [
         Patch(facecolor=COLORS['baseline'], label='No pretraining'),
         Patch(facecolor=COLORS['single'],   label='Single-task PT'),
         Patch(facecolor=COLORS['combo'],    label='Combination PT'),
     ]
-    ax.legend(handles=legend_elems, loc='lower right', fontsize=9,
-              framealpha=0.9, edgecolor='#cccccc')
+    fig.legend(handles=legend_elems, loc='upper center', ncol=3,
+               fontsize=9, frameon=False, bbox_to_anchor=(0.5, 0.0))
 
     fig.tight_layout()
+    fig.subplots_adjust(bottom=0.22)
+
     for ext in ['pdf', 'png']:
         p = OUT / f'fig5_pretraining.{ext}'
         fig.savefig(p, dpi=200, bbox_inches='tight')

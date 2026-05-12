@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 ROOT  = Path(__file__).resolve().parents[2]
-LOGS  = ROOT / 'logs_0510'
+LOGS  = ROOT / 'logs_0512'
 OUT   = Path(__file__).resolve().parent
 SEEDS = [1, 2, 3]
 

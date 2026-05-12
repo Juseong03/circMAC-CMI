@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 
 
 ROOT = Path(__file__).resolve().parents[2]
-LOGS = ROOT / "logs_0510"
+LOGS = ROOT / "logs_0512"
 OUT = Path(__file__).resolve().parent
 OUT.mkdir(parents=True, exist_ok=True)
 
