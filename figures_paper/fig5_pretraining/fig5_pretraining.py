@@ -24,17 +24,14 @@ SEEDS = [1, 2, 3]
 # (display_label, exp_base, group)
 # group: 'baseline' | 'single' | 'combo'
 MODELS = [
-    ('No PT',        'v2_pt_nopt',         'baseline'),
+    ('No PT',        'v2_abl_full',        'baseline'),
     ('MLM',          'v2_pt_mlm',          'single'),
-    ('NTP',          'v2_pt_ntp',          'single'),
     ('SSP',          'v2_pt_ssp',          'single'),
     ('CPCL',         'v2_pt_cpcl',         'single'),
     ('Pairing',      'v2_pt_pairing',      'single'),
-    ('MLM+NTP',      'v2_pt_mlm_ntp',      'combo'),
     ('MLM+SSP',      'v2_pt_mlm_ssp',      'combo'),
     ('MLM+CPCL',     'v2_pt_mlm_cpcl',     'combo'),
     ('MLM+CPCL+SSP', 'v2_pt_mlm_cpcl_ssp', 'combo'),
-    ('All',          'v2_pt_all',          'combo'),
 ]
 
 COLORS = {
@@ -49,8 +46,8 @@ METRICS = [
     ('auprc',    '(c) AUPRC',    (0.40, 0.57)),
 ]
 
-# separator x position: between No PT and single-task group
-SEP_SINGLE_COMBO = 5.5   # between Pairing and MLM+NTP
+# separator x position: between single-task and combination groups
+SEP_SINGLE_COMBO = 4.5   # between Pairing and MLM+SSP
 
 plt.rcParams.update({
     'font.family':       'DejaVu Sans',
@@ -171,7 +168,7 @@ def main():
     summary.to_csv(OUT / 'fig5_pretraining_summary.csv')
     print(summary.to_string())
 
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4.6))
+    fig, axes = plt.subplots(1, 3, figsize=(13, 4.6))
     fig.suptitle('Pretraining Strategy Comparison', fontsize=12, fontweight='bold', y=1.01)
 
     for ax, (metric, title, ylim) in zip(axes, METRICS):
@@ -180,11 +177,11 @@ def main():
     # Group labels on first panel
     axes[0].text(2.5, METRICS[0][2][1] - 0.003, 'Single-task',
                  ha='center', va='top', fontsize=8.5, color='#555555')
-    axes[0].text(8.0, METRICS[0][2][1] - 0.003, 'Combination',
+    axes[0].text(6.0, METRICS[0][2][1] - 0.003, 'Combination',
                  ha='center', va='top', fontsize=8.5, color='#555555')
 
     legend_elems = [
-        Patch(facecolor=COLORS['baseline'], label='No pretraining'),
+        Patch(facecolor=COLORS['baseline'], label='CircMAC (No PT)'),
         Patch(facecolor=COLORS['single'],   label='Single-task PT'),
         Patch(facecolor=COLORS['combo'],    label='Combination PT'),
     ]
