@@ -6,7 +6,7 @@ Fig 4: Interaction Mechanism & Site Head Ablation (EXP5 + EXP6)
     Row 2: Head (conv1d vs linear)
   Metrics: F1-macro / AUROC / AUPRC
 
-Output: figures_paper/fig4_ablation_int_head.{pdf,png}
+Output: figures_paper/fig5_ablation_int_head.{pdf,png}
 """
 
 import json
@@ -140,8 +140,8 @@ def main():
         roc_mean=('roc_auc',  'mean'), roc_std=('roc_auc',  'std'),
         auprc_mean=('auprc',  'mean'), auprc_std=('auprc',  'std'),
     ).round(4)
-    df.to_csv(OUT / 'fig4_ablation_int_head_data.csv', index=False)
-    summary.to_csv(OUT / 'fig4_ablation_int_head_summary.csv')
+    df.to_csv(OUT / 'fig5_ablation_int_head_data.csv', index=False)
+    summary.to_csv(OUT / 'fig5_ablation_int_head_summary.csv')
     print(summary.to_string())
 
     # 2 rows (interaction, head) × 3 cols (metrics)
@@ -176,7 +176,7 @@ def main():
     fig.subplots_adjust(bottom=0.08)
 
     for ext in ['pdf', 'png']:
-        p = OUT / f'fig4_ablation_int_head.{ext}'
+        p = OUT / f'fig5_ablation_int_head.{ext}'
         fig.savefig(p, dpi=200, bbox_inches='tight')
         print(f'Saved → {p}')
     plt.close(fig)

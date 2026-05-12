@@ -1,6 +1,0 @@
-group,model,f1_mean,f1_std
-head,Conv1D,0.7452,0.0017
-head,Linear,0.7411,0.0007
-interaction,Concat,0.7188,0.0095
-interaction,Cross-Attn,0.7456,0.0042
-interaction,Elementwise,0.7082,0.0135

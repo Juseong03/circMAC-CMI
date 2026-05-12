@@ -1,0 +1,6 @@
+group,model,f1_mean,f1_std,roc_mean,roc_std,auprc_mean,auprc_std
+head,Conv1D,0.7452,0.0017,0.897,0.0015,0.5184,0.0059
+head,Linear,0.7411,0.0007,0.8971,0.0003,0.5074,0.006
+interaction,Concat,0.7188,0.0095,0.8771,0.0008,0.4441,0.0214
+interaction,Cross-Attn,0.7456,0.0042,0.8976,0.0025,0.5181,0.0071
+interaction,Elementwise,0.7082,0.0135,0.8727,0.001,0.4179,0.0254

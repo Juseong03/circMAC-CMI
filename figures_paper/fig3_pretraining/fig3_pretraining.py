@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Fig 3: CircMAC Module Ablation Study (EXP4)
-  Three panels: F1-macro / AUROC / AUPRC  mean ± std
-  Color: Full model = orange, remove-branch = blue, single-branch = green
+Fig 5: Pretraining Strategy Comparison (EXP2)
+  Three panels: F1-macro / AUROC / AUPRC
+  Groups: baseline | single-task | combination
 
-Output: figures_paper/fig3_ablation_modules.{pdf,png}
+Output: figures_paper/fig3_pretraining/fig3_pretraining.{pdf,png}
 """
 
 import json
@@ -21,28 +21,24 @@ LOGS  = ROOT / 'logs_0512'
 OUT   = Path(__file__).resolve().parent
 SEEDS = [1, 2, 3]
 
-# (display_label, exp_suffix, group)
-# group: 'full' | 'remove' | 'single'
+# (display_label, exp_base, group)
+# group: 'baseline' | 'single' | 'combo'
 MODELS = [
-    ('Full',        'v2_abl_full',       'full'),
-    ('w/o Attn',    'v2_abl_no_attn',    'remove'),
-    ('w/o Conv',    'v2_abl_no_conv',    'remove'),
-    ('w/o Mamba',   'v2_abl_no_mamba',   'remove'),
-    ('Mamba Only',  'v2_abl_mamba_only', 'single'),
-    ('CNN Only',    'v2_abl_cnn_only',   'single'),
-    ('Attn Only',   'v2_abl_attn_only',  'single'),
+    ('No PT',   'v2_abl_full',   'baseline'),
+    ('MLM',     'v2_pt_mlm',     'single'),
+    ('SSP',     'v2_pt_ssp',     'single'),
+    ('Pairing', 'v2_pt_pairing', 'single'),
 ]
 
 COLORS = {
-    'full':   '#E05C2A',
-    'remove': '#4E9AC7',
-    'single': '#8DC8A0',
+    'baseline': '#AAAAAA',
+    'single':   '#6B9CC7',
 }
 
 METRICS = [
-    ('f1_macro', '(a) F1-macro', (0.60, 0.81)),
-    ('roc_auc',  '(b) AUROC',    (0.77, 0.92)),
-    ('auprc',    '(c) AUPRC',    (0.22, 0.55)),
+    ('f1_macro', '(a) F1-macro', (0.72, 0.80)),
+    ('roc_auc',  '(b) AUROC',    (0.88, 0.92)),
+    ('auprc',    '(c) AUPRC',    (0.47, 0.57)),
 ]
 
 plt.rcParams.update({
@@ -79,15 +75,28 @@ def load_scores(exp_base):
 def plot_panel(ax, data, metric, title, ylim):
     ylo     = ylim[0]
     y_range = ylim[1] - ylim[0]
-    bar_w   = 0.58
+    bar_w   = 0.55
+
+    nopt_mean = None
 
     for i, (label, group, scores) in enumerate(data):
         vals = scores[metric]
-        if not vals:
-            continue
-        mean  = np.mean(vals)
-        std   = np.std(vals)
         color = COLORS[group]
+
+        if not vals:
+            ax.bar(i, ylim[1] - ylo - 0.002, bottom=ylo,
+                   width=bar_w, color='none', edgecolor='#bbbbbb',
+                   linewidth=1.2, linestyle='--', zorder=2)
+            ax.text(i, (ylo + ylim[1]) / 2, 'pending',
+                    ha='center', va='center', fontsize=7.5,
+                    color='#999999', style='italic', zorder=3)
+            continue
+
+        mean = np.mean(vals)
+        std  = np.std(vals)
+
+        if label == 'No PT':
+            nopt_mean = mean
 
         ax.bar(i, mean - ylo, bottom=ylo, width=bar_w,
                color=color, alpha=0.85, zorder=2, linewidth=0)
@@ -95,38 +104,44 @@ def plot_panel(ax, data, metric, title, ylim):
                     capsize=4, capthick=1.4, elinewidth=1.4, zorder=4)
         ax.text(i, mean + std + y_range * 0.025,
                 f'{mean:.3f}',
-                ha='center', va='bottom', fontsize=8.5, fontweight='bold',
+                ha='center', va='bottom', fontsize=8, fontweight='bold',
                 color='#222222', zorder=6,
-                bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.85))
+                bbox=dict(boxstyle='round,pad=0.13', fc='white', ec='none', alpha=0.85))
+
+    # No PT baseline reference line
+    if nopt_mean is not None:
+        ax.axhline(nopt_mean, color=COLORS['baseline'], linestyle=':',
+                   linewidth=1.4, alpha=0.8, zorder=1)
 
     ax.set_xticks(range(len(data)))
-    ax.set_xticklabels([d[0] for d in data], rotation=25, ha='right')
+    ax.set_xticklabels([d[0] for d in data], rotation=20, ha='right')
     ax.set_ylim(*ylim)
     ax.yaxis.grid(True, linestyle='--', alpha=0.4, zorder=0)
     ax.set_axisbelow(True)
     ax.set_title(title, fontsize=11, fontweight='bold')
 
-    for tick in ax.get_xticklabels():
-        if tick.get_text() == 'Full':
-            tick.set_fontweight('bold')
-            tick.set_color(COLORS['full'])
+    # Highlight best
+    completed = [(d[0], np.mean(d[2][metric])) for d in data if d[2][metric]]
+    if completed:
+        best_label = max(completed, key=lambda x: x[1])[0]
+        for tick in ax.get_xticklabels():
+            if tick.get_text() == best_label:
+                tick.set_fontweight('bold')
+                tick.set_color('#2B7A3A')
 
 
 def main():
-    data = []
-    for label, exp, group in MODELS:
-        scores = load_scores(exp)
-        data.append((label, group, scores))
+    data = [(label, grp, load_scores(exp)) for label, exp, grp in MODELS]
 
     # Save CSV
     rows = []
-    for label, group, scores in data:
+    for (label, exp, grp), (_, _, scores) in zip(MODELS, data):
         max_len = max((len(scores[m]) for m in scores), default=0)
-        for i in range(max_len):
+        for i in range(max(max_len, len(SEEDS))):
             seed = SEEDS[i] if i < len(SEEDS) else i + 1
             rows.append({
                 'model':    label,
-                'group':    group,
+                'group':    grp,
                 'seed':     seed,
                 'f1_macro': scores['f1_macro'][i] if i < len(scores['f1_macro']) else float('nan'),
                 'roc_auc':  scores['roc_auc'][i]  if i < len(scores['roc_auc'])  else float('nan'),
@@ -138,29 +153,28 @@ def main():
         roc_mean=('roc_auc',  'mean'), roc_std=('roc_auc',  'std'),
         auprc_mean=('auprc',  'mean'), auprc_std=('auprc',  'std'),
     ).round(4)
-    df.to_csv(OUT / 'fig3_ablation_modules_data.csv', index=False)
-    summary.to_csv(OUT / 'fig3_ablation_modules_summary.csv')
+    df.to_csv(OUT / 'fig3_pretraining_data.csv', index=False)
+    summary.to_csv(OUT / 'fig3_pretraining_summary.csv')
     print(summary.to_string())
 
-    fig, axes = plt.subplots(1, 3, figsize=(14, 4.4))
-    fig.suptitle('CircMAC Module Ablation', fontsize=12, fontweight='bold', y=1.01)
+    fig, axes = plt.subplots(1, 3, figsize=(9, 4.4))
+    fig.suptitle('Pretraining Strategy Comparison', fontsize=12, fontweight='bold', y=1.01)
 
     for ax, (metric, title, ylim) in zip(axes, METRICS):
         plot_panel(ax, data, metric, title, ylim)
 
     legend_elems = [
-        Patch(facecolor=COLORS['full'],   label='Full model'),
-        Patch(facecolor=COLORS['remove'], label='Remove branch'),
-        Patch(facecolor=COLORS['single'], label='Single branch only'),
+        Patch(facecolor=COLORS['baseline'], label='CircMAC (No PT)'),
+        Patch(facecolor=COLORS['single'],   label='Pretraining'),
     ]
-    fig.legend(handles=legend_elems, loc='upper center', ncol=3,
+    fig.legend(handles=legend_elems, loc='upper center', ncol=2,
                fontsize=9, frameon=False, bbox_to_anchor=(0.5, 0.0))
 
     fig.tight_layout()
-    fig.subplots_adjust(bottom=0.20)
+    fig.subplots_adjust(bottom=0.18)
 
     for ext in ['pdf', 'png']:
-        p = OUT / f'fig3_ablation_modules.{ext}'
+        p = OUT / f'fig3_pretraining.{ext}'
         fig.savefig(p, dpi=200, bbox_inches='tight')
         print(f'Saved → {p}')
     plt.close(fig)
