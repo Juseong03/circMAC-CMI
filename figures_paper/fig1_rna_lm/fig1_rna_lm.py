@@ -29,8 +29,8 @@ LOGS  = ROOT / 'logs_0512'
 OUT   = Path(__file__).resolve().parent
 OUT.mkdir(parents=True, exist_ok=True)
 
-SEEDS_LM      = [1]        # RNA-LM experiments: only seed 1
-SEEDS_OURS    = [1, 2, 3]  # CircMAC+Pairing: 3 seeds
+SEEDS_LM   = [1, 2, 3]
+SEEDS_OURS = [1, 2, 3]
 
 RNA_LMS = [
     ('RNABERT',  'rnabert',  'exp1_fair_frozen_rnabert',     True),
