@@ -48,7 +48,7 @@ CASES = {
 }
 
 MODELS = [
-    ('circmac',     'v2_abl_full_s1',                  1, 'CircMAC',            'seq'),
+    ('circmac',     'v2_pt_pairing_s1',                1, 'CircMAC',            'seq'),
     ('transformer', 'v2_enc_transformer_s1',            1, 'Transformer',        'seq'),
     ('mamba',       'v2_enc_mamba_s1',                  1, 'Mamba',              'seq'),
     ('lstm',        'v2_enc_lstm_s1',                   1, 'LSTM',               'seq'),
