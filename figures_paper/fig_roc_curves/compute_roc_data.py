@@ -44,11 +44,14 @@ TASK     = "sites"
 SEEDS    = [1, 2, 3]
 
 # Max sequence length per pretrained model name (position embedding limit - 2)
+# RNABERT/RNAErnie: hard architecture limits (position embedding size)
+# RNAMSM/RNA-FM: previously capped at 510 to avoid CUDA errors on small GPUs;
+#                use 1022 on large-memory GPUs
 LM_MAX_LEN = {
-    "rnabert":  438,   # max_position_embeddings=440
-    "rnaernie": 511,   # max_position_embeddings=513
-    "rnamsm":   510,   # use 510 to avoid CUDA driver errors on long sequences
-    "rnafm":    510,   # reduce to avoid CUDA driver errors on long sequences
+    "rnabert":  438,   # hard limit: max_position_embeddings=440
+    "rnaernie": 511,   # hard limit: max_position_embeddings=513
+    "rnamsm":   1022,  # no architecture limit; use full length on large GPU
+    "rnafm":    1022,  # no architecture limit; use full length on large GPU
     "circmac":  1022,
 }
 
