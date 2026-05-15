@@ -445,7 +445,9 @@ class Trainer:
         compute_sites = self.task in ['sites', 'both'] or self.use_unified_head
         if compute_sites and 'preds_sites' in tensor_dict and isinstance(tensor_dict['preds_sites'], torch.Tensor):
             if tensor_dict['preds_sites'].numel() > 0:
-                s_sites = cal_score_sites(tensor_dict['preds_sites'], tensor_dict['labels_sites'], tensor_dict['lengths_sites'])
+                # labels_sites has CLS at index 0 (-100); preds_sites has CLS removed (via x[:,1:,:]).
+                # Remove CLS from labels to align correctly: preds[i,j] ↔ site[j]
+                s_sites = cal_score_sites(tensor_dict['preds_sites'], tensor_dict['labels_sites'][:, 1:], tensor_dict['lengths_sites'])
                 self.logger.info(f"|    MODE   |  SITE  | ACCURACY  | {s_sites['acc']:.4f} | F1 Score | {s_sites['f1_macro']:.4f} | Positive  | {s_sites['f1_pos']:.4f} |")
                 self.logger.info(f"| Precision | {s_sites['prec_macro']:.4f} | Positive  | {s_sites['prec_pos']:.4f} | Recall   | {s_sites['rec_macro']:.4f} | Positive  | {s_sites['rec_pos']:.4f} |")
                 self.logger.info(f"|    MCC    | {s_sites['mcc']:.4f} | ROC  AUC  | {s_sites['roc_auc']:.4f} |  AUPRC   | {s_sites['auprc']:.4f} |")
