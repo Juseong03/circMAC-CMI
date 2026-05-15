@@ -658,7 +658,7 @@ class Trainer:
                     x_rc = self.model_pt(x_rc, x_rc_mask)
                     x_rc = x_rc['last_hidden_state']
 
-        emb, emb_rc = self.model.forward(x, x_mask)
+        emb, emb_rc = self.model.forward(x, x_mask, x_rc, x_rc_mask)
 
         return emb, x_mask
 

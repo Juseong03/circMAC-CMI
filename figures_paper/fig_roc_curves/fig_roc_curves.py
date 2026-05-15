@@ -30,13 +30,22 @@ LM_COLORS = {
     "RNAMSM":   "#2CA02C",
     "RNA-FM":   "#17BECF",
 }
-PROPOSED_COLOR = "#E05C2A"
+PROPOSED_COLOR  = "#E05C2A"
+NOPT_COLOR      = "#BCBD22"
 ENCODER_COLORS = {
     "LSTM":        "#E377C2",
     "Transformer": "#8C564B",
     "Mamba":       "#D62728",
     "Hymba":       "#BCBD22",
     "CircMAC":     "#E05C2A",
+}
+PRETRAINED_COLORS = {
+    "RNABERT":           "#4878CF",
+    "RNAErnie":          "#9467BD",
+    "RNAMSM":            "#2CA02C",
+    "RNA-FM":            "#17BECF",
+    "CircMAC (Pairing)": "#E05C2A",
+    "CircMAC (NoPT)":    "#BCBD22",
 }
 
 plt.rcParams.update({
@@ -181,8 +190,45 @@ def make_fig2b_encoder():
     plt.close(fig)
 
 
+# ── Fig: Pretrained comparison (fine-tuned RNA-LMs + CircMAC Pairing + NoPT) ──
+def make_fig_pretrained():
+    cache_path = CACHE / "roc_cache_pretrained.pkl"
+    if not cache_path.exists():
+        raise FileNotFoundError(f"Cache not found: {cache_path}\nRun compute_roc_data.py --group pretrained first.")
+    with open(cache_path, "rb") as f:
+        cache = pickle.load(f)
+
+    entries = []
+    model_order = [
+        ("RNABERT",            LM_COLORS["RNABERT"],            "-",  1.3),
+        ("RNAErnie",           LM_COLORS["RNAErnie"],           "-",  1.3),
+        ("RNAMSM",             LM_COLORS["RNAMSM"],             "-",  1.3),
+        ("RNA-FM",             LM_COLORS["RNA-FM"],             "-",  1.3),
+        ("CircMAC (NoPT)",     NOPT_COLOR,                      "--", 1.6),
+        ("CircMAC (Pairing)",  PROPOSED_COLOR,                  "-",  2.4),
+    ]
+    for key, color, ls, lw in model_order:
+        entries.append((key, key, color, ls, lw))
+
+    fig, ax = plt.subplots(figsize=(5.5, 5.0))
+    plot_roc_panel(ax, cache, entries,
+                   "ROC Curves — Pretrained Model Comparison\n(Fine-tuned RNA-LMs vs CircMAC)")
+    fig.tight_layout()
+    for ext in ["pdf", "png"]:
+        p = OUT / f"fig_roc_pretrained.{ext}"
+        fig.savefig(p, dpi=200, bbox_inches="tight")
+        print(f"Saved → {p}")
+    plt.close(fig)
+
+
 def main():
-    print("=== Fig 1b: RNA-LM ROC ===")
+    print("=== Fig: Pretrained model comparison ===")
+    try:
+        make_fig_pretrained()
+    except FileNotFoundError as e:
+        print(f"  Skip: {e}")
+
+    print("\n=== Fig 1b: RNA-LM ROC ===")
     try:
         make_fig1b_rna_lm()
         make_fig1b_rna_lm_full()
