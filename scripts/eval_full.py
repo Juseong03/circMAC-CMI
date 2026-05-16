@@ -43,7 +43,7 @@ MAX_LEN = 1022
 D_MODEL = 128
 N_LAYER = 6
 BS      = 32
-LM_BS   = 16   # rnamsm, rnafm: OOM with BS=32
+LM_BS   = 8    # rnamsm, rnafm: OOM with BS=32
 WORKERS = 4
 SEEDS   = [1, 2, 3]
 
