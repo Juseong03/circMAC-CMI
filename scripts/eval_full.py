@@ -43,6 +43,7 @@ MAX_LEN = 1022
 D_MODEL = 128
 N_LAYER = 6
 BS      = 32
+LM_BS   = 16   # rnamsm, rnafm: OOM with BS=32
 WORKERS = 4
 SEEDS   = [1, 2, 3]
 
@@ -327,8 +328,9 @@ def run_experiment_seed(model_name, exp_tpl, interaction, trainable_pt,
         ("test",  test_ds,  2, "Test"),
     ]
 
+    bs = LM_BS if model_name in ("rnamsm", "rnafm") else BS
     for split_name, ds, part, dtype in splits:
-        trainer.set_dataloader(ds, part=part, batch_size=BS,
+        trainer.set_dataloader(ds, part=part, batch_size=bs,
                                num_workers=WORKERS, shuffle=False)
         try:
             loader = (trainer.train_loader if part == 0
