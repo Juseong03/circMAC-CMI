@@ -374,23 +374,37 @@ CSV_FIELDS = [
 ] + METRIC_KEYS
 
 
-def append_rows_to_csv(csv_path, new_rows):
-    """기존 CSV에 새 rows 추가 (없으면 생성). seed+split 기준으로 중복 제거."""
+def save_group_csv(group, rows):
+    """그룹별 독립 CSV에 저장 — 병렬 실행 시 충돌 없음."""
+    csv_path = OUT / f"eval_full_{group}.csv"
+    new_df = pd.DataFrame(rows, columns=CSV_FIELDS)
     if csv_path.exists():
         existing = pd.read_csv(csv_path)
-    else:
-        existing = pd.DataFrame(columns=CSV_FIELDS)
-
-    new_df = pd.DataFrame(new_rows, columns=CSV_FIELDS)
-
-    # 중복 제거: (exp_tpl, seed, split) 기준으로 기존 것을 새 것으로 교체
-    if not existing.empty and not new_df.empty:
         key = ["exp_tpl", "seed", "split"]
         existing = existing[~existing.set_index(key).index.isin(
             new_df.set_index(key).index)]
+        new_df = pd.concat([existing, new_df], ignore_index=True)
+    new_df.to_csv(csv_path, index=False)
+    return csv_path
 
-    combined = pd.concat([existing, new_df], ignore_index=True)
-    combined.to_csv(csv_path, index=False)
+
+def merge_group_csvs():
+    """eval_full_{group}.csv 들을 합쳐 eval_full_summary.csv 생성."""
+    all_groups = ["encoder", "pretrained", "ablation",
+                  "interaction", "site_head", "pretraining"]
+    dfs = []
+    for g in all_groups:
+        p = OUT / f"eval_full_{g}.csv"
+        if p.exists():
+            dfs.append(pd.read_csv(p))
+    if not dfs:
+        print("[merge] 병합할 파일이 없음")
+        return
+    merged = pd.concat(dfs, ignore_index=True)
+    out_path = OUT / "eval_full_summary.csv"
+    merged.to_csv(out_path, index=False)
+    print(f"[merge] {len(merged)} rows → {out_path}")
+    return out_path
 
 
 def main():
@@ -398,10 +412,15 @@ def main():
     parser.add_argument("--device", type=int, default=0)
     parser.add_argument("--group", default="all",
                         help="all / encoder / pretrained / ablation / "
-                             "interaction / site_head / pretraining")
+                             "interaction / site_head / pretraining / merge")
     parser.add_argument("--skip_preds", action="store_true",
                         help="metrics만 저장하고 preds pkl은 저장 안 함")
     args = parser.parse_args()
+
+    # merge 모드: 그룹별 CSV를 합쳐서 summary 생성
+    if args.group == "merge":
+        merge_group_csvs()
+        return
 
     groups = (
         ["encoder", "pretrained", "ablation", "interaction", "site_head", "pretraining"]
@@ -412,8 +431,8 @@ def main():
     df_train_raw, df_test_raw = load_raw_data()
     print(f"  train={len(df_train_raw)}  test={len(df_test_raw)}")
 
-    csv_path = OUT / "eval_full_summary.csv"
-    new_rows = []
+    # 그룹별로 독립된 딕셔너리에 수집 → 그룹 CSV에 저장 (병렬 안전)
+    group_rows: dict = {g: [] for g in groups}
 
     for group, label, model_name, exp_tpl, interaction, trainable in EXPERIMENTS:
         if group not in groups:
@@ -439,18 +458,22 @@ def main():
                 }
                 for k in METRIC_KEYS:
                     row[k] = metrics.get(k, "")
-                new_rows.append(row)
+                group_rows[group].append(row)
 
-        # 그룹 단위로 중간 저장
-        if new_rows:
-            append_rows_to_csv(csv_path, new_rows)
-            new_rows = []
-            print(f"  → Saved to {csv_path}")
+        # 실험 하나 끝날 때마다 해당 그룹 CSV에 저장 (중간 저장)
+        if group_rows[group]:
+            csv_path = save_group_csv(group, group_rows[group])
+            group_rows[group] = []   # 다음 저장 시 중복 방지용 초기화
+            print(f"  → {csv_path}")
 
     print(f"\n{'='*55}")
-    print(f" Done! → {csv_path}")
+    for g in groups:
+        p = OUT / f"eval_full_{g}.csv"
+        if p.exists():
+            print(f" {p.name}")
+    print(f" merge: python scripts/eval_full.py --group merge")
     if not args.skip_preds:
-        print(f" Preds  → {PRED_DIR}/{{exp}}/{{train|val|test}}_preds.pkl")
+        print(f" Preds → {PRED_DIR}/{{exp}}/{{train|val|test}}_preds.pkl")
     print(f"{'='*55}")
 
 
