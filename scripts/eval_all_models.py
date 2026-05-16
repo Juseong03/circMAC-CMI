@@ -141,11 +141,56 @@ def _get_ckpt_vocab_size(model_path, model_name):
     return None
 
 
+def compute_metrics(labels, probs):
+    """flat numpy arrays → dict of all metrics (threshold sweep 0.1~0.9)."""
+    from sklearn.metrics import (
+        roc_auc_score, average_precision_score,
+        f1_score, precision_score, recall_score,
+        accuracy_score, matthews_corrcoef,
+    )
+
+    n_total = len(labels)
+    n_pos   = int(labels.sum())
+    n_neg   = n_total - n_pos
+    pos_rate = n_pos / n_total if n_total > 0 else float("nan")
+
+    try:
+        auroc = float(roc_auc_score(labels, probs))
+        auprc = float(average_precision_score(labels, probs))
+    except Exception:
+        auroc = auprc = float("nan")
+
+    # threshold sweep (best F1_macro)
+    best_t, best_f1mac = 0.5, -1.0
+    for t in np.linspace(0.1, 0.9, 9):
+        pb = (probs >= t).astype(int)
+        fm = float(f1_score(labels, pb, average="macro", zero_division=0))
+        if fm > best_f1mac:
+            best_f1mac, best_t = fm, t
+
+    pb = (probs >= best_t).astype(int)
+    return {
+        "n_tokens":   n_total,
+        "n_pos":      n_pos,
+        "n_neg":      n_neg,
+        "pos_rate":   round(pos_rate, 4),
+        "auroc":      round(auroc, 4),
+        "auprc":      round(auprc, 4),
+        "threshold":  round(best_t, 2),
+        "acc":        round(float(accuracy_score(labels, pb)), 4),
+        "f1_macro":   round(float(f1_score(labels, pb, average="macro",   zero_division=0)), 4),
+        "prec_macro": round(float(precision_score(labels, pb, average="macro", zero_division=0)), 4),
+        "rec_macro":  round(float(recall_score(labels, pb, average="macro",    zero_division=0)), 4),
+        "f1_pos":     round(float(f1_score(labels, pb, pos_label=1, zero_division=0)), 4),
+        "prec_pos":   round(float(precision_score(labels, pb, pos_label=1, zero_division=0)), 4),
+        "rec_pos":    round(float(recall_score(labels, pb, pos_label=1, zero_division=0)), 4),
+        "mcc":        round(float(matthews_corrcoef(labels, pb)), 4),
+    }
+
+
 def run_inference(model_name, exp_template, interaction, trainable_pt,
                   df_test, device, test_ds_cache=None, max_len=None):
     """모든 seed에 대해 inference 실행 → metrics list 반환"""
-    from sklearn.metrics import roc_auc_score, average_precision_score, f1_score
-
     results = []
     for seed in SEEDS:
         exp        = f"{exp_template}_s{seed}"
@@ -155,10 +200,7 @@ def run_inference(model_name, exp_template, interaction, trainable_pt,
             continue
 
         print(f"  [RUN]  {exp}")
-        if test_ds_cache is None:
-            test_ds = build_test_dataset(df_test, max_len=max_len)
-        else:
-            test_ds = test_ds_cache
+        test_ds = test_ds_cache if test_ds_cache is not None else build_test_dataset(df_test, max_len=max_len)
 
         trainer = Trainer(seed=seed, device=device,
                           experiment_name=exp, verbose=False)
@@ -222,16 +264,13 @@ def run_inference(model_name, exp_template, interaction, trainable_pt,
         preds_prob  = preds_prob[valid_mask]
         labels_keep = labels_flat[valid_mask]
 
-        try:
-            auroc = float(roc_auc_score(labels_keep, preds_prob))
-            auprc = float(average_precision_score(labels_keep, preds_prob))
-        except Exception:
-            auroc, auprc = float("nan"), float("nan")
+        m = compute_metrics(labels_keep, preds_prob)
+        m["seed"] = seed
+        results.append(m)
 
-        preds_bin = (preds_prob >= 0.5).astype(int)
-        f1 = float(f1_score(labels_keep, preds_bin, pos_label=1, zero_division=0))
-
-        results.append({"seed": seed, "auroc": auroc, "auprc": auprc, "f1_pos": f1})
+        print(f"    AUROC={m['auroc']:.4f}  AUPRC={m['auprc']:.4f}  "
+              f"F1={m['f1_pos']:.4f}  MCC={m['mcc']:.4f}  "
+              f"pos_rate={m['pos_rate']:.3f}  n={m['n_tokens']:,}")
         del trainer; torch.cuda.empty_cache()
 
     return results
@@ -275,54 +314,52 @@ def main():
             print(f"  → No results (all seeds missing)")
             continue
 
-        aurocs = [r["auroc"] for r in results]
-        auprcs = [r["auprc"] for r in results]
-        f1s    = [r["f1_pos"] for r in results]
+        METRIC_KEYS = ["auroc", "auprc", "f1_pos", "f1_macro", "prec_pos",
+                       "rec_pos", "prec_macro", "rec_macro", "mcc", "acc",
+                       "n_tokens", "n_pos", "n_neg", "pos_rate", "threshold"]
 
-        print(f"  AUROC: {np.mean(aurocs):.4f} ± {np.std(aurocs):.4f}")
-        print(f"  AUPRC: {np.mean(auprcs):.4f} ± {np.std(auprcs):.4f}")
-        print(f"  F1:    {np.mean(f1s):.4f} ± {np.std(f1s):.4f}")
-
+        # per-seed rows
         for r in results:
-            rows.append({
-                "group":      group,
-                "label":      label,
-                "model_name": model_name,
-                "exp_tpl":    exp_tpl,
-                "seed":       r["seed"],
-                "auroc":      f"{r['auroc']:.4f}",
-                "auprc":      f"{r['auprc']:.4f}",
-                "f1_pos":     f"{r['f1_pos']:.4f}",
-            })
-        # mean row
-        rows.append({
-            "group":      group,
-            "label":      label,
-            "model_name": model_name,
-            "exp_tpl":    exp_tpl,
-            "seed":       "mean",
-            "auroc":      f"{np.mean(aurocs):.4f}",
-            "auprc":      f"{np.mean(auprcs):.4f}",
-            "f1_pos":     f"{np.mean(f1s):.4f}",
-        })
-        rows.append({
-            "group": group, "label": label, "model_name": model_name,
-            "exp_tpl": exp_tpl, "seed": "std",
-            "auroc": f"{np.std(aurocs):.4f}",
-            "auprc": f"{np.std(auprcs):.4f}",
-            "f1_pos": f"{np.std(f1s):.4f}",
-        })
+            row = {"group": group, "label": label, "model_name": model_name,
+                   "exp_tpl": exp_tpl, "max_len": LM_MAX_LEN.get(model_name, MAX_LEN),
+                   "interaction": interaction, "d_model": D_MODEL, "n_layer": N_LAYER,
+                   "seed": r["seed"]}
+            for k in METRIC_KEYS:
+                row[k] = r.get(k, "")
+            rows.append(row)
+
+        # mean / std rows
+        for stat, fn in [("mean", np.mean), ("std", np.std)]:
+            row = {"group": group, "label": label, "model_name": model_name,
+                   "exp_tpl": exp_tpl, "max_len": LM_MAX_LEN.get(model_name, MAX_LEN),
+                   "interaction": interaction, "d_model": D_MODEL, "n_layer": N_LAYER,
+                   "seed": stat}
+            for k in METRIC_KEYS:
+                vals = [r[k] for r in results if isinstance(r.get(k), (int, float))]
+                row[k] = round(float(fn(vals)), 4) if vals else ""
+            rows.append(row)
 
     # Save CSV
+    import datetime
+    fieldnames = [
+        "group", "label", "model_name", "exp_tpl",
+        "max_len", "interaction", "d_model", "n_layer",
+        "seed",
+        "auroc", "auprc",
+        "f1_pos", "prec_pos", "rec_pos",
+        "f1_macro", "prec_macro", "rec_macro",
+        "mcc", "acc", "threshold",
+        "n_tokens", "n_pos", "n_neg", "pos_rate",
+    ]
     csv_path = OUT / "eval_summary.csv"
-    fieldnames = ["group", "label", "model_name", "exp_tpl", "seed", "auroc", "auprc", "f1_pos"]
     with open(csv_path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)
 
     print(f"\n{'='*50}")
-    print(f" Saved → {csv_path}")
+    print(f" Saved → {csv_path}  ({len([r for r in rows if str(r['seed']).isdigit()])} seed results)")
+    print(f" Eval date: {datetime.date.today()}")
     print(f"{'='*50}")
 
 
