@@ -21,20 +21,21 @@ DATA_CSV = OUT / 'fig2_pretraining_data.csv'
 
 # (internal_label, group)
 MODELS = [
-    ('No PT', 'baseline'),
-    ('MLM',   'single'),
-    ('SSP',   'single'),
-    ('BPP',   'single'),   # Pairing → BPP
+    ('No PT',   'baseline'),
+    ('MLM',     'single'),
+    ('NTP',     'single'),
+    ('SSP',     'single'),
+    ('Pairing', 'single'),
 ]
 
-# 색상 팔레트 (원래대로)
+# 색상 팔레트
 COLORS = {'baseline': '#AAAAAA',   # light gray
           'single'  : '#6B9CC7'}  # blue
 
 METRICS = [
-    ('f1_macro', '(a) F1-macro', (0.72, 0.80)),
-    ('roc_auc',  '(b) AUROC',    (0.88, 0.92)),
-    ('auprc',    '(c) AUPRC',    (0.47, 0.57)),
+    ('f1_macro', '(a) F1-macro', (0.50, 0.65)),
+    ('roc_auc',  '(b) AUROC',    (0.66, 0.82)),
+    ('auprc',    '(c) AUPRC',    (0.09, 0.23)),
 ]
 
 plt.rcParams.update({
@@ -96,7 +97,7 @@ def bar_panel(ax, entries, metric, title, ylim):
                    linestyle=':', linewidth=1.3, alpha=0.8)
 
     # x-tick 설정
-    tick_labels = ['CircMAC', '+MLM', '+SSP', '+BPP']
+    tick_labels = ['No PT', '+MLM', '+NTP', '+SSP', '+Pairing']
     ax.set_xticks(range(len(entries)))
     ax.set_xticklabels(tick_labels, rotation=0,
                        ha='center', color='#000000')

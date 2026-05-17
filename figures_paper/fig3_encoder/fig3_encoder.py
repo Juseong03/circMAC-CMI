@@ -32,9 +32,9 @@ PROPOSED_COLOR = '#E05C2A'
 BASELINE_COLOR = '#6B9CC7'
 
 METRICS = [
-    ('f1_macro', '(a) F1-macro', (0.55, 0.83)),
-    ('roc_auc',  '(b) AUROC',    (0.70, 0.97)),
-    ('auprc',    '(c) AUPRC',    (0.15, 0.65)),
+    ('f1_macro', '(a) F1-macro', (0.48, 0.65)),
+    ('roc_auc',  '(b) AUROC',    (0.52, 0.80)),
+    ('auprc',    '(c) AUPRC',    (0.04, 0.24)),
 ]
 
 plt.rcParams.update({

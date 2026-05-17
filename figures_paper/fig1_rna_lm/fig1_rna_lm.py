@@ -31,9 +31,9 @@ RNA_LMS = [
 LM_COLORS={'RNABERT':'#4878CF','RNAErnie':'#9467BD','RNAMSM':'#2CA02C','RNA-FM':'#17BECF'}
 PROP_COLOR, PROP_LABEL = '#E05C2A', 'CircMAC'
 FROZEN_HATCH='//'
-METRICS=[('f1_macro','F1-macro',(0.55,0.83)),
-         ('roc_auc', 'AUROC',   (0.65,0.97)),
-         ('auprc',   'AUPRC',   (0.15,0.65))]
+METRICS=[('f1_macro','F1-macro',(0.46,0.62)),
+         ('roc_auc', 'AUROC',   (0.42,0.72)),
+         ('auprc',   'AUPRC',   (0.04,0.22))]
 
 import matplotlib as mpl
 mpl.rcParams.update({'font.family':'DejaVu Sans','font.size':10,

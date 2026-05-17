@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
 update_figure_csvs.py
-eval_results/eval_summary.csv → 각 figure 스크립트가 사용하는 data CSV 업데이트
+eval_results/eval_full_summary.csv (test split) → 각 figure 스크립트가 사용하는 data CSV 업데이트
 
 Usage:
     python figures_paper/update_figure_csvs.py
-    python figures_paper/update_figure_csvs.py --eval eval_results/eval_summary.csv
+    python figures_paper/update_figure_csvs.py --eval eval_results/eval_full_summary.csv
 """
 import argparse
 import pandas as pd
@@ -20,19 +20,18 @@ def load_eval(csv_path):
     # auroc → roc_auc alias
     if "auroc" in df.columns and "roc_auc" not in df.columns:
         df["roc_auc"] = df["auroc"]
+    # eval_full 형식: split 컬럼이 있으면 test만 사용
+    if "split" in df.columns:
+        df = df[df["split"] == "test"].copy()
     return df
 
 def get_seeds(df, exp_tpl, model_name=None):
-    """exp_tpl 기준으로 seed별 rows 반환 (mean/std 제외)"""
+    """exp_tpl 기준으로 seed별 rows 반환 (숫자 seed만)"""
     mask = df["exp_tpl"] == exp_tpl
     if model_name:
         mask &= df["model_name"] == model_name
     rows = df[mask & df["seed"].apply(lambda x: str(x).isdigit())]
     return rows
-
-def seed_values(df, exp_tpl, metric, model_name=None):
-    rows = get_seeds(df, exp_tpl, model_name)
-    return rows[metric].dropna().tolist()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Fig 1: RNA-LM comparison
@@ -50,17 +49,6 @@ def update_fig1(df):
         ("RNA-FM",   "rnafm",    "exp1_fair_trainable_rnafm",    False),
         ("CircMAC",  "circmac",  "v2_pt_pairing",                False),
     ]
-    rows = []
-    for label, model_name, exp_tpl, frozen in specs:
-        mode = "frozen" if frozen else "fine-tuned" if label != "CircMAC" else "proposed"
-        for metric in ("f1_macro", "roc_auc", "auprc"):
-            vals = seed_values(df, exp_tpl, metric if metric != "roc_auc" else "auroc", model_name)
-            for i, v in enumerate(vals, 1):
-                rows.append({"model": label, "mode": mode, "seed": i,
-                             "f1_macro": None, "roc_auc": None, "auprc": None})
-                rows[-1][metric] = v
-
-    # merge per (model, mode, seed)
     merged = {}
     for label, model_name, exp_tpl, frozen in specs:
         mode = "frozen" if frozen else "fine-tuned" if label != "CircMAC" else "proposed"
@@ -68,26 +56,26 @@ def update_fig1(df):
         for _, row in seeds_df.iterrows():
             key = (label, mode, int(row["seed"]))
             merged[key] = {
-                "model": label, "mode": mode, "seed": int(row["seed"]),
+                "model":    label, "mode": mode, "seed": int(row["seed"]),
                 "f1_macro": row.get("f1_macro", ""),
                 "roc_auc":  row.get("auroc", ""),
                 "auprc":    row.get("auprc", ""),
             }
-
     out_df = pd.DataFrame(list(merged.values()))
     p = OUT / "fig1_rna_lm" / "fig1_rna_lm_data.csv"
     out_df.to_csv(p, index=False)
     print(f"  [fig1] {p}  ({len(out_df)} rows)")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Fig 2: Pretraining strategy
+# Fig 2: Pretraining strategy  (NoPT / MLM / NTP / SSP / Pairing)
 # ─────────────────────────────────────────────────────────────────────────────
 def update_fig2(df):
     specs = [
-        ("No PT", "v2_abl_full",   "baseline"),
-        ("MLM",   "v2_pt_mlm",     "single"),
-        ("SSP",   "v2_pt_ssp",     "single"),
-        ("BPP",   "v2_pt_pairing", "single"),
+        ("No PT",   "v2_pt_nopt",    "baseline"),
+        ("MLM",     "v2_pt_mlm",     "single"),
+        ("NTP",     "v2_pt_ntp",     "single"),
+        ("SSP",     "v2_pt_ssp",     "single"),
+        ("Pairing", "v2_pt_pairing", "single"),
     ]
     rows = []
     for label, exp_tpl, group in specs:
@@ -113,7 +101,7 @@ def update_fig3(df):
         ("Transformer", "transformer", "v2_enc_transformer"),
         ("Mamba",       "mamba",       "v2_enc_mamba"),
         ("Hymba",       "hymba",       "v2_enc_hymba"),
-        ("CircMAC",     "circmac",     "v2_abl_full"),   # confirmed same as v2_enc_circmac
+        ("CircMAC",     "circmac",     "v2_abl_full"),
     ]
     rows = []
     for label, model_name, exp_tpl in specs:
@@ -192,18 +180,18 @@ def update_fig5(df):
 # ─────────────────────────────────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--eval", default=str(ROOT / "eval_results/eval_summary.csv"))
+    parser.add_argument("--eval", default=str(ROOT / "eval_results/eval_full_summary.csv"))
     args = parser.parse_args()
 
     csv_path = Path(args.eval)
     if not csv_path.exists():
-        print(f"[ERROR] eval_summary.csv not found: {csv_path}")
-        print("  Run: python scripts/eval_all_models.py --device 0")
+        print(f"[ERROR] not found: {csv_path}")
+        print("  Run: python scripts/eval_full.py --group merge")
         return
 
     print(f"Loading {csv_path} ...")
     df = load_eval(csv_path)
-    print(f"  {len(df)} rows, groups: {df['group'].unique().tolist()}")
+    print(f"  {len(df)} rows (test split only)")
     print()
 
     print("Updating figure data CSVs...")
