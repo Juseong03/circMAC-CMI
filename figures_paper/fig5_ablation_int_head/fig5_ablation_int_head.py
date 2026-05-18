@@ -30,9 +30,9 @@ HEAD = [
 ]
 
 METRICS = [
-    ('f1_macro', 'F1-macro', {'interaction': (0.35, 0.62), 'head': (0.47, 0.63)}),
-    ('roc_auc',  'AUROC',    {'interaction': (0.30, 0.80), 'head': (0.30, 0.80)}),
-    ('auprc',    'AUPRC',    {'interaction': (0.02, 0.20), 'head': (0.02, 0.20)}),
+    ('f1_macro', 'F1-macro', {'interaction': (0.68, 0.78), 'head': (0.72, 0.78)}),
+    ('roc_auc',  'AUROC',    {'interaction': (0.85, 0.92), 'head': (0.89, 0.92)}),
+    ('auprc',    'AUPRC',    {'interaction': (0.38, 0.55), 'head': (0.49, 0.55)}),
 ]
 
 plt.rcParams.update({'font.family':'DejaVu Sans','font.size':10,

@@ -30,9 +30,9 @@ MODELS = [
 COLORS = {'full':'#E05C2A', 'remove':'#4E9AC7', 'single':'#8DC8A0'}
 
 METRICS = [
-    ('f1_macro', '(a) F1-macro', (0.46, 0.60)),
-    ('roc_auc',  '(b) AUROC',    (0.38, 0.80)),
-    ('auprc',    '(c) AUPRC',    (0.02, 0.20)),
+    ('f1_macro', '(a) F1-macro', (0.60, 0.78)),
+    ('roc_auc',  '(b) AUROC',    (0.78, 0.93)),
+    ('auprc',    '(c) AUPRC',    (0.22, 0.57)),
 ]
 
 plt.rcParams.update({'font.family':'DejaVu Sans','font.size':10,

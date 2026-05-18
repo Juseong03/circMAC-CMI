@@ -33,9 +33,9 @@ COLORS = {'baseline': '#AAAAAA',   # light gray
           'single'  : '#6B9CC7'}  # blue
 
 METRICS = [
-    ('f1_macro', '(a) F1-macro', (0.50, 0.65)),
-    ('roc_auc',  '(b) AUROC',    (0.66, 0.82)),
-    ('auprc',    '(c) AUPRC',    (0.09, 0.23)),
+    ('f1_macro', '(a) F1-macro', (0.68, 0.80)),
+    ('roc_auc',  '(b) AUROC',    (0.87, 0.93)),
+    ('auprc',    '(c) AUPRC',    (0.40, 0.58)),
 ]
 
 plt.rcParams.update({
