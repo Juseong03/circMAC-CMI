@@ -67,7 +67,7 @@ FIG1_EXPS = [
     ('RNAMSM',   'fine-tuned',  'rnamsm',   'exp1_fair_trainable_rnamsm'),
     ('RNA-FM',   'frozen',      'rnafm',    'exp1_fair_frozen_rnafm'),
     ('RNA-FM',   'fine-tuned',  'rnafm',    'exp1_fair_trainable_rnafm'),
-    ('CircMAC',  'proposed',    'circmac',  'v2_enc_circmac'),
+    ('CircMAC',  'proposed',    'circmac',  'v2_pt_pairing'),
 ]
 
 # ─────────────────────────────────────────────
