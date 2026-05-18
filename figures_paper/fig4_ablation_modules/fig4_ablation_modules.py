@@ -86,10 +86,10 @@ def main():
         bbox_to_anchor=(0.5,0.0))
 
     fig.tight_layout(); fig.subplots_adjust(bottom=0.20)
-    out_dir=OUT/'figures_paper/fig4_ablation_modules'; out_dir.mkdir(parents=True,exist_ok=True)
     for ext in ('pdf','png'):
-        fig.savefig(out_dir/f'fig4_ablation_modules.{ext}',
+        fig.savefig(OUT/f'fig4_ablation_modules.{ext}',
                     dpi=200,bbox_inches='tight')
+        print('Saved →', OUT/f'fig4_ablation_modules.{ext}')
     plt.close(fig)
 
 if __name__=='__main__':

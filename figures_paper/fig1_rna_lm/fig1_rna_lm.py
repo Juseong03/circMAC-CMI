@@ -118,6 +118,6 @@ for tag,top,inc_frozen,x0,_ in variants:
     fig.tight_layout()
     fig.subplots_adjust(bottom=0.20)
     for ext in ['pdf','png']:
-        out=OUT/f'figures_paper/fig1_rna_lm/fig1_rna_lm_{tag}.{ext}'
+        out=OUT/f'fig1_rna_lm_{tag}.{ext}'
         fig.savefig(out,dpi=200,bbox_inches='tight'); print('Saved →',out)
     plt.close(fig)

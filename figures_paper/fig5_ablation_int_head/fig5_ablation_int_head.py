@@ -96,11 +96,10 @@ def main():
 
     fig.tight_layout(); fig.subplots_adjust(bottom=0.08)
 
-    out_dir=OUT/'figures_paper/fig5_ablation_int_head'
-    out_dir.mkdir(parents=True,exist_ok=True)
     for ext in ('pdf','png'):
-        fig.savefig(out_dir/f'fig5_ablation_int_head.{ext}',
+        fig.savefig(OUT/f'fig5_ablation_int_head.{ext}',
                     dpi=200,bbox_inches='tight')
+        print('Saved →', OUT/f'fig5_ablation_int_head.{ext}')
     plt.close(fig)
 
 if __name__=='__main__':
