@@ -21,7 +21,7 @@ TOTAL=0; SKIPPED=0; RAN=0
 echo "=== SUB438 ${MODEL} fine-tuned (GPU $GPU) ==="
 
 for SEED in "${SEEDS[@]}"; do
-    EXP="${PREFIX}_${MODEL}_ft_s${SEED}"
+    EXP="${PREFIX}_${MODEL}_ft_bs32_s${SEED}"
     TOTAL=$((TOTAL+1))
     if find "saved_models/${MODEL}/${EXP}" -name "training.json" 2>/dev/null | grep -q .; then
         echo "[SKIP] $EXP"; SKIPPED=$((SKIPPED+1)); continue
