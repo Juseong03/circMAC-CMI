@@ -232,6 +232,40 @@ class Trainer:
                 total_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
                 print(f"Optimizer set for full model training; trainable parameters: {total_params}")
 
+    def _save_best_preds(self, tensors: dict, split: str = 'test') -> None:
+        """Best epoch 때의 raw preds/labels를 pkl로 저장 (metric 재계산 용도)."""
+        try:
+            import pickle, os
+            preds_dir = os.path.join(self.log_dir, 'best_preds')
+            os.makedirs(preds_dir, exist_ok=True)
+
+            save_dict = {}
+            if 'preds_sites' in tensors and isinstance(tensors['preds_sites'], torch.Tensor) and tensors['preds_sites'].numel() > 0:
+                import torch.nn.functional as F
+                logits = tensors['preds_sites']  # (N, L-1) or (N, L-1, C)
+                if logits.dim() == 3 and logits.size(-1) == 2:
+                    probs = torch.softmax(logits, dim=-1)[..., 1]
+                else:
+                    probs = torch.sigmoid(logits.squeeze(-1))
+                labels = tensors['labels_sites'][:, 1:]  # CLS 제거
+                lengths = tensors.get('lengths_sites', None)
+                save_dict['probs_sites']  = probs.cpu()
+                save_dict['labels_sites'] = labels.cpu()
+                if lengths is not None:
+                    save_dict['lengths_sites'] = lengths.cpu()
+
+            if 'preds_bind' in tensors and isinstance(tensors['preds_bind'], torch.Tensor) and tensors['preds_bind'].numel() > 0:
+                save_dict['probs_bind']  = torch.sigmoid(tensors['preds_bind'].squeeze(-1)).cpu()
+                save_dict['labels_bind'] = tensors['labels_bind'].cpu()
+
+            if save_dict:
+                out_path = os.path.join(preds_dir, f'{split}_preds.pkl')
+                with open(out_path, 'wb') as f:
+                    pickle.dump(save_dict, f)
+                self.logger.info(f"Best preds saved → {out_path}")
+        except Exception as e:
+            self.logger.info(f"[WARN] _save_best_preds failed: {e}")
+
     def save_model(self, epoch: int = None, pretrain: bool = False, verbose: bool = False) -> None:
         save_model(
             model=self.model,
@@ -368,6 +402,7 @@ class Trainer:
                 with torch.no_grad():
                     loss_test, tensors_test, scores_test = self.step_loader(self.test_loader, epoch, is_train=False, data_type='Test')
                     self.logs['test'][epoch] = {'loss': float(loss_test['loss_total']), 'scores': scores_test}
+                    self._save_best_preds(tensors_test, split='test')
 
                     if self.extra_loader is not None:
                         loss_extra, tensors_extra, scores_extra = self.step_loader(self.extra_loader, epoch, is_train=False, data_type='Extra')
