@@ -507,9 +507,12 @@ class CircMAC(nn.Module):
             skip = x
             x = self.down(x)
 
-            # Downsample mask
+            # Downsample mask — match exact length of downsampled x (odd inputs need padding)
             if mask is not None:
-                mask = F.avg_pool1d(mask.float().unsqueeze(1), 2, 2).squeeze(1) > 0.5
+                mask_down = F.avg_pool1d(mask.float().unsqueeze(1), 2, 2).squeeze(1)
+                if mask_down.size(1) < x.size(1):
+                    mask_down = F.pad(mask_down, (0, x.size(1) - mask_down.size(1)))
+                mask = mask_down > 0.5
 
         # Encoder layers with residual connections
         for layer in self.encoder:
