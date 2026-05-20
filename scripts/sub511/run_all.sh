@@ -10,7 +10,8 @@
 #   GPU 1: RNAMSM ft bs32   s1,2,3
 #   GPU 2: RNA-FM frozen    s1,2,3
 #   GPU 3: RNA-FM ft bs32   s1,2,3
-#   GPU 4: CircMAC          s1,2,3
+#   GPU 4: CircMAC noPT     s1,2,3
+#   GPU 5: CircMAC pairing  s1,2,3
 #
 # Usage: ./scripts/sub511/run_all.sh
 #===============================================================================
@@ -26,8 +27,9 @@ bash "$SCRIPT_DIR/gpu0_rnamsm_frozen.sh"  0 > logs/sub511/gpu0.log 2>&1 &
 bash "$SCRIPT_DIR/gpu1_rnamsm_ft.sh"      1 > logs/sub511/gpu1.log 2>&1 &
 bash "$SCRIPT_DIR/gpu2_rnafm_frozen.sh"   2 > logs/sub511/gpu2.log 2>&1 &
 bash "$SCRIPT_DIR/gpu3_rnafm_ft.sh"       3 > logs/sub511/gpu3.log 2>&1 &
-bash "$SCRIPT_DIR/gpu4_circmac.sh"        4 > logs/sub511/gpu4.log 2>&1 &
+bash "$SCRIPT_DIR/gpu4_circmac.sh"          4 > logs/sub511/gpu4.log 2>&1 &
+bash "$SCRIPT_DIR/gpu5_circmac_pairing.sh" 5 > logs/sub511/gpu5.log 2>&1 &
 
-echo "로그: tail -f logs/sub511/gpu{0..4}.log"
+echo "로그: tail -f logs/sub511/gpu{0..5}.log"
 wait
 echo "=== 전체 완료: $(date) ==="
