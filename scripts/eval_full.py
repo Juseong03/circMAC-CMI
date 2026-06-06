@@ -45,7 +45,7 @@ N_LAYER = 6
 BS      = 32
 LM_BS   = 8    # rnamsm, rnafm: OOM with BS=32
 WORKERS = 4
-SEEDS   = [1, 2, 3]
+SEEDS   = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
 LM_MAX_LEN = {
     "rnabert":  438,
