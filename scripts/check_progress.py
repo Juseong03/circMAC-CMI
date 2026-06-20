@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-check_progress.py — 실험 진행 현황 확인 스크립트
+check_progress.py — Experiment progress checker
 
-실험별로 done / running / pending 상태를 표시합니다.
-  DONE    : saved_models/{model}/{exp}_s{seed}/{seed}/train/model.pth 존재
-  RUNNING : 로그 파일이 최근 N분 이내 수정됨 (기본 10분)
-  PENDING : 위 두 조건 모두 미충족
+Shows done / running / pending status per experiment.
+  DONE    : saved_models/{model}/{exp}_s{seed}/{seed}/train/model.pth exists
+  RUNNING : log file modified within the last N minutes (default: 10)
+  PENDING : neither condition met
 
 Usage:
     python scripts/check_progress.py
     python scripts/check_progress.py --group encoder
-    python scripts/check_progress.py --recent 5       # running 판단 기준 분
-    python scripts/check_progress.py --seeds 1 2 3    # 특정 seed만 확인
-    python scripts/check_progress.py --verbose        # 미완료 실험 목록 출력
+    python scripts/check_progress.py --recent 5       # minutes threshold for RUNNING
+    python scripts/check_progress.py --seeds 1 2 3    # check specific seeds only
+    python scripts/check_progress.py --verbose        # list incomplete seeds
 """
 
 import argparse
@@ -27,9 +27,9 @@ LOGS  = ROOT / "logs" / "v2"
 
 SEEDS_ALL = list(range(1, 11))
 
-# ── 실험 정의: (group, label, model_name, exp_template, log_subdir) ─────────
-# exp_template: 실제 디렉토리 = saved_models/{model}/{template}_s{seed}/{seed}/train/model.pth
-# log_subdir  : logs/v2/{log_subdir}/{template}_s{seed}.log  (None이면 탐색 안 함)
+# ── Experiment definitions: (group, label, model_name, exp_template, log_subdir) ──
+# exp_template: actual path = saved_models/{model}/{template}_s{seed}/{seed}/train/model.pth
+# log_subdir  : logs/v2/{log_subdir}/{template}_s{seed}.log  (None = skip log check)
 
 EXPERIMENTS = [
     # ── Encoder comparison ─────────────────────────────────────────────────
@@ -85,7 +85,7 @@ EXPERIMENTS = [
     ("rna_trainable", "RNA-FM (ft)",   "rnafm",    "exp1_fair_trainable_rnafm",    "rna_trainable"),
 ]
 
-# ── Pretraining checkpoints (model.pth, seed=42) ────────────────────────────
+# ── Pretraining checkpoints (model.pth, seed=42) ─────────────────────────────
 PRETRAIN_STRATEGIES = [
     ("mlm",          "--mlm"),
     ("ntp",          "--ntp"),
@@ -102,13 +102,13 @@ PRETRAIN_STRATEGIES = [
 
 
 def model_done(model_name: str, exp_template: str, seed: int) -> bool:
-    """saved_models/{model}/{template}_s{seed}/{seed}/train/model.pth 존재 여부"""
+    """Returns True if the trained model checkpoint exists."""
     p = SAVED / model_name / f"{exp_template}_s{seed}" / str(seed) / "train" / "model.pth"
     return p.exists()
 
 
 def log_running(log_subdir: str, exp_template: str, seed: int, recent_min: int) -> bool:
-    """로그 파일이 recent_min 분 이내 수정되었으면 True"""
+    """Returns True if the log file was modified within recent_min minutes."""
     if not log_subdir:
         return False
     log_path = LOGS / log_subdir / f"{exp_template}_s{seed}.log"
@@ -145,22 +145,22 @@ GROUP_LABELS = {
 
 
 def main():
-    parser = argparse.ArgumentParser(description="실험 진행 현황 확인")
+    parser = argparse.ArgumentParser(description="Experiment progress checker")
     parser.add_argument("--group", nargs="*", choices=list(GROUP_LABELS.keys()),
-                        help="특정 그룹만 확인 (기본: 전체)")
+                        help="Show specific groups only (default: all)")
     parser.add_argument("--seeds", nargs="*", type=int, default=None,
-                        help="확인할 seed 목록 (기본: 1-10)")
+                        help="Seeds to check (default: 1-10)")
     parser.add_argument("--recent", type=int, default=10,
-                        help="RUNNING 판단 기준: 로그 최근 수정 분 (기본: 10)")
+                        help="Minutes threshold for RUNNING detection (default: 10)")
     parser.add_argument("--verbose", "-v", action="store_true",
-                        help="미완료 실험 목록 출력")
+                        help="List incomplete seeds per experiment")
     args = parser.parse_args()
 
     seeds = args.seeds or SEEDS_ALL
     target_groups = set(args.group) if args.group else set(GROUP_LABELS.keys())
 
-    # ── 그룹별 집계 ──────────────────────────────────────────────────────────
-    # key: (group, label, template) → 중복 제거 (e.g., v2_abl_full이 encoder/ablation 양쪽에 등장)
+    # ── Per-group aggregation ─────────────────────────────────────────────────
+    # Deduplicate by (group, template) — e.g. v2_abl_full appears in both encoder and ablation
     seen_templates = set()
     group_data: dict[str, list] = {g: [] for g in GROUPS_ORDER}
 
@@ -188,28 +188,28 @@ def main():
             "status":   seed_status,
         })
 
-    # ── 화면 출력 ─────────────────────────────────────────────────────────────
+    # ── Print output ──────────────────────────────────────────────────────────
     now_str = time.strftime("%Y-%m-%d %H:%M:%S")
     total_done = total_run = total_pend = 0
 
     print()
     print("=" * 70)
-    print(f"  실험 진행 현황   (seeds: {seeds[0]}–{seeds[-1]},  recent={args.recent}min)")
+    print(f"  Experiment Progress   (seeds: {seeds[0]}–{seeds[-1]},  recent={args.recent}min)")
     print(f"  {now_str}")
     print("=" * 70)
 
-    # ── Pretraining checkpoint 상태 ───────────────────────────────────────
+    # ── Pretraining checkpoint status ─────────────────────────────────────
     if "pretraining" in target_groups:
         pt_done = sum(1 for s, _ in PRETRAIN_STRATEGIES if pretrain_done(s))
         pt_total = len(PRETRAIN_STRATEGIES)
         print()
-        print(f"  [Pretrain checkpoints]  {bar(pt_done, pt_total)}  ({pt_done}/{pt_total} 완료)")
+        print(f"  [Pretrain checkpoints]  {bar(pt_done, pt_total)}  ({pt_done}/{pt_total} done)")
         if args.verbose or pt_done < pt_total:
             for strat, flags in PRETRAIN_STRATEGIES:
                 mark = "✓" if pretrain_done(strat) else "✗"
                 print(f"    {mark}  v2_ptm_{strat:<20}  {flags}")
 
-    # ── 그룹별 현황 ───────────────────────────────────────────────────────
+    # ── Per-group status ───────────────────────────────────────────────────
     for group in GROUPS_ORDER:
         if group not in target_groups:
             continue
@@ -231,12 +231,11 @@ def main():
 
         print()
         print(f"  ── {GROUP_LABELS[group]} ──")
-        print(f"     진행률: {bar(g_done, g_total)}  "
+        print(f"     Progress: {bar(g_done, g_total)}  "
               f"(done={g_done}, running={g_run}, pending={g_pend})")
 
-        # 각 실험별 seed 현황
         seed_header = "  ".join(f"s{s:02d}" for s in seeds)
-        print(f"     {'모델':<28}  {seed_header}")
+        print(f"     {'Model':<28}  {seed_header}")
         print(f"     {'-'*28}  {'-'*5*n_seeds}")
         for r in rows:
             marks = []
@@ -250,20 +249,20 @@ def main():
             if args.verbose:
                 pending_seeds = [s for s in seeds if r["status"].get(s) != "done"]
                 if pending_seeds:
-                    print(f"       └─ 미완료 seeds: {pending_seeds}")
+                    print(f"       └─ pending seeds: {pending_seeds}")
 
-    # ── 전체 요약 ─────────────────────────────────────────────────────────
+    # ── Overall summary ────────────────────────────────────────────────────
     grand_total = total_done + total_run + total_pend
     print()
     print("=" * 70)
-    print(f"  전체 요약: {bar(total_done, grand_total, 30)}")
+    print(f"  Overall: {bar(total_done, grand_total, 30)}")
     print(f"    done={total_done}  running={total_run}  pending={total_pend}  "
           f"total={grand_total}")
     print("=" * 70)
     print()
 
-    # ── 현재 실행 중인 Python 프로세스 ────────────────────────────────────
-    print("  [현재 실행 중인 프로세스]")
+    # ── Currently running processes ────────────────────────────────────────
+    print("  [Running processes]")
     result = os.popen("ps aux | grep 'python training\\|python pretraining' | grep -v grep").read().strip()
     if result:
         for line in result.splitlines():
@@ -272,7 +271,6 @@ def main():
             cpu  = parts[2]
             mem  = parts[3]
             cmd  = " ".join(parts[10:])
-            # exp name 추출
             exp_name = ""
             if "--exp" in cmd:
                 idx = cmd.split().index("--exp")
@@ -283,7 +281,7 @@ def main():
                 gpu_val = "GPU" + cmd.split()[idx + 1] if idx + 1 < len(cmd.split()) else ""
             print(f"    PID={pid:<7} {gpu_val:<5} CPU={cpu}%  MEM={mem}%  exp={exp_name}")
     else:
-        print("    (실행 중인 실험 없음)")
+        print("    (no running experiments)")
     print()
 
 
