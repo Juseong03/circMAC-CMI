@@ -24,7 +24,11 @@
 set -e
 
 GPU=${1:-0}
-SEEDS=(1 2 3)
+if [ -n "${SEEDS_OVERRIDE:-}" ]; then
+    read -r -a SEEDS <<< "$SEEDS_OVERRIDE"
+else
+    SEEDS=(1 2 3)
+fi
 TASK="sites"
 
 D_MODEL=128; N_LAYER=6; MAX_LEN=1022
@@ -43,7 +47,7 @@ echo "========================================"
 run_ft() {
     local MODEL=$1 EXP=$2 LOG=$3; shift 3
     TOTAL=$((TOTAL+1))
-    if find "saved_models/${MODEL}/${EXP}" -name "training.json" 2>/dev/null | grep -q .; then
+    if find "saved_models/${MODEL}/${EXP}" -name "model.pth" 2>/dev/null | grep -q .; then
         echo "[SKIP] $EXP"; SKIPPED=$((SKIPPED+1)); return 0; fi
     RAN=$((RAN+1)); echo "[RUN]  $EXP"
     python training.py \
@@ -87,7 +91,7 @@ for INTERACTION in cross_attn concat elementwise; do
     for SEED in "${SEEDS[@]}"; do
         EXP="v2_int_${INTERACTION}_s${SEED}"
         TOTAL=$((TOTAL+1))
-        if find "saved_models/circmac/${EXP}" -name "training.json" 2>/dev/null | grep -q .; then
+        if find "saved_models/circmac/${EXP}" -name "model.pth" 2>/dev/null | grep -q .; then
             echo "[SKIP] $EXP"; SKIPPED=$((SKIPPED+1)); continue; fi
         RAN=$((RAN+1)); echo "[RUN]  $EXP"
         python training.py \
@@ -111,7 +115,7 @@ for HEAD in conv1d linear; do
     for SEED in "${SEEDS[@]}"; do
         EXP="v2_head_${HEAD}_s${SEED}"
         TOTAL=$((TOTAL+1))
-        if find "saved_models/circmac/${EXP}" -name "training.json" 2>/dev/null | grep -q .; then
+        if find "saved_models/circmac/${EXP}" -name "model.pth" 2>/dev/null | grep -q .; then
             echo "[SKIP] $EXP"; SKIPPED=$((SKIPPED+1)); continue; fi
         RAN=$((RAN+1)); echo "[RUN]  $EXP"
         python training.py \

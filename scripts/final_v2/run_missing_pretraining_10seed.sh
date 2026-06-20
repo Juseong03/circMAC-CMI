@@ -10,7 +10,7 @@
 #   v2_pt_mlm_cpcl_ssp — MLM + CPCL + SSP
 #
 # 각 전략: pretrain (seed=42) → finetune × 10 seeds
-# Skip logic: pretrain은 model.pth 존재 여부, finetune은 training.json 존재 여부
+# Skip logic: pretrain은 model.pth 존재 여부, finetune은 model.pth 존재 여부
 #
 # Usage:
 #   ./scripts/final_v2/run_missing_pretraining_10seed.sh [GPU_ID]
@@ -78,7 +78,7 @@ run_finetune() {
     for SEED in "${SEEDS[@]}"; do
         local EXP="v2_pt_${STRATEGY}_s${SEED}"
         TOTAL=$((TOTAL+1))
-        if find "saved_models/circmac/${EXP}" -name "training.json" 2>/dev/null | grep -q .; then
+        if find "saved_models/circmac/${EXP}" -name "model.pth" 2>/dev/null | grep -q .; then
             echo "[SKIP] finetune: $EXP"
             SKIPPED=$((SKIPPED+1))
             continue

@@ -31,7 +31,11 @@
 set -e
 
 GPU=${1:-0}
-SEEDS=(1 2 3)
+if [ -n "${SEEDS_OVERRIDE:-}" ]; then
+    read -r -a SEEDS <<< "$SEEDS_OVERRIDE"
+else
+    SEEDS=(1 2 3)
+fi
 TASK="sites"
 
 D_MODEL=128; N_LAYER=6; MAX_LEN=1022
@@ -52,7 +56,7 @@ run_abl() {
     for SEED in "${SEEDS[@]}"; do
         local EXP="v2_abl_${VARIANT}_s${SEED}"
         TOTAL=$((TOTAL+1))
-        if find "saved_models/circmac/${EXP}" -name "training.json" 2>/dev/null | grep -q .; then
+        if find "saved_models/circmac/${EXP}" -name "model.pth" 2>/dev/null | grep -q .; then
             echo "[SKIP] $EXP"; SKIPPED=$((SKIPPED+1)); continue; fi
         RAN=$((RAN+1)); echo "[RUN]  $EXP"
         python training.py \

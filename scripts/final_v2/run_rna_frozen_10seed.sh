@@ -48,7 +48,7 @@ for MODEL in rnabert rnaernie rnafm rnamsm; do
     for SEED in "${SEEDS[@]}"; do
         EXP="exp1_fair_frozen_${MODEL}_s${SEED}"
         TOTAL=$((TOTAL+1))
-        if find "saved_models/${MODEL}/${EXP}" -name "training.json" 2>/dev/null | grep -q .; then
+        if find "saved_models/${MODEL}/${EXP}" -name "model.pth" 2>/dev/null | grep -q .; then
             echo "[SKIP] $EXP"; SKIPPED=$((SKIPPED+1)); continue; fi
         RAN=$((RAN+1)); echo "[RUN]  $EXP"
         python training.py \
