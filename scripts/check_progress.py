@@ -125,7 +125,8 @@ def pretrain_done(strategy: str) -> bool:
 
 def bar(done: int, total: int, width: int = 20) -> str:
     filled = int(width * done / total) if total else 0
-    return f"[{'█' * filled}{'░' * (width - filled)}] {done:>3}/{total}"
+    pct = int(100 * done / total) if total else 0
+    return f"[{'#' * filled}{'-' * (width - filled)}] {done:>3}/{total} ({pct}%)"
 
 
 GROUPS_ORDER = [
@@ -206,7 +207,7 @@ def main():
         print(f"  [Pretrain checkpoints]  {bar(pt_done, pt_total)}  ({pt_done}/{pt_total} done)")
         if args.verbose or pt_done < pt_total:
             for strat, flags in PRETRAIN_STRATEGIES:
-                mark = "✓" if pretrain_done(strat) else "✗"
+                mark = "[Y]" if pretrain_done(strat) else "[ ]"
                 print(f"    {mark}  v2_ptm_{strat:<20}  {flags}")
 
     # ── Per-group status ───────────────────────────────────────────────────
@@ -241,9 +242,9 @@ def main():
             marks = []
             for s in seeds:
                 st = r["status"].get(s, "pending")
-                if st == "done":      marks.append(" ✓ ")
-                elif st == "running": marks.append("[→]")
-                else:                 marks.append(" · ")
+                if st == "done":      marks.append(" O ")
+                elif st == "running": marks.append("[>]")
+                else:                 marks.append(" . ")
             print(f"     {r['label']:<28}  {'  '.join(marks)}")
 
             if args.verbose:
