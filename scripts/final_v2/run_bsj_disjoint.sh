@@ -10,7 +10,7 @@ TEST_FILE="./data/df_test_bsj_disjoint.pkl"
 if [ -n "${SEEDS_OVERRIDE:-}" ]; then
     read -r -a SEEDS <<< "$SEEDS_OVERRIDE"
 else
-    SEEDS=(1 2 3 4 5 6 7 8 9 10)
+    SEEDS=(1 2 3)
 fi
 
 echo "=== BSJ-DISJOINT CircMAC training (GPU=$GPU) ==="
