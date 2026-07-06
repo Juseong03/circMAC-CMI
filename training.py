@@ -46,8 +46,10 @@ def experiment(args_dict: dict) -> None:
         df = pd.read_json('./data/binding_RBP.json')
     elif target == 'mirna':
         max_len = check_max_len(args_dict['max_len'], args_dict['model_name'])
-        df = pd.read_pickle(f'./data/df_train_final.pkl')
-        df_test = pd.read_pickle(f'./data/df_test_final.pkl')
+        train_file = args_dict.get('train_file') or './data/df_train_final.pkl'
+        test_file  = args_dict.get('test_file')  or './data/df_test_final.pkl'
+        df = pd.read_pickle(train_file)
+        df_test = pd.read_pickle(test_file)
     else:
         raise ValueError(f"Unrecognized target: '{target}'")
     
@@ -231,6 +233,12 @@ if __name__ == '__main__':
     parser.add_argument('--verbose', action='store_true', help='Verbose output')
     parser.add_argument('--device', type=int, default=-1, help='Device ID (-1 for CPU, 0~N for GPU)')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
+
+    # Data file overrides (for disjoint splits)
+    parser.add_argument('--train_file', type=str, default=None,
+                        help='Override training data pkl (default: data/df_train_final.pkl)')
+    parser.add_argument('--test_file', type=str, default=None,
+                        help='Override test data pkl (default: data/df_test_final.pkl)')
 
     # Experiment and model loading settings
     parser.add_argument('--exp', type=str, default=None, help='Experiment name (optional)')
