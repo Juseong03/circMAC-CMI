@@ -49,14 +49,22 @@ N_LAYER = 6
 BS      = 32
 WORKERS = 4
 
-# (split_prefix, model_name, label, test_file)
+# (split_prefix, model_name, exp_prefix, label, test_file)
 EXPERIMENTS = [
-    ("iso", "circmac", "CircMAC",  "df_test_iso_disjoint.pkl"),
-    ("iso", "hymba",   "Hymba",    "df_test_iso_disjoint.pkl"),
-    ("iso", "mamba",   "Mamba",    "df_test_iso_disjoint.pkl"),
-    ("bsj", "circmac", "CircMAC",  "df_test_bsj_disjoint.pkl"),
-    ("bsj", "hymba",   "Hymba",    "df_test_bsj_disjoint.pkl"),
-    ("bsj", "mamba",   "Mamba",    "df_test_bsj_disjoint.pkl"),
+    ("iso", "circmac", "iso_circmac",    "CircMAC",         "df_test_iso_disjoint.pkl"),
+    ("iso", "hymba",   "iso_hymba",      "Hymba",           "df_test_iso_disjoint.pkl"),
+    ("iso", "mamba",   "iso_mamba",      "Mamba",           "df_test_iso_disjoint.pkl"),
+    ("iso", "rnabert", "iso_rnabert_ft", "RNABERT (ft)",    "df_test_iso_disjoint.pkl"),
+    ("iso", "rnaernie","iso_rnaernie_ft","RNAErnie (ft)",   "df_test_iso_disjoint.pkl"),
+    ("iso", "rnamsm",  "iso_rnamsm_ft",  "RNAMSM (ft)",     "df_test_iso_disjoint.pkl"),
+    ("iso", "rnafm",   "iso_rnafm_ft",   "RNA-FM (ft)",     "df_test_iso_disjoint.pkl"),
+    ("bsj", "circmac", "bsj_circmac",    "CircMAC",         "df_test_bsj_disjoint.pkl"),
+    ("bsj", "hymba",   "bsj_hymba",      "Hymba",           "df_test_bsj_disjoint.pkl"),
+    ("bsj", "mamba",   "bsj_mamba",      "Mamba",           "df_test_bsj_disjoint.pkl"),
+    ("bsj", "rnabert", "bsj_rnabert_ft", "RNABERT (ft)",    "df_test_bsj_disjoint.pkl"),
+    ("bsj", "rnaernie","bsj_rnaernie_ft","RNAErnie (ft)",   "df_test_bsj_disjoint.pkl"),
+    ("bsj", "rnamsm",  "bsj_rnamsm_ft",  "RNAMSM (ft)",     "df_test_bsj_disjoint.pkl"),
+    ("bsj", "rnafm",   "bsj_rnafm_ft",   "RNA-FM (ft)",     "df_test_bsj_disjoint.pkl"),
 ]
 
 
@@ -112,6 +120,9 @@ def _get_ckpt_vocab_size(model_path):
     return None
 
 
+LM_MODELS = {"rnabert", "rnaernie", "rnamsm", "rnafm"}
+
+
 def build_trainer(model_name, exp, seed, model_path, device):
     trainer = Trainer(seed=seed, device=device,
                       experiment_name=exp, verbose=False)
@@ -121,6 +132,8 @@ def build_trainer(model_name, exp, seed, model_path, device):
         verbose=False, rc=False,
         **({} if ckpt_vocab is None else {"vocab_size": ckpt_vocab}),
     )
+    if model_name in LM_MODELS:
+        config.trainable = True
     trainer.define_model(
         config=config, model_name=model_name, pretrain=False,
         pooling_mode_target="mean", is_convblock=True,
@@ -128,6 +141,8 @@ def build_trainer(model_name, exp, seed, model_path, device):
         use_unified_head=False, binding_pooling="mean",
         site_head_type="conv1d",
     )
+    if model_name in LM_MODELS:
+        trainer.define_pretrained_model(model_name=model_name)
     trainer.set_pretrained_target(target="mirna", rna_model="rnabert")
     trainer.task = "sites"
     trainer.site_class_weights = None
@@ -152,14 +167,14 @@ def extract_preds(tensors):
     return labels_flat[valid].astype(np.int8), probs_flat[valid].astype(np.float32)
 
 
-def evaluate(trainer, df_train_raw, df_test_raw, seed, device):
+def evaluate(trainer, df_train_raw, df_test_raw, seed, device, bs=BS):
     df_tr = df_train_raw[df_train_raw["length"] <= MAX_LEN].reset_index(drop=True)
     df_te = df_test_raw[df_test_raw["length"]   <= MAX_LEN].reset_index(drop=True)
     _, _, test_ds, _ = prepare_datasets(
         df=df_tr, df_test=df_te,
         max_len=MAX_LEN + 2, target="mirna", seed=seed, kmer=1,
     )
-    trainer.set_dataloader(test_ds, part=2, batch_size=BS,
+    trainer.set_dataloader(test_ds, part=2, batch_size=bs,
                            num_workers=WORKERS, shuffle=False)
     try:
         _, tensors, _ = trainer.step_loader(
@@ -207,12 +222,16 @@ def main():
 
     rows = []
 
-    for split_pfx, model_name, label, _ in EXPERIMENTS:
+    LM_MODELS = {"rnabert", "rnaernie", "rnamsm", "rnafm"}
+
+    for split_pfx, model_name, exp_pfx, label, _ in EXPERIMENTS:
         print(f"\n=== {split_pfx.upper()} / {label} ===")
         df_train, df_test = dfs[split_pfx]
 
+        bs = 8 if model_name in LM_MODELS else BS
+
         for seed in args.seeds:
-            exp        = f"{split_pfx}_{model_name}_s{seed}"
+            exp        = f"{exp_pfx}_s{seed}"
             model_path = SAVED / model_name / exp / str(seed) / "train" / "model.pth"
             if not model_path.exists():
                 print(f"  [SKIP] {exp} — not found")
@@ -225,7 +244,7 @@ def main():
                 print(f"  [ERROR] {e}")
                 continue
 
-            metrics = evaluate(trainer, df_train, df_test, seed, args.device)
+            metrics = evaluate(trainer, df_train, df_test, seed, args.device, bs=bs)
             del trainer
             torch.cuda.empty_cache()
 

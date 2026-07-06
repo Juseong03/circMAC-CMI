@@ -1,6 +1,8 @@
 #!/bin/bash
 # run_iso_baseline.sh
-# Train strongest baselines (Hymba, Mamba) on isoform-disjoint split × 10 seeds
+# Train all baselines on isoform-disjoint split × 3 seeds
+#   Encoders : hymba, mamba  (batch=128)
+#   RNA-LMs  : rnabert, rnaernie, rnamsm, rnafm (batch=8, --trainable_pretrained)
 # Usage: bash scripts/final_v2/run_iso_baseline.sh <GPU>
 
 GPU=${1:-0}
@@ -14,7 +16,9 @@ else
 fi
 
 echo "=== ISO-DISJOINT Baseline training (GPU=$GPU) ==="
+echo "    seeds: ${SEEDS[*]}"
 
+# ── Encoder baselines (fast) ───────────────────────────────────────────────
 for MODEL in hymba mamba; do
     for SEED in "${SEEDS[@]}"; do
         EXP="iso_${MODEL}_s${SEED}"
@@ -34,6 +38,33 @@ for MODEL in hymba mamba; do
             --batch_size 128 \
             --interaction cross_attention \
             --max_len 1022 \
+            --train_file "$TRAIN_FILE" \
+            --test_file  "$TEST_FILE" \
+            --exp "$EXP"
+    done
+done
+
+# ── RNA-LM baselines (fine-tuned, slow) ───────────────────────────────────
+for MODEL in rnabert rnaernie rnamsm rnafm; do
+    for SEED in "${SEEDS[@]}"; do
+        EXP="iso_${MODEL}_ft_s${SEED}"
+        CKPT=$(find saved_models/${MODEL}/${EXP} -name "model.pth" 2>/dev/null | head -1)
+        if [ -n "$CKPT" ]; then
+            echo "  [SKIP] $EXP"
+            continue
+        fi
+        echo "  [RUN]  $EXP"
+        python training.py \
+            --model_name $MODEL \
+            --device $GPU \
+            --task sites \
+            --seed $SEED \
+            --d_model 128 \
+            --n_layer 6 \
+            --batch_size 8 \
+            --interaction cross_attention \
+            --max_len 1022 \
+            --trainable_pretrained \
             --train_file "$TRAIN_FILE" \
             --test_file  "$TEST_FILE" \
             --exp "$EXP"
