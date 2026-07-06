@@ -83,6 +83,16 @@ EXPERIMENTS = [
     ("rna_trainable", "RNAErnie (ft)", "rnaernie", "exp1_fair_trainable_rnaernie", "rna_trainable"),
     ("rna_trainable", "RNA-MSM (ft)",  "rnamsm",   "exp1_fair_trainable_rnamsm",   "rna_trainable"),
     ("rna_trainable", "RNA-FM (ft)",   "rnafm",    "exp1_fair_trainable_rnafm",    "rna_trainable"),
+
+    # ── Isoform-disjoint split ────────────────────────────────────────────
+    ("iso_disjoint", "CircMAC", "circmac", "iso_circmac", None),
+    ("iso_disjoint", "Hymba",   "hymba",   "iso_hymba",   None),
+    ("iso_disjoint", "Mamba",   "mamba",   "iso_mamba",   None),
+
+    # ── BSJ-disjoint split ────────────────────────────────────────────────
+    ("bsj_disjoint", "CircMAC", "circmac", "bsj_circmac", None),
+    ("bsj_disjoint", "Hymba",   "hymba",   "bsj_hymba",   None),
+    ("bsj_disjoint", "Mamba",   "mamba",   "bsj_mamba",   None),
 ]
 
 # ── Pretraining checkpoints (model.pth, seed=42) ─────────────────────────────
@@ -132,6 +142,7 @@ def bar(done: int, total: int, width: int = 20) -> str:
 GROUPS_ORDER = [
     "encoder", "ablation", "interaction", "site_head",
     "pretraining", "rna_frozen", "rna_trainable",
+    "iso_disjoint", "bsj_disjoint",
 ]
 
 GROUP_LABELS = {
@@ -142,6 +153,8 @@ GROUP_LABELS = {
     "pretraining":  "EXP2  Pretraining Strategy",
     "rna_frozen":   "EXP1  RNA-LM Frozen",
     "rna_trainable":"EXP1  RNA-LM Trainable",
+    "iso_disjoint": "REV   Isoform-Disjoint Split",
+    "bsj_disjoint": "REV   BSJ-Disjoint Split",
 }
 
 
