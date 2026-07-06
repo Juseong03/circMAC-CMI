@@ -1,0 +1,4 @@
+comparison,shared_pairs,shared_isoforms,pct_isoform_in_A,pct_isoform_in_B,shared_BSJs,shared_host_genes,shared_miRNAs,unique_isoforms_A,unique_isoforms_B,unique_BSJs_A,unique_BSJs_B
+Train vs Validation,0,1898,18.166156202143952,75.82900519376749,1941,47,919,10448,2503,8967,2382
+Train vs Test,0,4458,42.668453292496174,69.11627906976744,4393,47,1552,10448,6450,8967,5832
+Validation vs Test,0,1558,62.245305633240115,24.155038759689923,1613,47,872,2503,6450,2382,5832

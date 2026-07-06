@@ -1,0 +1,115 @@
+
+======================================================================
+  2. LENGTH FILTERING STATISTICS
+======================================================================
+  Raw pairs (before 150-1000 nt filter) :     72,606
+  Unique isoforms (raw)                  :      16897
+  Pairs within 150-1000 nt               :     72,606  (100.0%)
+  Median length (raw)                    :        603 nt
+  Mean   length (raw)                    :      600.7 nt
+  Min    length (raw)                    :        150 nt
+  Max    length (raw)                    :       1000 nt
+
+  → Saved raw length distribution: /workspace/volume/cmi_mac/results/revision/length_dist_raw.csv
+
+  After filtering (train+test)           :     62,980 pairs
+  Median length (filtered)               :        611 nt
+  Mean   length (filtered)               :      606.9 nt
+  Min    length (filtered)               :        150 nt
+  Max    length (filtered)               :       1000 nt
+  Pair retention rate                    :       86.7%
+
+======================================================================
+  3. TRAIN/VAL/TEST SPLIT LEAKAGE
+======================================================================
+  Current split type: PAIR-DISJOINT (isoform leakage present)
+
+  Train vs Validation
+    Shared exact pairs      :      0
+    Shared circRNA isoforms :   1898  (18.2% of A,  75.8% of B)
+    Shared BSJs             :   1941
+    Shared host genes       :     47
+    Shared miRNAs           :    919
+
+  Train vs Test
+    Shared exact pairs      :      0
+    Shared circRNA isoforms :   4458  (42.7% of A,  69.1% of B)
+    Shared BSJs             :   4393
+    Shared host genes       :     47
+    Shared miRNAs           :   1552
+
+  Validation vs Test
+    Shared exact pairs      :      0
+    Shared circRNA isoforms :   1558  (62.2% of A,  24.2% of B)
+    Shared BSJs             :   1613
+    Shared host genes       :     47
+    Shared miRNAs           :    872
+
+  → Saved split overlap: /workspace/volume/cmi_mac/results/revision/split_overlap.csv
+
+======================================================================
+  6. MULTI-SITE BINDING PAIRS
+======================================================================
+  Positive test pairs total  :   7,838
+  Zero-site pairs (anomaly)  :       0
+  Single-site pairs          :   7,838  (100.0%)
+  Multi-site pairs (>=2)     :       0  (0.0%)
+  Max annotated sites/pair   :       1
+
+  Top multi-site examples:
+    chr6|130955105,130955994|130955317,130956499|-  x  hsa-miR-6810-3p  —  1 sites  (len=719)
+    chr1|35901474,35901948,35902204|35901593,35902079,35902337|+  x  hsa-miR-1231  —  1 sites  (len=386)
+    chr12|101356554,101356926,101361962,101363576,101365459,101366558|101356693,101357082,101362060,101363743,101365625,101366699|+  x  hsa-miR-6812-5p  —  1 sites  (len=873)
+    chr1|112591525,112597971,112600794,112610841|112591603,112598086,112600848,112611003|-  x  hsa-miR-337-3p  —  1 sites  (len=413)
+    chr22|40868999,40870048,40881770,40882155|40869115,40870139,40881823,40882177|+  x  hsa-miR-3620-5p  —  1 sites  (len=286)
+
+  → Saved multisite stats: /workspace/volume/cmi_mac/results/revision/multisite_stats.csv
+
+======================================================================
+  7. LABEL SPARSITY
+======================================================================
+  Total nucleotides (all pairs)          :   38,221,834
+  Positive nucleotides (binding=1 pairs) :      855,272
+  Global positive ratio                  :        2.24%
+
+  Per-pair positive ratio (binding=1):
+    Median :     5.90%
+    Mean   :     6.88%
+    Min    :     0.70%
+    Max    :    25.82%
+
+  Binding segment lengths (nt):
+    Count  :   27,563
+    Median :     31.0
+    Mean   :     31.0
+    Min    :        5
+    Max    :       71
+
+  → Saved label sparsity: /workspace/volume/cmi_mac/results/revision/label_sparsity.csv
+
+======================================================================
+  9. DATASET SUMMARY TABLE
+======================================================================
+  Statistic                                             Value
+  ----------------------------------------------------------
+  Full-length isoforms before filtering                16,897
+  Pairs before filtering                               72,606
+  Full-length isoforms after filtering                 12,870
+  Pairs after filtering (total)                        62,980
+    Training pairs (pos / neg)                         40,744  (17,711 / 23,033)
+    Validation pairs (pos / neg)                        4,528  (1,963 / 2,565)
+    Test pairs (pos / neg)                             17,708  (7,838 / 9,870)
+  Unique circRNA isoforms                              12,870
+  Unique BSJs                                          10,695
+  Unique host genes (chrom+strand)                         48
+  Unique mature miRNAs                                  2,009
+  Median circRNA length (filtered)                       611 nt
+  Mean circRNA length (filtered)                       606.9 nt
+  Median miRNA length                                     N/A
+  Total nucleotides                                38,221,834
+  Positive nucleotides                                855,272
+  Positive nucleotide ratio                             2.24%
+  Median binding-site length                            31.0 nt
+  Multi-site pair proportion (test, pos)                 0.0%
+
+  All results saved to: /workspace/volume/cmi_mac/results/revision/
