@@ -32,6 +32,7 @@ for SEED in "${SEEDS[@]}"; do
         --trainable_pretrained \
         --train_file "$TRAIN_FILE" \
         --test_file  "$TEST_FILE" \
+        --verbose \
         --exp "$EXP"
 done
 

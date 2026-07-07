@@ -31,6 +31,7 @@ for SEED in "${SEEDS[@]}"; do
         --max_len 1022 \
         --train_file "$TRAIN_FILE" \
         --test_file  "$TEST_FILE" \
+        --verbose \
         --exp "$EXP"
 done
 
