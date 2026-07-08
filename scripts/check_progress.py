@@ -85,22 +85,26 @@ EXPERIMENTS = [
     ("rna_trainable", "RNA-FM (ft)",   "rnafm",    "exp1_fair_trainable_rnafm",    "rna_trainable"),
 
     # ── Isoform-disjoint split ────────────────────────────────────────────
-    ("iso_disjoint", "CircMAC",        "circmac", "iso_circmac",     None),
-    ("iso_disjoint", "Hymba",          "hymba",   "iso_hymba",       None),
-    ("iso_disjoint", "Mamba",          "mamba",   "iso_mamba",       None),
-    ("iso_disjoint", "RNABERT (ft)",   "rnabert", "iso_rnabert_ft",  None),
-    ("iso_disjoint", "RNAErnie (ft)",  "rnaernie","iso_rnaernie_ft", None),
-    ("iso_disjoint", "RNAMSM (ft)",    "rnamsm",  "iso_rnamsm_ft",   None),
-    ("iso_disjoint", "RNA-FM (ft)",    "rnafm",   "iso_rnafm_ft",    None),
+    ("iso_disjoint", "CircMAC",        "circmac",     "iso_circmac",     None),
+    ("iso_disjoint", "Hymba",          "hymba",       "iso_hymba",       None),
+    ("iso_disjoint", "Mamba",          "mamba",       "iso_mamba",       None),
+    ("iso_disjoint", "LSTM",           "lstm",        "iso_lstm",        None),
+    ("iso_disjoint", "Transformer",    "transformer", "iso_transformer", None),
+    ("iso_disjoint", "RNABERT (ft)",   "rnabert",     "iso_rnabert_ft",  None),
+    ("iso_disjoint", "RNAErnie (ft)",  "rnaernie",    "iso_rnaernie_ft", None),
+    ("iso_disjoint", "RNAMSM (ft)",    "rnamsm",      "iso_rnamsm_ft",   None),
+    ("iso_disjoint", "RNA-FM (ft)",    "rnafm",       "iso_rnafm_ft",    None),
 
     # ── BSJ-disjoint split ────────────────────────────────────────────────
-    ("bsj_disjoint", "CircMAC",        "circmac", "bsj_circmac",     None),
-    ("bsj_disjoint", "Hymba",          "hymba",   "bsj_hymba",       None),
-    ("bsj_disjoint", "Mamba",          "mamba",   "bsj_mamba",       None),
-    ("bsj_disjoint", "RNABERT (ft)",   "rnabert", "bsj_rnabert_ft",  None),
-    ("bsj_disjoint", "RNAErnie (ft)",  "rnaernie","bsj_rnaernie_ft", None),
-    ("bsj_disjoint", "RNAMSM (ft)",    "rnamsm",  "bsj_rnamsm_ft",   None),
-    ("bsj_disjoint", "RNA-FM (ft)",    "rnafm",   "bsj_rnafm_ft",    None),
+    ("bsj_disjoint", "CircMAC",        "circmac",     "bsj_circmac",     None),
+    ("bsj_disjoint", "Hymba",          "hymba",       "bsj_hymba",       None),
+    ("bsj_disjoint", "Mamba",          "mamba",       "bsj_mamba",       None),
+    ("bsj_disjoint", "LSTM",           "lstm",        "bsj_lstm",        None),
+    ("bsj_disjoint", "Transformer",    "transformer", "bsj_transformer", None),
+    ("bsj_disjoint", "RNABERT (ft)",   "rnabert",     "bsj_rnabert_ft",  None),
+    ("bsj_disjoint", "RNAErnie (ft)",  "rnaernie",    "bsj_rnaernie_ft", None),
+    ("bsj_disjoint", "RNAMSM (ft)",    "rnamsm",      "bsj_rnamsm_ft",   None),
+    ("bsj_disjoint", "RNA-FM (ft)",    "rnafm",       "bsj_rnafm_ft",    None),
 ]
 
 # ── Pretraining checkpoints (model.pth, seed=42) ─────────────────────────────

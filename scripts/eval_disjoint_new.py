@@ -51,20 +51,24 @@ WORKERS = 4
 
 # (split_prefix, model_name, exp_prefix, label, test_file)
 EXPERIMENTS = [
-    ("iso", "circmac", "iso_circmac",    "CircMAC",         "df_test_iso_disjoint.pkl"),
-    ("iso", "hymba",   "iso_hymba",      "Hymba",           "df_test_iso_disjoint.pkl"),
-    ("iso", "mamba",   "iso_mamba",      "Mamba",           "df_test_iso_disjoint.pkl"),
-    ("iso", "rnabert", "iso_rnabert_ft", "RNABERT (ft)",    "df_test_iso_disjoint.pkl"),
-    ("iso", "rnaernie","iso_rnaernie_ft","RNAErnie (ft)",   "df_test_iso_disjoint.pkl"),
-    ("iso", "rnamsm",  "iso_rnamsm_ft",  "RNAMSM (ft)",     "df_test_iso_disjoint.pkl"),
-    ("iso", "rnafm",   "iso_rnafm_ft",   "RNA-FM (ft)",     "df_test_iso_disjoint.pkl"),
-    ("bsj", "circmac", "bsj_circmac",    "CircMAC",         "df_test_bsj_disjoint.pkl"),
-    ("bsj", "hymba",   "bsj_hymba",      "Hymba",           "df_test_bsj_disjoint.pkl"),
-    ("bsj", "mamba",   "bsj_mamba",      "Mamba",           "df_test_bsj_disjoint.pkl"),
-    ("bsj", "rnabert", "bsj_rnabert_ft", "RNABERT (ft)",    "df_test_bsj_disjoint.pkl"),
-    ("bsj", "rnaernie","bsj_rnaernie_ft","RNAErnie (ft)",   "df_test_bsj_disjoint.pkl"),
-    ("bsj", "rnamsm",  "bsj_rnamsm_ft",  "RNAMSM (ft)",     "df_test_bsj_disjoint.pkl"),
-    ("bsj", "rnafm",   "bsj_rnafm_ft",   "RNA-FM (ft)",     "df_test_bsj_disjoint.pkl"),
+    ("iso", "circmac",     "iso_circmac",     "CircMAC",       "df_test_iso_disjoint.pkl"),
+    ("iso", "hymba",       "iso_hymba",       "Hymba",         "df_test_iso_disjoint.pkl"),
+    ("iso", "mamba",       "iso_mamba",       "Mamba",         "df_test_iso_disjoint.pkl"),
+    ("iso", "lstm",        "iso_lstm",        "LSTM",          "df_test_iso_disjoint.pkl"),
+    ("iso", "transformer", "iso_transformer", "Transformer",   "df_test_iso_disjoint.pkl"),
+    ("iso", "rnabert",     "iso_rnabert_ft",  "RNABERT (ft)",  "df_test_iso_disjoint.pkl"),
+    ("iso", "rnaernie",    "iso_rnaernie_ft", "RNAErnie (ft)", "df_test_iso_disjoint.pkl"),
+    ("iso", "rnamsm",      "iso_rnamsm_ft",   "RNAMSM (ft)",   "df_test_iso_disjoint.pkl"),
+    ("iso", "rnafm",       "iso_rnafm_ft",    "RNA-FM (ft)",   "df_test_iso_disjoint.pkl"),
+    ("bsj", "circmac",     "bsj_circmac",     "CircMAC",       "df_test_bsj_disjoint.pkl"),
+    ("bsj", "hymba",       "bsj_hymba",       "Hymba",         "df_test_bsj_disjoint.pkl"),
+    ("bsj", "mamba",       "bsj_mamba",       "Mamba",         "df_test_bsj_disjoint.pkl"),
+    ("bsj", "lstm",        "bsj_lstm",        "LSTM",          "df_test_bsj_disjoint.pkl"),
+    ("bsj", "transformer", "bsj_transformer", "Transformer",   "df_test_bsj_disjoint.pkl"),
+    ("bsj", "rnabert",     "bsj_rnabert_ft",  "RNABERT (ft)",  "df_test_bsj_disjoint.pkl"),
+    ("bsj", "rnaernie",    "bsj_rnaernie_ft", "RNAErnie (ft)", "df_test_bsj_disjoint.pkl"),
+    ("bsj", "rnamsm",      "bsj_rnamsm_ft",   "RNAMSM (ft)",   "df_test_bsj_disjoint.pkl"),
+    ("bsj", "rnafm",       "bsj_rnafm_ft",    "RNA-FM (ft)",   "df_test_bsj_disjoint.pkl"),
 ]
 
 
