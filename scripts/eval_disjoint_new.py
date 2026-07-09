@@ -51,7 +51,7 @@ WORKERS = 4
 
 # (split_prefix, model_name, exp_prefix, label, test_file)
 EXPERIMENTS = [
-    ("iso", "circmac", "iso_circmac",         "CircMAC (NoPT)",      "df_test_iso_disjoint.pkl"),
+    ("iso", "circmac", "iso_pt_nopt",          "CircMAC (NoPT)",      "df_test_iso_disjoint.pkl"),
     ("iso", "circmac", "iso_pt_mlm",         "CircMAC (MLM)",       "df_test_iso_disjoint.pkl"),
     ("iso", "circmac", "iso_pt_ntp",         "CircMAC (NTP)",       "df_test_iso_disjoint.pkl"),
     ("iso", "circmac", "iso_pt_ssp",         "CircMAC (SSP)",       "df_test_iso_disjoint.pkl"),
@@ -71,7 +71,7 @@ EXPERIMENTS = [
     ("iso", "rnaernie",    "iso_rnaernie_ft", "RNAErnie (ft)", "df_test_iso_disjoint.pkl"),
     ("iso", "rnamsm",      "iso_rnamsm_ft",   "RNAMSM (ft)",   "df_test_iso_disjoint.pkl"),
     ("iso", "rnafm",       "iso_rnafm_ft",    "RNA-FM (ft)",   "df_test_iso_disjoint.pkl"),
-    ("bsj", "circmac", "bsj_circmac",         "CircMAC (NoPT)",      "df_test_bsj_disjoint.pkl"),
+    ("bsj", "circmac", "bsj_pt_nopt",          "CircMAC (NoPT)",      "df_test_bsj_disjoint.pkl"),
     ("bsj", "circmac", "bsj_pt_mlm",         "CircMAC (MLM)",       "df_test_bsj_disjoint.pkl"),
     ("bsj", "circmac", "bsj_pt_ntp",         "CircMAC (NTP)",       "df_test_bsj_disjoint.pkl"),
     ("bsj", "circmac", "bsj_pt_ssp",         "CircMAC (SSP)",       "df_test_bsj_disjoint.pkl"),

@@ -85,7 +85,7 @@ EXPERIMENTS = [
     ("rna_trainable", "RNA-FM (ft)",   "rnafm",    "exp1_fair_trainable_rnafm",    "rna_trainable"),
 
     # ── Isoform-disjoint split ────────────────────────────────────────────
-    ("iso_disjoint", "CircMAC (NoPT)", "circmac",     "iso_circmac",        None),
+    ("iso_disjoint", "CircMAC (NoPT)", "circmac",     "iso_pt_nopt",        None),
     ("iso_disjoint", "CircMAC (MLM)",  "circmac",     "iso_pt_mlm",         None),
     ("iso_disjoint", "CircMAC (NTP)",  "circmac",     "iso_pt_ntp",         None),
     ("iso_disjoint", "CircMAC (SSP)",  "circmac",     "iso_pt_ssp",         None),
@@ -107,7 +107,7 @@ EXPERIMENTS = [
     ("iso_disjoint", "RNA-FM (ft)",    "rnafm",       "iso_rnafm_ft",    None),
 
     # ── BSJ-disjoint split ────────────────────────────────────────────────
-    ("bsj_disjoint", "CircMAC (NoPT)", "circmac",     "bsj_circmac",        None),
+    ("bsj_disjoint", "CircMAC (NoPT)", "circmac",     "bsj_pt_nopt",        None),
     ("bsj_disjoint", "CircMAC (MLM)",  "circmac",     "bsj_pt_mlm",         None),
     ("bsj_disjoint", "CircMAC (NTP)",  "circmac",     "bsj_pt_ntp",         None),
     ("bsj_disjoint", "CircMAC (SSP)",  "circmac",     "bsj_pt_ssp",         None),
