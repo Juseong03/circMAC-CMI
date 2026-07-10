@@ -41,8 +41,16 @@ def run_miranda_pair(mirna_seq: str, circ_seq: str, pair_id: str,
         tf.write(f">{pair_id}_circ\n{circ_seq.upper().replace('U','T')}\n")
         target_file = tf.name
 
+    MIRANDA = next(
+        (p for p in [
+            "/opt/miranda_env/bin/miranda",
+            "/usr/bin/miranda",
+            "miranda",
+        ] if Path(p).exists() or p == "miranda"),
+        "miranda"
+    )
     cmd = [
-        "miranda", mirna_file, target_file,
+        MIRANDA, mirna_file, target_file,
         "-sc", str(score_thr),
         "-en", str(energy_thr),
         "-quiet",
