@@ -1,7 +1,7 @@
 #!/bin/bash
 # Train CircMAC (pretrain=bsj_mlm) on PAIR split x seeds
 # Requires: saved_models/circmac/v2_ptm_bsj/42/pretrain/model.pth
-# Exp name: pair_pt_bsj_s{seed}
+# Exp name: v2_pt_bsj_s{seed}
 # Usage: bash scripts/final_v2/run_pair_pt_bsj.sh <GPU>
 
 GPU=${1:-0}
@@ -21,7 +21,7 @@ fi
 echo "=== PAIR CircMAC (pt=bsj) GPU=$GPU seeds=${SEEDS[*]} ==="
 
 for SEED in "${SEEDS[@]}"; do
-    EXP="pair_pt_bsj_s${SEED}"
+    EXP="v2_pt_bsj_s${SEED}"
     CKPT=$(find saved_models/circmac/${EXP} -name "model.pth" 2>/dev/null | head -1)
     if [ -n "$CKPT" ]; then echo "  [SKIP] $EXP"; continue; fi
     echo "  [RUN]  $EXP"

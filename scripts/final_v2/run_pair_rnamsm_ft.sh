@@ -1,6 +1,6 @@
 #!/bin/bash
 # Train RNA-MSM (trainable) on PAIR split x seeds
-# Exp name: exp1_rnamsm_trainable_s{seed}
+# Exp name: exp1_fair_trainable_rnamsm_s{seed}
 # Usage: bash scripts/final_v2/run_pair_rnamsm_ft.sh <GPU>
 
 GPU=${1:-0}
@@ -14,7 +14,7 @@ fi
 echo "=== PAIR rnamsm trainable (GPU=$GPU seeds=${SEEDS[*]}) ==="
 
 for SEED in "${SEEDS[@]}"; do
-    EXP="exp1_rnamsm_trainable_s${SEED}"
+    EXP="exp1_fair_trainable_rnamsm_s${SEED}"
     CKPT=$(find saved_models/rnamsm/${EXP} -name "model.pth" 2>/dev/null | head -1)
     if [ -n "$CKPT" ]; then echo "  [SKIP] $EXP"; continue; fi
     echo "  [RUN]  $EXP"

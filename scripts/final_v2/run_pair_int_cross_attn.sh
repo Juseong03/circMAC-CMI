@@ -1,11 +1,9 @@
 #!/bin/bash
-# Train CircMAC (pretrain=pairing) on PAIR split x seeds
-# Requires: saved_models/circmac/v2_ptm_pairing/42/pretrain/model.pth
-# Exp name: v2_pt_pairing_s{seed}
-# Usage: bash scripts/final_v2/run_pair_pt_pairing.sh <GPU>
+# Train CircMAC (interaction=cross_attention) on PAIR split x seeds
+# Exp name: v2_int_cross_attn_s{seed}
+# Usage: bash scripts/final_v2/run_pair_int_cross_attn.sh <GPU>
 
 GPU=${1:-0}
-PT_PATH="saved_models/circmac/v2_ptm_pairing/42/pretrain/model.pth"
 
 if [ -n "${SEEDS_OVERRIDE:-}" ]; then
     read -r -a SEEDS <<< "$SEEDS_OVERRIDE"
@@ -13,15 +11,10 @@ else
     SEEDS=(1 2 3)
 fi
 
-if [ ! -f "$PT_PATH" ]; then
-    echo "[ERROR] Pretrained checkpoint not found: $PT_PATH"
-    exit 1
-fi
-
-echo "=== PAIR CircMAC (pt=pairing) GPU=$GPU seeds=${SEEDS[*]} ==="
+echo "=== PAIR CircMAC interaction=cross_attn (GPU=$GPU seeds=${SEEDS[*]}) ==="
 
 for SEED in "${SEEDS[@]}"; do
-    EXP="v2_pt_pairing_s${SEED}"
+    EXP="v2_int_cross_attn_s${SEED}"
     CKPT=$(find saved_models/circmac/${EXP} -name "model.pth" 2>/dev/null | head -1)
     if [ -n "$CKPT" ]; then echo "  [SKIP] $EXP"; continue; fi
     echo "  [RUN]  $EXP"
@@ -35,9 +28,8 @@ for SEED in "${SEEDS[@]}"; do
         --batch_size 64 \
         --interaction cross_attention \
         --max_len 1022 \
-        --load_pretrained "$PT_PATH" \
         --verbose \
         --exp "$EXP"
 done
 
-echo "=== PAIR CircMAC pt=pairing done ==="
+echo "=== PAIR CircMAC int=cross_attn done ==="

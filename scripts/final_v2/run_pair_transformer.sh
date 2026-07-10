@@ -1,7 +1,6 @@
 #!/bin/bash
-# Train Transformer on PAIR-DISJOINT x seeds
-# Encoder comparison — exp name: exp1_transformer_s{seed}
-# Note: batch_size=64 to avoid OOM
+# Train Transformer on PAIR split x seeds
+# Exp name: v2_enc_transformer_s{seed}
 # Usage: bash scripts/final_v2/run_pair_transformer.sh <GPU>
 
 GPU=${1:-0}
@@ -15,7 +14,7 @@ fi
 echo "=== PAIR Transformer (GPU=$GPU seeds=${SEEDS[*]}) ==="
 
 for SEED in "${SEEDS[@]}"; do
-    EXP="exp1_transformer_s${SEED}"
+    EXP="v2_enc_transformer_s${SEED}"
     CKPT=$(find saved_models/transformer/${EXP} -name "model.pth" 2>/dev/null | head -1)
     if [ -n "$CKPT" ]; then echo "  [SKIP] $EXP"; continue; fi
     echo "  [RUN]  $EXP"

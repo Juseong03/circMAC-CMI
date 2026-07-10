@@ -1,6 +1,6 @@
 #!/bin/bash
-# Train Mamba on PAIR-DISJOINT x seeds
-# Encoder comparison — exp name: exp1_mamba_s{seed}
+# Train Mamba on PAIR split x seeds
+# Exp name: v2_enc_mamba_s{seed}
 # Usage: bash scripts/final_v2/run_pair_mamba.sh <GPU>
 
 GPU=${1:-0}
@@ -14,7 +14,7 @@ fi
 echo "=== PAIR Mamba (GPU=$GPU seeds=${SEEDS[*]}) ==="
 
 for SEED in "${SEEDS[@]}"; do
-    EXP="exp1_mamba_s${SEED}"
+    EXP="v2_enc_mamba_s${SEED}"
     CKPT=$(find saved_models/mamba/${EXP} -name "model.pth" 2>/dev/null | head -1)
     if [ -n "$CKPT" ]; then echo "  [SKIP] $EXP"; continue; fi
     echo "  [RUN]  $EXP"
@@ -25,7 +25,7 @@ for SEED in "${SEEDS[@]}"; do
         --seed $SEED \
         --d_model 128 \
         --n_layer 6 \
-        --batch_size 128 \
+        --batch_size 64 \
         --interaction cross_attention \
         --max_len 1022 \
         --verbose \

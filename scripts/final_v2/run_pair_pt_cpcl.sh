@@ -1,7 +1,7 @@
 #!/bin/bash
 # Train CircMAC (pretrain=cpcl) on PAIR split x seeds
 # Requires: saved_models/circmac/v2_ptm_cpcl/42/pretrain/model.pth
-# Exp name: pair_pt_cpcl_s{seed}
+# Exp name: v2_pt_cpcl_s{seed}
 # Usage: bash scripts/final_v2/run_pair_pt_cpcl.sh <GPU>
 
 GPU=${1:-0}
@@ -21,7 +21,7 @@ fi
 echo "=== PAIR CircMAC (pt=cpcl) GPU=$GPU seeds=${SEEDS[*]} ==="
 
 for SEED in "${SEEDS[@]}"; do
-    EXP="pair_pt_cpcl_s${SEED}"
+    EXP="v2_pt_cpcl_s${SEED}"
     CKPT=$(find saved_models/circmac/${EXP} -name "model.pth" 2>/dev/null | head -1)
     if [ -n "$CKPT" ]; then echo "  [SKIP] $EXP"; continue; fi
     echo "  [RUN]  $EXP"
