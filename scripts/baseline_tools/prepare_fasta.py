@@ -74,7 +74,7 @@ def main():
         # Try to load from binding_miRNA_seq.csv
         mirna_map_path = ROOT / "data/binding_miRNA_seq.csv"
         if mirna_map_path.exists():
-            mirna_map = pd.read_csv(mirna_map_path, index_col=0).iloc[:, 0].to_dict()
+            mirna_map = pd.read_csv(mirna_map_path).groupby("miRNA_ID")["miRNA"].first().to_dict()
             df_eval["_mirna_seq"] = df_eval["miRNA_ID"].map(mirna_map)
             mirna_col = "_mirna_seq"
             print(f"  Loaded miRNA sequences from {mirna_map_path.name}")
