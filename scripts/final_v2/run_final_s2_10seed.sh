@@ -141,17 +141,7 @@ if [ "$PRETRAIN_ONLY" != "1" ]; then
 fi
 
 echo ""
-echo "━━━ [5/7] MLM + CPCL ━━━"
-if [ "$SKIP_PRETRAIN" != "1" ]; then
-    run_pretrain "mlm_cpcl" --mlm --cpcl
-fi
-if [ "$PRETRAIN_ONLY" != "1" ]; then
-    PT_PATH="saved_models/circmac/v2_ptm_mlm_cpcl/${PT_SEED}/pretrain/model.pth"
-    [ -f "$PT_PATH" ] && run_finetune "mlm_cpcl" "$PT_PATH"
-fi
-
-echo ""
-echo "━━━ [6/7] MLM + NTP ━━━"
+echo "━━━ [5/7] MLM + NTP ━━━"
 if [ "$SKIP_PRETRAIN" != "1" ]; then
     run_pretrain "mlm_ntp" --mlm --ntp
 fi
@@ -161,7 +151,57 @@ if [ "$PRETRAIN_ONLY" != "1" ]; then
 fi
 
 echo ""
-echo "━━━ [7/7] All (MLM+NTP+SSP+Pairing) ━━━"
+echo "━━━ [6/10] SSP ━━━"
+if [ "$SKIP_PRETRAIN" != "1" ]; then
+    run_pretrain "ssp" --ssp
+fi
+if [ "$PRETRAIN_ONLY" != "1" ]; then
+    PT_PATH="saved_models/circmac/v2_ptm_ssp/${PT_SEED}/pretrain/model.pth"
+    [ -f "$PT_PATH" ] && run_finetune "ssp" "$PT_PATH"
+fi
+
+echo ""
+echo "━━━ [7/10] Pairing ━━━"
+if [ "$SKIP_PRETRAIN" != "1" ]; then
+    run_pretrain "pairing" --pairing
+fi
+if [ "$PRETRAIN_ONLY" != "1" ]; then
+    PT_PATH="saved_models/circmac/v2_ptm_pairing/${PT_SEED}/pretrain/model.pth"
+    [ -f "$PT_PATH" ] && run_finetune "pairing" "$PT_PATH"
+fi
+
+echo ""
+echo "━━━ [8/10] MLM + Pairing ━━━"
+if [ "$SKIP_PRETRAIN" != "1" ]; then
+    run_pretrain "mlm_pairing" --mlm --pairing
+fi
+if [ "$PRETRAIN_ONLY" != "1" ]; then
+    PT_PATH="saved_models/circmac/v2_ptm_mlm_pairing/${PT_SEED}/pretrain/model.pth"
+    [ -f "$PT_PATH" ] && run_finetune "mlm_pairing" "$PT_PATH"
+fi
+
+echo ""
+echo "━━━ [9/10] SSP + Pairing ━━━"
+if [ "$SKIP_PRETRAIN" != "1" ]; then
+    run_pretrain "ssp_pairing" --ssp --pairing
+fi
+if [ "$PRETRAIN_ONLY" != "1" ]; then
+    PT_PATH="saved_models/circmac/v2_ptm_ssp_pairing/${PT_SEED}/pretrain/model.pth"
+    [ -f "$PT_PATH" ] && run_finetune "ssp_pairing" "$PT_PATH"
+fi
+
+echo ""
+echo "━━━ [10/10] MLM+NTP+SSP (All without Pairing) ━━━"
+if [ "$SKIP_PRETRAIN" != "1" ]; then
+    run_pretrain "mlm_ntp_ssp" --mlm --ntp --ssp
+fi
+if [ "$PRETRAIN_ONLY" != "1" ]; then
+    PT_PATH="saved_models/circmac/v2_ptm_mlm_ntp_ssp/${PT_SEED}/pretrain/model.pth"
+    [ -f "$PT_PATH" ] && run_finetune "mlm_ntp_ssp" "$PT_PATH"
+fi
+
+echo ""
+echo "━━━ [All] All (MLM+NTP+SSP+Pairing) ━━━"
 if [ "$SKIP_PRETRAIN" != "1" ]; then
     run_pretrain "all" --mlm --ntp --ssp --pairing
 fi
