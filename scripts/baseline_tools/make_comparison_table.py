@@ -138,7 +138,7 @@ def main():
             return f"{val:.4f}±{std:.4f}"
         return f"{val:.4f}"
 
-    MODEL_ORDER = ["miRanda", "RNAhybrid", "TargetScan", "CircMAC"]
+    MODEL_ORDER = ["miRanda", "RNAhybrid", "TargetScan", "PITA", "CircMAC"]
     SPLIT_ORDER = ["pair", "iso", "bsj"]
     SPLIT_LABEL = {"pair": "Pair-disjoint", "iso": "Iso-disjoint", "bsj": "BSJ-disjoint"}
 

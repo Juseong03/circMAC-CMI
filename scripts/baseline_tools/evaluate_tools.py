@@ -169,6 +169,7 @@ def main():
         ("miRanda",    "miranda_preds.pkl"),
         ("RNAhybrid",  "rnahybrid_preds.pkl"),
         ("TargetScan", "targetscan_preds.pkl"),
+        ("PITA",       "pita_preds.pkl"),
         ("IntaRNA",    "intarna_preds.pkl"),
     ]:
         p = outdir / fname

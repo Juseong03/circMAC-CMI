@@ -1,8 +1,8 @@
 #!/bin/bash
 #==============================================================================
 # run_tool_comparison.sh
-# Installs miRanda, RNAhybrid, IntaRNA and runs them against the circMAC
-# test set. Outputs nucleotide-level predictions for fair comparison.
+# Installs miRanda, RNAhybrid, TargetScan, PITA, IntaRNA and runs them
+# against the circMAC test set. Outputs nucleotide-level predictions.
 #
 # Usage:
 #   bash scripts/baseline_tools/run_tool_comparison.sh [N_PAIRS]
@@ -13,6 +13,8 @@
 #   results/baseline_tools/
 #     miranda_preds.pkl
 #     rnahybrid_preds.pkl
+#     targetscan_preds.pkl
+#     pita_preds.pkl
 #     intarna_preds.pkl
 #     comparison_metrics.csv
 #     comparison_metrics.txt
@@ -56,13 +58,24 @@ echo "=== Running RNAhybrid ==="
 conda run -n rna_tools python scripts/baseline_tools/run_rnahybrid.py \
     --outdir "$OUTDIR"
 
-# ── 5. Run IntaRNA ────────────────────────────────────────────────────────────
+# ── 5. Run PITA ───────────────────────────────────────────────────────────────
+echo ""
+echo "=== Running PITA ==="
+# Try PITA binary first (install if needed), fallback to Python implementation
+if ! micromamba env list 2>/dev/null | grep -q "pita_env"; then
+    echo "  Installing PITA via micromamba..."
+    micromamba create -n pita_env -c bioconda -c conda-forge pita perl viennarna -y 2>&1 | tail -3
+fi
+micromamba run -n pita_env python scripts/baseline_tools/run_pita.py \
+    --outdir "$OUTDIR"
+
+# ── 6. Run IntaRNA ────────────────────────────────────────────────────────────
 echo ""
 echo "=== Running IntaRNA ==="
 conda run -n rna_tools python scripts/baseline_tools/run_intarna.py \
     --outdir "$OUTDIR"
 
-# ── 6. Evaluate all tools ─────────────────────────────────────────────────────
+# ── 7. Evaluate all tools ─────────────────────────────────────────────────────
 echo ""
 echo "=== Evaluating all tools ==="
 conda run -n rna_tools python scripts/baseline_tools/evaluate_tools.py \
