@@ -1,5 +1,5 @@
 #!/bin/bash
-# Train CircMAC (pretrain=all objectives) on PAIR split x seeds
+# Train CircMAC (pretrain=all: MLM+NTP+SSP+Pairing) on PAIR split x seeds
 # Requires: saved_models/circmac/v2_ptm_all/42/pretrain/model.pth
 # Exp name: v2_pt_all_s{seed}  (same as run_final_s2_10seed.sh)
 # Usage: bash scripts/final_v2/run_pair_pt_all.sh <GPU>

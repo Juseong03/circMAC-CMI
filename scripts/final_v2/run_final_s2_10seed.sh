@@ -161,9 +161,9 @@ if [ "$PRETRAIN_ONLY" != "1" ]; then
 fi
 
 echo ""
-echo "━━━ [7/7] All (MLM+NTP+SSP+Pairing+CPCL+BSJ_MLM) ━━━"
+echo "━━━ [7/7] All (MLM+NTP+SSP+Pairing) ━━━"
 if [ "$SKIP_PRETRAIN" != "1" ]; then
-    run_pretrain "all" --mlm --ntp --ssp --pairing --cpcl --bsj_mlm
+    run_pretrain "all" --mlm --ntp --ssp --pairing
 fi
 if [ "$PRETRAIN_ONLY" != "1" ]; then
     PT_PATH="saved_models/circmac/v2_ptm_all/${PT_SEED}/pretrain/model.pth"

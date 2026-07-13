@@ -1,5 +1,5 @@
 #!/bin/bash
-# Train CircMAC (pretrain=all) on BSJ-DISJOINT x 3 seeds
+# Train CircMAC (pretrain=all: MLM+NTP+SSP+Pairing) on BSJ-DISJOINT x 3 seeds
 # Requires pretrained checkpoint: saved_models/circmac/v2_ptm_all/42/pretrain/model.pth
 # Usage: bash scripts/final_v2/run_bsj_pt_all.sh <GPU>
 
