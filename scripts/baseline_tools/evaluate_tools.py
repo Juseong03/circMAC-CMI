@@ -166,9 +166,10 @@ def main():
     # ── Load predictions ──────────────────────────────────────────────────────
     tools = {}
     for name, fname in [
-        ("miRanda",   "miranda_preds.pkl"),
-        ("RNAhybrid", "rnahybrid_preds.pkl"),
-        ("IntaRNA",   "intarna_preds.pkl"),
+        ("miRanda",    "miranda_preds.pkl"),
+        ("RNAhybrid",  "rnahybrid_preds.pkl"),
+        ("TargetScan", "targetscan_preds.pkl"),
+        ("IntaRNA",    "intarna_preds.pkl"),
     ]:
         p = outdir / fname
         if p.exists():
