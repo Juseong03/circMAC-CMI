@@ -3,94 +3,110 @@
 update_figure_csvs.py
 eval_results/eval_full_summary.csv (test split) → 각 figure 스크립트가 사용하는 data CSV 업데이트
 
+Seeds: 1, 2, 3 only (fair comparison across all experiments)
+
 Usage:
     python figures_paper/update_figure_csvs.py
     python figures_paper/update_figure_csvs.py --eval eval_results/eval_full_summary.csv
+    python figures_paper/update_figure_csvs.py --disjoint eval_results/disjoint_new_summary.csv
 """
 import argparse
 import pandas as pd
 import numpy as np
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-OUT  = Path(__file__).resolve().parent
+ROOT  = Path(__file__).resolve().parents[1]
+OUT   = Path(__file__).resolve().parent
+SEEDS = [1, 2, 3]  # fixed for fair comparison across all experiments
+
 
 def load_eval(csv_path):
     df = pd.read_csv(csv_path)
-    # auroc → roc_auc alias
     if "auroc" in df.columns and "roc_auc" not in df.columns:
         df["roc_auc"] = df["auroc"]
-    # eval_full 형식: split 컬럼이 있으면 test만 사용
     if "split" in df.columns:
         df = df[df["split"] == "test"].copy()
     return df
 
+
 def get_seeds(df, exp_tpl, model_name=None):
-    """exp_tpl 기준으로 seed별 rows 반환 (숫자 seed만)"""
+    """exp_tpl 기준으로 seed 1-3 rows만 반환."""
     mask = df["exp_tpl"] == exp_tpl
     if model_name:
         mask &= df["model_name"] == model_name
     rows = df[mask & df["seed"].apply(lambda x: str(x).isdigit())]
+    rows = rows[rows["seed"].astype(int).isin(SEEDS)]
     return rows
 
+
+def _row(label, group, row, extra=None):
+    d = {
+        "model":    label,
+        "group":    group,
+        "seed":     int(row["seed"]),
+        "f1_macro": row.get("f1_macro", ""),
+        "roc_auc":  row.get("auroc", row.get("roc_auc", "")),
+        "auprc":    row.get("auprc", ""),
+        "f1_pos":   row.get("f1_pos", ""),
+    }
+    if extra:
+        d.update(extra)
+    return d
+
+
 # ─────────────────────────────────────────────────────────────────────────────
-# Fig 1: RNA-LM comparison
+# Fig 1: RNA-LM comparison (frozen vs fine-tuned vs CircMAC)
 # ─────────────────────────────────────────────────────────────────────────────
 def update_fig1(df):
     specs = [
-        # (label, model_name, exp_tpl, frozen)
-        ("RNABERT",  "rnabert",  "exp1_fair_frozen_rnabert",     True),
-        ("RNAErnie", "rnaernie", "exp1_fair_frozen_rnaernie",    True),
-        ("RNAMSM",   "rnamsm",   "exp1_fair_frozen_rnamsm",      True),
-        ("RNA-FM",   "rnafm",    "exp1_fair_frozen_rnafm",       True),
-        ("RNABERT",  "rnabert",  "exp1_fair_trainable_rnabert",  False),
-        ("RNAErnie", "rnaernie", "exp1_fair_trainable_rnaernie", False),
-        ("RNAMSM",   "rnamsm",   "exp1_fair_trainable_rnamsm",   False),
-        ("RNA-FM",   "rnafm",    "exp1_fair_trainable_rnafm",    False),
-        ("CircMAC",  "circmac",  "v2_pt_pairing",                False),
+        ("RNABERT",  "rnabert",  "exp1_fair_frozen_rnabert",     "frozen"),
+        ("RNAErnie", "rnaernie", "exp1_fair_frozen_rnaernie",    "frozen"),
+        ("RNAMSM",   "rnamsm",   "exp1_fair_frozen_rnamsm",      "frozen"),
+        ("RNA-FM",   "rnafm",    "exp1_fair_frozen_rnafm",       "frozen"),
+        ("RNABERT",  "rnabert",  "exp1_fair_trainable_rnabert",  "fine-tuned"),
+        ("RNAErnie", "rnaernie", "exp1_fair_trainable_rnaernie", "fine-tuned"),
+        ("RNAMSM",   "rnamsm",   "exp1_fair_trainable_rnamsm",   "fine-tuned"),
+        ("RNA-FM",   "rnafm",    "exp1_fair_trainable_rnafm",    "fine-tuned"),
+        ("CircMAC",  "circmac",  "v2_pt_pairing",                "proposed"),
     ]
     merged = {}
-    for label, model_name, exp_tpl, frozen in specs:
-        mode = "frozen" if frozen else "fine-tuned" if label != "CircMAC" else "proposed"
-        seeds_df = get_seeds(df, exp_tpl, model_name)
-        for _, row in seeds_df.iterrows():
+    for label, model_name, exp_tpl, mode in specs:
+        for _, row in get_seeds(df, exp_tpl, model_name).iterrows():
             key = (label, mode, int(row["seed"]))
-            merged[key] = {
-                "model":    label, "mode": mode, "seed": int(row["seed"]),
-                "f1_macro": row.get("f1_macro", ""),
-                "roc_auc":  row.get("auroc", ""),
-                "auprc":    row.get("auprc", ""),
-            }
+            merged[key] = _row(label, mode, row, {"mode": mode})
     out_df = pd.DataFrame(list(merged.values()))
     p = OUT / "fig1_rna_lm" / "fig1_rna_lm_data.csv"
     out_df.to_csv(p, index=False)
     print(f"  [fig1] {p}  ({len(out_df)} rows)")
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-# Fig 2: Pretraining strategy  (NoPT / MLM / NTP / SSP / Pairing)
+# Fig 2: Pretraining strategy (all strategies)
 # ─────────────────────────────────────────────────────────────────────────────
 def update_fig2(df):
     specs = [
-        ("No PT",   "v2_pt_nopt",    "baseline"),
-        ("MLM",     "v2_pt_mlm",     "single"),
-        ("NTP",     "v2_pt_ntp",     "single"),
-        ("SSP",     "v2_pt_ssp",     "single"),
-        ("Pairing", "v2_pt_pairing", "single"),
+        # (label, exp_tpl, group)
+        ("No PT",       "v2_pt_nopt",        "baseline"),
+        ("MLM",         "v2_pt_mlm",         "single"),
+        ("NTP",         "v2_pt_ntp",         "single"),
+        ("SSP",         "v2_pt_ssp",         "single"),
+        ("Pairing",     "v2_pt_pairing",     "single"),
+        ("MLM+NTP",     "v2_pt_mlm_ntp",     "combination"),
+        ("MLM+SSP",     "v2_pt_mlm_ssp",     "combination"),
+        ("MLM+Pairing", "v2_pt_mlm_pairing", "combination"),
+        ("SSP+Pairing", "v2_pt_ssp_pairing", "combination"),
+        ("MLM+NTP+SSP", "v2_pt_mlm_ntp_ssp", "combination"),
+        ("All",         "v2_pt_all",         "combination"),
     ]
     rows = []
     for label, exp_tpl, group in specs:
-        seeds_df = get_seeds(df, exp_tpl, "circmac")
-        for _, row in seeds_df.iterrows():
-            rows.append({
-                "model": label, "group": group, "seed": int(row["seed"]),
-                "f1_macro": row.get("f1_macro", ""),
-                "roc_auc":  row.get("auroc", ""),
-                "auprc":    row.get("auprc", ""),
-            })
+        for _, row in get_seeds(df, exp_tpl, "circmac").iterrows():
+            rows.append(_row(label, group, row))
     out_df = pd.DataFrame(rows)
     p = OUT / "fig2_pretraining" / "fig2_pretraining_data.csv"
     out_df.to_csv(p, index=False)
     print(f"  [fig2] {p}  ({len(out_df)} rows)")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Fig 3: Encoder comparison
@@ -105,103 +121,167 @@ def update_fig3(df):
     ]
     rows = []
     for label, model_name, exp_tpl in specs:
-        seeds_df = get_seeds(df, exp_tpl, model_name)
-        for _, row in seeds_df.iterrows():
-            rows.append({
-                "model": label, "seed": int(row["seed"]),
-                "f1_macro": row.get("f1_macro", ""),
-                "roc_auc":  row.get("auroc", ""),
-                "auprc":    row.get("auprc", ""),
-            })
+        for _, row in get_seeds(df, exp_tpl, model_name).iterrows():
+            rows.append(_row(label, "encoder", row))
     out_df = pd.DataFrame(rows)
     p = OUT / "fig3_encoder" / "fig3_encoder_data.csv"
     out_df.to_csv(p, index=False)
     print(f"  [fig3] {p}  ({len(out_df)} rows)")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Fig 4: Ablation modules
 # ─────────────────────────────────────────────────────────────────────────────
 def update_fig4(df):
     specs = [
-        ("CircMAC",    "v2_abl_full",       "full"),
-        ("w/o Attn",   "v2_abl_no_attn",    "remove"),
-        ("w/o Conv",   "v2_abl_no_conv",    "remove"),
-        ("w/o Mamba",  "v2_abl_no_mamba",   "remove"),
-        ("Mamba Only", "v2_abl_mamba_only", "single"),
-        ("CNN Only",   "v2_abl_cnn_only",   "single"),
-        ("Attn Only",  "v2_abl_attn_only",  "single"),
+        ("CircMAC",    "v2_abl_full",        "full"),
+        ("w/o Attn",   "v2_abl_no_attn",     "remove"),
+        ("w/o Conv",   "v2_abl_no_conv",      "remove"),
+        ("w/o Mamba",  "v2_abl_no_mamba",    "remove"),
+        ("w/o CircBias","v2_abl_no_circ_bias","remove"),
+        ("Mamba Only", "v2_abl_mamba_only",  "single"),
+        ("CNN Only",   "v2_abl_cnn_only",    "single"),
+        ("Attn Only",  "v2_abl_attn_only",   "single"),
     ]
     rows = []
     for label, exp_tpl, group in specs:
-        seeds_df = get_seeds(df, exp_tpl, "circmac")
-        for _, row in seeds_df.iterrows():
-            rows.append({
-                "model": label, "group": group, "seed": int(row["seed"]),
-                "f1_macro": row.get("f1_macro", ""),
-                "roc_auc":  row.get("auroc", ""),
-                "auprc":    row.get("auprc", ""),
-            })
+        for _, row in get_seeds(df, exp_tpl, "circmac").iterrows():
+            rows.append(_row(label, group, row))
     out_df = pd.DataFrame(rows)
     p = OUT / "fig4_ablation_modules" / "fig4_ablation_modules_data.csv"
     out_df.to_csv(p, index=False)
     print(f"  [fig4] {p}  ({len(out_df)} rows)")
 
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Fig 5: Interaction & Site Head ablation
 # ─────────────────────────────────────────────────────────────────────────────
 def update_fig5(df):
-    interaction_specs = [
-        ("Cross-Attn",  "v2_int_cross_attn",  True),
-        ("Concat",      "v2_int_concat",       False),
-        ("Elementwise", "v2_int_elementwise",  False),
-    ]
-    head_specs = [
-        ("Conv1D", "v2_int_cross_attn", True),
-        ("Linear", "v2_head_linear",    False),
+    specs = [
+        # (label, exp_tpl, ablation_type, is_best)
+        ("Cross-Attn",  "v2_int_cross_attn",  "interaction", True),
+        ("Concat",      "v2_int_concat",       "interaction", False),
+        ("Elementwise", "v2_int_elementwise",  "interaction", False),
+        ("Conv1D",      "v2_int_cross_attn",   "head",        True),
+        ("Linear",      "v2_head_linear",      "head",        False),
     ]
     rows = []
-    for label, exp_tpl, is_best in interaction_specs + head_specs:
-        ablation = "interaction" if (label, exp_tpl, is_best) in [
-            (l, e, b) for l, e, b in interaction_specs] else "head"
-        seeds_df = get_seeds(df, exp_tpl, "circmac")
-        for _, row in seeds_df.iterrows():
-            rows.append({
-                "model": label, "ablation": ablation,
-                "is_best": is_best, "seed": int(row["seed"]),
-                "f1_macro": row.get("f1_macro", ""),
-                "roc_auc":  row.get("auroc", ""),
-                "auprc":    row.get("auprc", ""),
-            })
+    for label, exp_tpl, ablation, is_best in specs:
+        for _, row in get_seeds(df, exp_tpl, "circmac").iterrows():
+            rows.append(_row(label, ablation, row, {"is_best": is_best}))
     out_df = pd.DataFrame(rows)
     p = OUT / "fig5_ablation_int_head" / "fig5_ablation_int_head_data.csv"
     out_df.to_csv(p, index=False)
     print(f"  [fig5] {p}  ({len(out_df)} rows)")
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Disjoint splits: iso / bsj  (from disjoint_new_summary.csv)
+# ─────────────────────────────────────────────────────────────────────────────
+def update_disjoint(disjoint_csv):
+    """
+    disjoint_new_summary.csv → figures_paper/fig_disjoint/fig_disjoint_data.csv
+
+    Columns in summary: split, label, n_seeds, auroc_mean, auroc_std,
+                        auprc_mean, auprc_std, f1_pos_mean, f1_pos_std, ...
+    """
+    p_out = OUT / "fig_disjoint"
+    p_out.mkdir(parents=True, exist_ok=True)
+
+    df = pd.read_csv(disjoint_csv)
+
+    # Encoder-level order (for plotting)
+    ENCODER_ORDER = [
+        "LSTM", "Transformer", "Mamba", "Hymba",
+        "RNABERT (ft)", "RNAErnie (ft)", "RNAMSM (ft)", "RNA-FM (ft)",
+        "CircMAC (NoPT)",
+    ]
+    PT_ORDER = [
+        "CircMAC (NoPT)",
+        "CircMAC (MLM)", "CircMAC (NTP)", "CircMAC (SSP)", "CircMAC (Pairing)",
+        "CircMAC (MLM+NTP)", "CircMAC (MLM+SSP)",
+        "CircMAC (MLM+Pair)", "CircMAC (SSP+Pair)", "CircMAC (M+N+S)",
+        "CircMAC (All)",
+    ]
+
+    rows = []
+    for _, r in df.iterrows():
+        label = r["label"]
+        split = r["split"]
+        group = "pretraining" if label.startswith("CircMAC") else "encoder"
+        rows.append({
+            "split":       split,
+            "model":       label,
+            "group":       group,
+            "n_seeds":     r.get("n_seeds", ""),
+            "auroc_mean":  r.get("auroc_mean", ""),
+            "auroc_std":   r.get("auroc_std",  ""),
+            "auprc_mean":  r.get("auprc_mean", ""),
+            "auprc_std":   r.get("auprc_std",  ""),
+            "f1pos_mean":  r.get("f1_pos_mean", ""),
+            "f1pos_std":   r.get("f1_pos_std",  ""),
+            "f1mac_mean":  r.get("f1_macro_mean", ""),
+            "f1mac_std":   r.get("f1_macro_std",  ""),
+        })
+
+    out_df = pd.DataFrame(rows)
+    csv_path = p_out / "fig_disjoint_data.csv"
+    out_df.to_csv(csv_path, index=False)
+    print(f"  [disjoint] {csv_path}  ({len(out_df)} rows)")
+
+    # Also save separate iso / bsj CSVs for convenience
+    for split in ["iso", "bsj"]:
+        sub = out_df[out_df["split"] == split]
+        sub.to_csv(p_out / f"fig_disjoint_{split}_data.csv", index=False)
+        print(f"  [disjoint/{split}] {len(sub)} rows")
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--eval", default=str(ROOT / "eval_results/eval_full_summary.csv"))
+    parser.add_argument("--eval",
+                        default=str(ROOT / "eval_results/eval_full_summary.csv"),
+                        help="Path to eval_full_summary.csv")
+    parser.add_argument("--disjoint",
+                        default=str(ROOT / "eval_results/disjoint_new_summary.csv"),
+                        help="Path to disjoint_new_summary.csv")
     args = parser.parse_args()
 
+    # ── Pair-split figures ────────────────────────────────────────────────────
     csv_path = Path(args.eval)
     if not csv_path.exists():
-        print(f"[ERROR] not found: {csv_path}")
+        print(f"[WARN] not found: {csv_path}")
         print("  Run: python scripts/eval_full.py --group merge")
-        return
+    else:
+        print(f"Loading {csv_path} ...")
+        df = load_eval(csv_path)
+        print(f"  {len(df)} rows (test split, seeds {SEEDS} only)")
+        print()
+        print("Updating figure data CSVs (pair split)...")
+        for fn, name in [
+            (update_fig1, "fig1"),
+            (update_fig2, "fig2"),
+            (update_fig3, "fig3"),
+            (update_fig4, "fig4"),
+            (update_fig5, "fig5"),
+        ]:
+            try:
+                fn(df)
+            except Exception as e:
+                print(f"  [{name}] SKIP — {e}")
 
-    print(f"Loading {csv_path} ...")
-    df = load_eval(csv_path)
-    print(f"  {len(df)} rows (test split only)")
+    # ── Disjoint split figure ─────────────────────────────────────────────────
     print()
-
-    print("Updating figure data CSVs...")
-    for fn, name in [(update_fig1, "fig1"), (update_fig2, "fig2"),
-                     (update_fig3, "fig3"), (update_fig4, "fig4"),
-                     (update_fig5, "fig5")]:
+    disj_path = Path(args.disjoint)
+    if not disj_path.exists():
+        print(f"[WARN] not found: {disj_path}")
+        print("  Run: python scripts/eval_disjoint_new.py --device 0")
+    else:
+        print(f"Loading {disj_path} ...")
         try:
-            fn(df)
+            update_disjoint(disj_path)
         except Exception as e:
-            print(f"  [{name}] SKIP — {e}")
+            print(f"  [disjoint] SKIP — {e}")
 
     print()
     print("Done! Now re-run figure scripts:")
@@ -210,6 +290,8 @@ def main():
     print("  python figures_paper/fig3_encoder/fig3_encoder.py")
     print("  python figures_paper/fig4_ablation_modules/fig4_ablation_modules.py")
     print("  python figures_paper/fig5_ablation_int_head/fig5_ablation_int_head.py")
+    print("  python figures_paper/fig_disjoint/fig_disjoint.py  (create if needed)")
+
 
 if __name__ == "__main__":
     main()

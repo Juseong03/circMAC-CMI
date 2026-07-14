@@ -51,46 +51,46 @@ WORKERS = 4
 
 # (split_prefix, model_name, exp_prefix, label, test_file)
 EXPERIMENTS = [
-    ("iso", "circmac", "iso_pt_nopt",          "CircMAC (NoPT)",      "df_test_iso_disjoint.pkl"),
+    # ── Iso-disjoint ──────────────────────────────────────────────────────────
+    ("iso", "circmac", "iso_pt_nopt",        "CircMAC (NoPT)",      "df_test_iso_disjoint.pkl"),
     ("iso", "circmac", "iso_pt_mlm",         "CircMAC (MLM)",       "df_test_iso_disjoint.pkl"),
     ("iso", "circmac", "iso_pt_ntp",         "CircMAC (NTP)",       "df_test_iso_disjoint.pkl"),
     ("iso", "circmac", "iso_pt_ssp",         "CircMAC (SSP)",       "df_test_iso_disjoint.pkl"),
-    ("iso", "circmac", "iso_pt_cpcl",        "CircMAC (CPCL)",      "df_test_iso_disjoint.pkl"),
-    ("iso", "circmac", "iso_pt_bsj",         "CircMAC (BSJ)",       "df_test_iso_disjoint.pkl"),
+    ("iso", "circmac", "iso_pt_pairing",     "CircMAC (Pairing)",   "df_test_iso_disjoint.pkl"),
     ("iso", "circmac", "iso_pt_mlm_ntp",     "CircMAC (MLM+NTP)",   "df_test_iso_disjoint.pkl"),
     ("iso", "circmac", "iso_pt_mlm_ssp",     "CircMAC (MLM+SSP)",   "df_test_iso_disjoint.pkl"),
-    ("iso", "circmac", "iso_pt_mlm_cpcl",    "CircMAC (MLM+CPCL)",  "df_test_iso_disjoint.pkl"),
-    ("iso", "circmac", "iso_pt_pairing",     "CircMAC (Pairing)",   "df_test_iso_disjoint.pkl"),
-    ("iso", "circmac", "iso_pt_mlm_cpcl_ssp","CircMAC (M+C+S)",     "df_test_iso_disjoint.pkl"),
+    ("iso", "circmac", "iso_pt_mlm_pairing", "CircMAC (MLM+Pair)",  "df_test_iso_disjoint.pkl"),
+    ("iso", "circmac", "iso_pt_ssp_pairing", "CircMAC (SSP+Pair)",  "df_test_iso_disjoint.pkl"),
+    ("iso", "circmac", "iso_pt_mlm_ntp_ssp", "CircMAC (M+N+S)",     "df_test_iso_disjoint.pkl"),
     ("iso", "circmac", "iso_pt_all",         "CircMAC (All)",       "df_test_iso_disjoint.pkl"),
-    ("iso", "hymba",       "iso_hymba",       "Hymba",         "df_test_iso_disjoint.pkl"),
-    ("iso", "mamba",       "iso_mamba",       "Mamba",         "df_test_iso_disjoint.pkl"),
-    ("iso", "lstm",        "iso_lstm",        "LSTM",          "df_test_iso_disjoint.pkl"),
-    ("iso", "transformer", "iso_transformer", "Transformer",   "df_test_iso_disjoint.pkl"),
-    ("iso", "rnabert",     "iso_rnabert_ft",  "RNABERT (ft)",  "df_test_iso_disjoint.pkl"),
-    ("iso", "rnaernie",    "iso_rnaernie_ft", "RNAErnie (ft)", "df_test_iso_disjoint.pkl"),
-    ("iso", "rnamsm",      "iso_rnamsm_ft",   "RNAMSM (ft)",   "df_test_iso_disjoint.pkl"),
-    ("iso", "rnafm",       "iso_rnafm_ft",    "RNA-FM (ft)",   "df_test_iso_disjoint.pkl"),
-    ("bsj", "circmac", "bsj_pt_nopt",          "CircMAC (NoPT)",      "df_test_bsj_disjoint.pkl"),
+    ("iso", "hymba",       "iso_hymba",       "Hymba",               "df_test_iso_disjoint.pkl"),
+    ("iso", "mamba",       "iso_mamba",       "Mamba",               "df_test_iso_disjoint.pkl"),
+    ("iso", "lstm",        "iso_lstm",        "LSTM",                "df_test_iso_disjoint.pkl"),
+    ("iso", "transformer", "iso_transformer", "Transformer",         "df_test_iso_disjoint.pkl"),
+    ("iso", "rnabert",     "iso_rnabert_ft",  "RNABERT (ft)",        "df_test_iso_disjoint.pkl"),
+    ("iso", "rnaernie",    "iso_rnaernie_ft", "RNAErnie (ft)",       "df_test_iso_disjoint.pkl"),
+    ("iso", "rnamsm",      "iso_rnamsm_ft",   "RNAMSM (ft)",         "df_test_iso_disjoint.pkl"),
+    ("iso", "rnafm",       "iso_rnafm_ft",    "RNA-FM (ft)",         "df_test_iso_disjoint.pkl"),
+    # ── BSJ-disjoint ──────────────────────────────────────────────────────────
+    ("bsj", "circmac", "bsj_pt_nopt",        "CircMAC (NoPT)",      "df_test_bsj_disjoint.pkl"),
     ("bsj", "circmac", "bsj_pt_mlm",         "CircMAC (MLM)",       "df_test_bsj_disjoint.pkl"),
     ("bsj", "circmac", "bsj_pt_ntp",         "CircMAC (NTP)",       "df_test_bsj_disjoint.pkl"),
     ("bsj", "circmac", "bsj_pt_ssp",         "CircMAC (SSP)",       "df_test_bsj_disjoint.pkl"),
-    ("bsj", "circmac", "bsj_pt_cpcl",        "CircMAC (CPCL)",      "df_test_bsj_disjoint.pkl"),
-    ("bsj", "circmac", "bsj_pt_bsj",         "CircMAC (BSJ)",       "df_test_bsj_disjoint.pkl"),
+    ("bsj", "circmac", "bsj_pt_pairing",     "CircMAC (Pairing)",   "df_test_bsj_disjoint.pkl"),
     ("bsj", "circmac", "bsj_pt_mlm_ntp",     "CircMAC (MLM+NTP)",   "df_test_bsj_disjoint.pkl"),
     ("bsj", "circmac", "bsj_pt_mlm_ssp",     "CircMAC (MLM+SSP)",   "df_test_bsj_disjoint.pkl"),
-    ("bsj", "circmac", "bsj_pt_mlm_cpcl",    "CircMAC (MLM+CPCL)",  "df_test_bsj_disjoint.pkl"),
-    ("bsj", "circmac", "bsj_pt_pairing",     "CircMAC (Pairing)",   "df_test_bsj_disjoint.pkl"),
-    ("bsj", "circmac", "bsj_pt_mlm_cpcl_ssp","CircMAC (M+C+S)",     "df_test_bsj_disjoint.pkl"),
+    ("bsj", "circmac", "bsj_pt_mlm_pairing", "CircMAC (MLM+Pair)",  "df_test_bsj_disjoint.pkl"),
+    ("bsj", "circmac", "bsj_pt_ssp_pairing", "CircMAC (SSP+Pair)",  "df_test_bsj_disjoint.pkl"),
+    ("bsj", "circmac", "bsj_pt_mlm_ntp_ssp", "CircMAC (M+N+S)",     "df_test_bsj_disjoint.pkl"),
     ("bsj", "circmac", "bsj_pt_all",         "CircMAC (All)",       "df_test_bsj_disjoint.pkl"),
-    ("bsj", "hymba",       "bsj_hymba",       "Hymba",         "df_test_bsj_disjoint.pkl"),
-    ("bsj", "mamba",       "bsj_mamba",       "Mamba",         "df_test_bsj_disjoint.pkl"),
-    ("bsj", "lstm",        "bsj_lstm",        "LSTM",          "df_test_bsj_disjoint.pkl"),
-    ("bsj", "transformer", "bsj_transformer", "Transformer",   "df_test_bsj_disjoint.pkl"),
-    ("bsj", "rnabert",     "bsj_rnabert_ft",  "RNABERT (ft)",  "df_test_bsj_disjoint.pkl"),
-    ("bsj", "rnaernie",    "bsj_rnaernie_ft", "RNAErnie (ft)", "df_test_bsj_disjoint.pkl"),
-    ("bsj", "rnamsm",      "bsj_rnamsm_ft",   "RNAMSM (ft)",   "df_test_bsj_disjoint.pkl"),
-    ("bsj", "rnafm",       "bsj_rnafm_ft",    "RNA-FM (ft)",   "df_test_bsj_disjoint.pkl"),
+    ("bsj", "hymba",       "bsj_hymba",       "Hymba",               "df_test_bsj_disjoint.pkl"),
+    ("bsj", "mamba",       "bsj_mamba",       "Mamba",               "df_test_bsj_disjoint.pkl"),
+    ("bsj", "lstm",        "bsj_lstm",        "LSTM",                "df_test_bsj_disjoint.pkl"),
+    ("bsj", "transformer", "bsj_transformer", "Transformer",         "df_test_bsj_disjoint.pkl"),
+    ("bsj", "rnabert",     "bsj_rnabert_ft",  "RNABERT (ft)",        "df_test_bsj_disjoint.pkl"),
+    ("bsj", "rnaernie",    "bsj_rnaernie_ft", "RNAErnie (ft)",       "df_test_bsj_disjoint.pkl"),
+    ("bsj", "rnamsm",      "bsj_rnamsm_ft",   "RNAMSM (ft)",         "df_test_bsj_disjoint.pkl"),
+    ("bsj", "rnafm",       "bsj_rnafm_ft",    "RNA-FM (ft)",         "df_test_bsj_disjoint.pkl"),
 ]
 
 
@@ -219,7 +219,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", type=int, default=0)
     parser.add_argument("--seeds", type=int, nargs="+",
-                        default=list(range(1, 11)))
+                        default=[1, 2, 3])
     args = parser.parse_args()
 
     # Load train ref (pair-disjoint train — for dataset split ratio)
