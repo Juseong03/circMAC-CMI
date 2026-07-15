@@ -39,8 +39,9 @@ from trainer import Trainer
 from utils import prepare_datasets
 from utils_config import get_model_config
 
-SAVED   = ROOT / "saved_models"
-OUT     = ROOT / "eval_results"
+SAVED    = ROOT / "saved_models"
+OUT      = ROOT / "eval_results"
+PRED_DIR = OUT / "preds_disjoint"
 OUT.mkdir(parents=True, exist_ok=True)
 
 MAX_LEN = 1022
@@ -48,6 +49,14 @@ D_MODEL = 128
 N_LAYER = 6
 BS      = 32
 WORKERS = 4
+
+# preds를 저장할 모델 (encoder/FM 비교용 — pretraining variants 제외)
+SAVE_PREDS_LABELS = {
+    "CircMAC (All)",   # best pretraining strategy
+    "CircMAC (NoPT)",  # baseline
+    "Hymba", "Mamba", "LSTM", "Transformer",
+    "RNABERT (ft)", "RNAErnie (ft)", "RNAMSM (ft)", "RNA-FM (ft)",
+}
 
 # (split_prefix, model_name, exp_prefix, label, test_file)
 EXPERIMENTS = [
@@ -193,7 +202,30 @@ def extract_preds(tensors):
     return labels_flat[valid].astype(np.int8), probs_flat[valid].astype(np.float32)
 
 
-def evaluate(trainer, df_train_raw, df_test_raw, seed, device, bs=BS):
+def extract_preds_full(tensors):
+    """Returns (labels, probs, sample_idx, positions) for preds DataFrame."""
+    preds_raw    = tensors["preds_sites"]
+    labels_raw   = tensors["labels_sites"]
+    labels_aligned = labels_raw[:, 1:]
+    if preds_raw.ndim == 3 and preds_raw.shape[-1] == 2:
+        probs_2d = torch.softmax(preds_raw.float(), dim=-1)[:, :, 1]
+    else:
+        probs_2d = preds_raw.float().squeeze(-1)
+    N, L = labels_aligned.shape
+    sample_idx_2d = torch.arange(N).unsqueeze(1).expand(N, L)
+    positions_2d  = torch.arange(L).unsqueeze(0).expand(N, L)
+    labels_flat   = labels_aligned.reshape(-1).numpy()
+    probs_flat    = probs_2d.reshape(-1).numpy()
+    sidx_flat     = sample_idx_2d.reshape(-1).numpy()
+    pos_flat      = positions_2d.reshape(-1).numpy()
+    valid = labels_flat != -100
+    return (labels_flat[valid].astype(np.int8),
+            probs_flat[valid].astype(np.float32),
+            sidx_flat[valid], pos_flat[valid])
+
+
+def evaluate(trainer, df_train_raw, df_test_raw, seed, device, bs=BS,
+             save_preds_path=None):
     df_tr = df_train_raw[df_train_raw["length"] <= MAX_LEN].reset_index(drop=True)
     df_te = df_test_raw[df_test_raw["length"]   <= MAX_LEN].reset_index(drop=True)
     _, _, test_ds, _ = prepare_datasets(
@@ -211,8 +243,26 @@ def evaluate(trainer, df_train_raw, df_test_raw, seed, device, bs=BS):
         return None
     if not isinstance(tensors.get("preds_sites"), torch.Tensor):
         return None
-    labels, probs = extract_preds(tensors)
-    return compute_metrics(labels, probs)
+
+    labels, probs, sample_idx, positions = extract_preds_full(tensors)
+
+    # Save preds DataFrame if requested
+    if save_preds_path is not None:
+        save_preds_path.parent.mkdir(parents=True, exist_ok=True)
+        preds_df = pd.DataFrame({
+            "sample_idx": sample_idx,
+            "position":   positions,
+            "label":      labels,
+            "prob":       probs,
+        })
+        preds_df.to_pickle(str(save_preds_path))
+        print(f"    [PREDS] saved → {save_preds_path.name}")
+
+    # metrics from flat arrays
+    valid_labels = labels
+    valid_probs  = probs
+    # re-use existing extract_preds logic via direct return
+    return compute_metrics(valid_labels, valid_probs)
 
 
 def main():
@@ -220,6 +270,8 @@ def main():
     parser.add_argument("--device", type=int, default=0)
     parser.add_argument("--seeds", type=int, nargs="+",
                         default=[1, 2, 3])
+    parser.add_argument("--skip_preds", action="store_true",
+                        help="preds 저장 안 함 (metrics only)")
     args = parser.parse_args()
 
     # Load train ref (pair-disjoint train — for dataset split ratio)
@@ -255,6 +307,7 @@ def main():
         df_train, df_test = dfs[split_pfx]
 
         bs = 8 if model_name in LM_MODELS else BS
+        save_preds = (not args.skip_preds) and (label in SAVE_PREDS_LABELS)
 
         for seed in args.seeds:
             exp        = f"{exp_pfx}_s{seed}"
@@ -263,15 +316,29 @@ def main():
                 print(f"  [SKIP] {exp} — not found")
                 continue
 
-            print(f"  [EVAL] {exp}")
-            try:
-                trainer = build_trainer(model_name, exp, seed, model_path, args.device)
-            except Exception as e:
-                print(f"  [ERROR] {e}")
-                continue
+            # preds 캐시 확인
+            pred_path = PRED_DIR / f"{split_pfx}_{exp_pfx}_s{seed}" / "test_preds.pkl"
+            if save_preds and pred_path.exists():
+                print(f"  [CACHED] {exp}")
+                # metrics만 재계산
+                preds_df = pd.read_pickle(str(pred_path))
+                metrics = compute_metrics(
+                    preds_df["label"].values.astype(np.int8),
+                    preds_df["prob"].values.astype(np.float32)
+                )
+            else:
+                print(f"  [EVAL] {exp}")
+                try:
+                    trainer = build_trainer(model_name, exp, seed, model_path, args.device)
+                except Exception as e:
+                    print(f"  [ERROR] {e}")
+                    continue
 
-            metrics = evaluate(trainer, df_train, df_test, seed, args.device, bs=bs)
-            del trainer
+                metrics = evaluate(
+                    trainer, df_train, df_test, seed, args.device, bs=bs,
+                    save_preds_path=pred_path if save_preds else None,
+                )
+                del trainer
             torch.cuda.empty_cache()
 
             if metrics is None:
