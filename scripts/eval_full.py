@@ -45,7 +45,7 @@ N_LAYER = 6
 BS      = 32
 LM_BS   = 8    # rnamsm, rnafm: OOM with BS=32
 WORKERS = 4
-SEEDS   = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+SEEDS   = [1, 2, 3]
 
 LM_MAX_LEN = {
     "rnabert":  438,
@@ -101,13 +101,12 @@ EXPERIMENTS = [
     ("pretraining", "MLM",          "circmac", "v2_pt_mlm",          "cross_attention", False),
     ("pretraining", "NTP",          "circmac", "v2_pt_ntp",          "cross_attention", False),
     ("pretraining", "SSP",          "circmac", "v2_pt_ssp",          "cross_attention", False),
-    ("pretraining", "CPCL",         "circmac", "v2_pt_cpcl",         "cross_attention", False),
-    ("pretraining", "BSJ",          "circmac", "v2_pt_bsj",          "cross_attention", False),
+    ("pretraining", "Pairing",      "circmac", "v2_pt_pairing",      "cross_attention", False),
     ("pretraining", "MLM+NTP",      "circmac", "v2_pt_mlm_ntp",      "cross_attention", False),
     ("pretraining", "MLM+SSP",      "circmac", "v2_pt_mlm_ssp",      "cross_attention", False),
-    ("pretraining", "MLM+CPCL",     "circmac", "v2_pt_mlm_cpcl",     "cross_attention", False),
-    ("pretraining", "Pairing",      "circmac", "v2_pt_pairing",      "cross_attention", False),
-    ("pretraining", "MLM+CPCL+SSP", "circmac", "v2_pt_mlm_cpcl_ssp","cross_attention", False),
+    ("pretraining", "MLM+Pairing",  "circmac", "v2_pt_mlm_pairing",  "cross_attention", False),
+    ("pretraining", "SSP+Pairing",  "circmac", "v2_pt_ssp_pairing",  "cross_attention", False),
+    ("pretraining", "MLM+NTP+SSP",  "circmac", "v2_pt_mlm_ntp_ssp",  "cross_attention", False),
     ("pretraining", "All",          "circmac", "v2_pt_all",          "cross_attention", False),
 ]
 
