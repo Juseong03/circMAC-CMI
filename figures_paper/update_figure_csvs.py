@@ -190,24 +190,19 @@ def update_disjoint(disjoint_csv):
 
     df = pd.read_csv(disjoint_csv)
 
-    # Encoder-level order (for plotting)
-    ENCODER_ORDER = [
+    # Keep: encoders + RNA-LMs + CircMAC (NoPT/MLM/SSP/Pairing)
+    KEEP_LABELS = {
         "LSTM", "Transformer", "Mamba", "Hymba",
         "RNABERT (ft)", "RNAErnie (ft)", "RNAMSM (ft)", "RNA-FM (ft)",
-        "CircMAC (NoPT)",
-    ]
-    PT_ORDER = [
-        "CircMAC (NoPT)",
-        "CircMAC (MLM)", "CircMAC (NTP)", "CircMAC (SSP)", "CircMAC (Pairing)",
-        "CircMAC (MLM+NTP)", "CircMAC (MLM+SSP)",
-        "CircMAC (MLM+Pair)", "CircMAC (SSP+Pair)", "CircMAC (M+N+S)",
-        "CircMAC (All)",
-    ]
+        "CircMAC (NoPT)", "CircMAC (MLM)", "CircMAC (SSP)", "CircMAC (Pairing)",
+    }
 
     rows = []
     for _, r in df.iterrows():
         label = r["label"]
         split = r["split"]
+        if label not in KEEP_LABELS:
+            continue
         group = "pretraining" if label.startswith("CircMAC") else "encoder"
         rows.append({
             "split":       split,
