@@ -313,16 +313,27 @@ def main():
             out_raw.parent.mkdir(parents=True, exist_ok=True)
             df_raw.to_csv(out_raw, index=False)
             df_sum.to_csv(out_sum, index=False)
-            print(f'  raw  : {len(df_raw)} rows → {out_raw.name}')
+            print(f'  raw    : {len(df_raw)} rows → {out_raw.name}')
             print(f'  summary: {len(df_sum)} rows → {out_sum.name}')
-            print()
+
+            def fmt(mean_key, std_key, r):
+                m = r.get(mean_key, float('nan'))
+                s = r.get(std_key,  float('nan'))
+                if np.isnan(m): return '   —   '
+                return f'{m:.4f}±{s:.4f}'
+
             for split in ['iso', 'bsj']:
                 sub = df_sum[df_sum['split'] == split].sort_values('auroc_mean', ascending=False)
-                print(f'  [{split.upper()}]')
+                print(f'\n  [{split.upper()}-DISJOINT]')
+                print(f"  {'Model':<22}  {'AUROC':>14}  {'AUPRC':>14}  {'F1(pos)':>14}")
+                print(f"  {'-'*68}")
                 for _, r in sub.iterrows():
-                    auroc = f"{r.get('auroc_mean', r.get('roc_auc_mean','?')):.4f}"
-                    auprc = f"{r.get('auprc_mean','?'):.4f}"
-                    print(f"    {r['label']:<20} AUROC={auroc}  AUPRC={auprc}")
+                    auroc_k = 'auroc_mean' if 'auroc_mean' in r else 'roc_auc_mean'
+                    auroc_s = 'auroc_std'  if 'auroc_std'  in r else 'roc_auc_std'
+                    print(f"  {r['label']:<22}  "
+                          f"{fmt(auroc_k, auroc_s, r):>14}  "
+                          f"{fmt('auprc_mean', 'auprc_std', r):>14}  "
+                          f"{fmt('f1_pos_mean', 'f1_pos_std', r):>14}")
 
 
 if __name__ == '__main__':

@@ -177,14 +177,14 @@ def _python_pita_fallback(mirna_seq: str, circ_seq: str,
                 seen_positions.add(pos)
 
                 # Estimate ddG via ViennaRNA if available, else seed-proxy
+                # All seed matches are hits; ddG is used as a score (more negative = stronger)
                 ddg = _estimate_ddg(mirna, circ, pos, len(seed), flank)
-                if ddg <= DDG_THR:
-                    hits.append({
-                        "t_start":   max(0, pos),
-                        "t_end":     min(n, pos + len(seed)),
-                        "ddG":       ddg,
-                        "seed_type": seed_type,
-                    })
+                hits.append({
+                    "t_start":   max(0, pos),
+                    "t_end":     min(n, pos + len(seed)),
+                    "ddG":       ddg,
+                    "seed_type": seed_type,
+                })
         except re.error:
             continue
 
