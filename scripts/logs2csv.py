@@ -167,36 +167,46 @@ DISJOINT_EXPS = [
 # ─────────────────────────────────────────────
 LM_LENGTH_DISJOINT_EXPS = [
     # (split, label, model_name, exp_prefix, length_group)
+    #
+    # sub438:
+    #   RNABERT  → reuse existing iso/bsj_rnabert_ft  (native max=438, same result)
+    #   RNAErnie → new sub438 experiment
+    # sub511:
+    #   RNAErnie → reuse existing iso/bsj_rnaernie_ft (native max=511, same result)
+    #   RNAMSM/RNA-FM/CircMAC → new sub511 experiment
+    # max:
+    #   RNAMSM/RNA-FM/CircMAC → reuse existing iso/bsj experiments
+    #
     # ── sub438 ISO ──
-    ('iso', 'RNABERT',   'rnabert',  'sub438_iso_rnabert_ft',      '438'),
-    ('iso', 'RNAErnie',  'rnaernie', 'sub438_iso_rnaernie_ft',     '438'),
-    ('iso', 'RNAMSM',    'rnamsm',   'sub438_iso_rnamsm_ft',       '438'),
-    ('iso', 'RNA-FM',    'rnafm',    'sub438_iso_rnafm_ft',        '438'),
-    ('iso', 'CircMAC',   'circmac',  'sub438_iso_circmac_pairing', '438'),
+    ('iso', 'RNABERT',  'rnabert',  'iso_rnabert_ft',             '438'),  # reuse (native max=438)
+    ('iso', 'RNAErnie', 'rnaernie', 'sub438_iso_rnaernie_ft',     '438'),
+    ('iso', 'RNAMSM',   'rnamsm',   'sub438_iso_rnamsm_ft',       '438'),
+    ('iso', 'RNA-FM',   'rnafm',    'sub438_iso_rnafm_ft',        '438'),
+    ('iso', 'CircMAC',  'circmac',  'sub438_iso_circmac_pairing', '438'),
     # ── sub511 ISO ──
-    ('iso', 'RNAErnie',  'rnaernie', 'sub511_iso_rnaernie_ft',     '511'),
-    ('iso', 'RNAMSM',    'rnamsm',   'sub511_iso_rnamsm_ft',       '511'),
-    ('iso', 'RNA-FM',    'rnafm',    'sub511_iso_rnafm_ft',        '511'),
-    ('iso', 'CircMAC',   'circmac',  'sub511_iso_circmac_pairing', '511'),
+    ('iso', 'RNAErnie', 'rnaernie', 'iso_rnaernie_ft',            '511'),  # reuse (native max=511)
+    ('iso', 'RNAMSM',   'rnamsm',   'sub511_iso_rnamsm_ft',       '511'),
+    ('iso', 'RNA-FM',   'rnafm',    'sub511_iso_rnafm_ft',        '511'),
+    ('iso', 'CircMAC',  'circmac',  'sub511_iso_circmac_pairing', '511'),
     # ── max ISO (reuse existing) ──
-    ('iso', 'RNAMSM',    'rnamsm',   'iso_rnamsm_ft',              'max'),
-    ('iso', 'RNA-FM',    'rnafm',    'iso_rnafm_ft',               'max'),
-    ('iso', 'CircMAC',   'circmac',  'iso_pt_pairing',             'max'),
+    ('iso', 'RNAMSM',   'rnamsm',   'iso_rnamsm_ft',              'max'),
+    ('iso', 'RNA-FM',   'rnafm',    'iso_rnafm_ft',               'max'),
+    ('iso', 'CircMAC',  'circmac',  'iso_pt_pairing',             'max'),
     # ── sub438 BSJ ──
-    ('bsj', 'RNABERT',   'rnabert',  'sub438_bsj_rnabert_ft',      '438'),
-    ('bsj', 'RNAErnie',  'rnaernie', 'sub438_bsj_rnaernie_ft',     '438'),
-    ('bsj', 'RNAMSM',    'rnamsm',   'sub438_bsj_rnamsm_ft',       '438'),
-    ('bsj', 'RNA-FM',    'rnafm',    'sub438_bsj_rnafm_ft',        '438'),
-    ('bsj', 'CircMAC',   'circmac',  'sub438_bsj_circmac_pairing', '438'),
+    ('bsj', 'RNABERT',  'rnabert',  'bsj_rnabert_ft',             '438'),  # reuse (native max=438)
+    ('bsj', 'RNAErnie', 'rnaernie', 'sub438_bsj_rnaernie_ft',     '438'),
+    ('bsj', 'RNAMSM',   'rnamsm',   'sub438_bsj_rnamsm_ft',       '438'),
+    ('bsj', 'RNA-FM',   'rnafm',    'sub438_bsj_rnafm_ft',        '438'),
+    ('bsj', 'CircMAC',  'circmac',  'sub438_bsj_circmac_pairing', '438'),
     # ── sub511 BSJ ──
-    ('bsj', 'RNAErnie',  'rnaernie', 'sub511_bsj_rnaernie_ft',     '511'),
-    ('bsj', 'RNAMSM',    'rnamsm',   'sub511_bsj_rnamsm_ft',       '511'),
-    ('bsj', 'RNA-FM',    'rnafm',    'sub511_bsj_rnafm_ft',        '511'),
-    ('bsj', 'CircMAC',   'circmac',  'sub511_bsj_circmac_pairing', '511'),
+    ('bsj', 'RNAErnie', 'rnaernie', 'bsj_rnaernie_ft',            '511'),  # reuse (native max=511)
+    ('bsj', 'RNAMSM',   'rnamsm',   'sub511_bsj_rnamsm_ft',       '511'),
+    ('bsj', 'RNA-FM',   'rnafm',    'sub511_bsj_rnafm_ft',        '511'),
+    ('bsj', 'CircMAC',  'circmac',  'sub511_bsj_circmac_pairing', '511'),
     # ── max BSJ (reuse existing) ──
-    ('bsj', 'RNAMSM',    'rnamsm',   'bsj_rnamsm_ft',              'max'),
-    ('bsj', 'RNA-FM',    'rnafm',    'bsj_rnafm_ft',               'max'),
-    ('bsj', 'CircMAC',   'circmac',  'bsj_pt_pairing',             'max'),
+    ('bsj', 'RNAMSM',   'rnamsm',   'bsj_rnamsm_ft',              'max'),
+    ('bsj', 'RNA-FM',   'rnafm',    'bsj_rnafm_ft',               'max'),
+    ('bsj', 'CircMAC',  'circmac',  'bsj_pt_pairing',             'max'),
 ]
 
 
