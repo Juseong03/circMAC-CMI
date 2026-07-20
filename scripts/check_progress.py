@@ -124,6 +124,36 @@ EXPERIMENTS = [
     ("bsj_disjoint", "RNAErnie (ft)",  "rnaernie",    "bsj_rnaernie_ft", None),
     ("bsj_disjoint", "RNAMSM (ft)",    "rnamsm",      "bsj_rnamsm_ft",   None),
     ("bsj_disjoint", "RNA-FM (ft)",    "rnafm",       "bsj_rnafm_ft",    None),
+
+    # ── LM Length-Stratified ISO (sub438 / sub511) ────────────────────────
+    # RNABERT sub438  = reuse iso_rnabert_ft  (native max=438)
+    # RNAErnie sub511 = reuse iso_rnaernie_ft (native max=511)
+    ("lm_len_iso", "RNABERT  (438, reuse)", "rnabert",  "iso_rnabert_ft",             None),
+    ("lm_len_iso", "RNAErnie (438, new)",   "rnaernie", "sub438_iso_rnaernie_ft",     None),
+    ("lm_len_iso", "RNAMSM   (438, new)",   "rnamsm",   "sub438_iso_rnamsm_ft",       None),
+    ("lm_len_iso", "RNA-FM   (438, new)",   "rnafm",    "sub438_iso_rnafm_ft",        None),
+    ("lm_len_iso", "CircMAC  (438, new)",   "circmac",  "sub438_iso_circmac_pairing", None),
+    ("lm_len_iso", "RNAErnie (511, reuse)", "rnaernie", "iso_rnaernie_ft",            None),
+    ("lm_len_iso", "RNAMSM   (511, new)",   "rnamsm",   "sub511_iso_rnamsm_ft",       None),
+    ("lm_len_iso", "RNA-FM   (511, new)",   "rnafm",    "sub511_iso_rnafm_ft",        None),
+    ("lm_len_iso", "CircMAC  (511, new)",   "circmac",  "sub511_iso_circmac_pairing", None),
+    ("lm_len_iso", "RNAMSM   (max, reuse)", "rnamsm",   "iso_rnamsm_ft",              None),
+    ("lm_len_iso", "RNA-FM   (max, reuse)", "rnafm",    "iso_rnafm_ft",               None),
+    ("lm_len_iso", "CircMAC  (max, reuse)", "circmac",  "iso_pt_pairing",             None),
+
+    # ── LM Length-Stratified BSJ (sub438 / sub511) ────────────────────────
+    ("lm_len_bsj", "RNABERT  (438, reuse)", "rnabert",  "bsj_rnabert_ft",             None),
+    ("lm_len_bsj", "RNAErnie (438, new)",   "rnaernie", "sub438_bsj_rnaernie_ft",     None),
+    ("lm_len_bsj", "RNAMSM   (438, new)",   "rnamsm",   "sub438_bsj_rnamsm_ft",       None),
+    ("lm_len_bsj", "RNA-FM   (438, new)",   "rnafm",    "sub438_bsj_rnafm_ft",        None),
+    ("lm_len_bsj", "CircMAC  (438, new)",   "circmac",  "sub438_bsj_circmac_pairing", None),
+    ("lm_len_bsj", "RNAErnie (511, reuse)", "rnaernie", "bsj_rnaernie_ft",            None),
+    ("lm_len_bsj", "RNAMSM   (511, new)",   "rnamsm",   "sub511_bsj_rnamsm_ft",       None),
+    ("lm_len_bsj", "RNA-FM   (511, new)",   "rnafm",    "sub511_bsj_rnafm_ft",        None),
+    ("lm_len_bsj", "CircMAC  (511, new)",   "circmac",  "sub511_bsj_circmac_pairing", None),
+    ("lm_len_bsj", "RNAMSM   (max, reuse)", "rnamsm",   "bsj_rnamsm_ft",              None),
+    ("lm_len_bsj", "RNA-FM   (max, reuse)", "rnafm",    "bsj_rnafm_ft",               None),
+    ("lm_len_bsj", "CircMAC  (max, reuse)", "circmac",  "bsj_pt_pairing",             None),
 ]
 
 # ── Pretraining checkpoints (model.pth, seed=42) ─────────────────────────────
@@ -173,6 +203,7 @@ GROUPS_ORDER = [
     "encoder", "ablation", "interaction", "site_head",
     "pretraining", "rna_frozen", "rna_trainable",
     "iso_disjoint", "bsj_disjoint",
+    "lm_len_iso", "lm_len_bsj",
 ]
 
 GROUP_LABELS = {
@@ -185,6 +216,8 @@ GROUP_LABELS = {
     "rna_trainable":"EXP1  RNA-LM Trainable",
     "iso_disjoint": "REV   Isoform-Disjoint Split",
     "bsj_disjoint": "REV   BSJ-Disjoint Split",
+    "lm_len_iso":   "REV   LM Length-Stratified ISO",
+    "lm_len_bsj":   "REV   LM Length-Stratified BSJ",
 }
 
 
