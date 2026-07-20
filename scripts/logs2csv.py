@@ -159,6 +159,46 @@ DISJOINT_EXPS = [
     ('bsj', 'RNA-FM (ft)',       'encoder',     'rnafm',       'bsj_rnafm_ft'),
 ]
 
+# ─────────────────────────────────────────────
+# LM Length-stratified: iso / bsj  (Option C)
+# sub438: RNABERT/RNAErnie/RNAMSM/RNA-FM + CircMAC (max_len=438)
+# sub511: RNAErnie/RNAMSM/RNA-FM + CircMAC (max_len=511)
+# max   : RNAMSM/RNA-FM + CircMAC — reuse existing iso/bsj experiments
+# ─────────────────────────────────────────────
+LM_LENGTH_DISJOINT_EXPS = [
+    # (split, label, model_name, exp_prefix, length_group)
+    # ── sub438 ISO ──
+    ('iso', 'RNABERT',   'rnabert',  'sub438_iso_rnabert_ft',      '438'),
+    ('iso', 'RNAErnie',  'rnaernie', 'sub438_iso_rnaernie_ft',     '438'),
+    ('iso', 'RNAMSM',    'rnamsm',   'sub438_iso_rnamsm_ft',       '438'),
+    ('iso', 'RNA-FM',    'rnafm',    'sub438_iso_rnafm_ft',        '438'),
+    ('iso', 'CircMAC',   'circmac',  'sub438_iso_circmac_pairing', '438'),
+    # ── sub511 ISO ──
+    ('iso', 'RNAErnie',  'rnaernie', 'sub511_iso_rnaernie_ft',     '511'),
+    ('iso', 'RNAMSM',    'rnamsm',   'sub511_iso_rnamsm_ft',       '511'),
+    ('iso', 'RNA-FM',    'rnafm',    'sub511_iso_rnafm_ft',        '511'),
+    ('iso', 'CircMAC',   'circmac',  'sub511_iso_circmac_pairing', '511'),
+    # ── max ISO (reuse existing) ──
+    ('iso', 'RNAMSM',    'rnamsm',   'iso_rnamsm_ft',              'max'),
+    ('iso', 'RNA-FM',    'rnafm',    'iso_rnafm_ft',               'max'),
+    ('iso', 'CircMAC',   'circmac',  'iso_pt_pairing',             'max'),
+    # ── sub438 BSJ ──
+    ('bsj', 'RNABERT',   'rnabert',  'sub438_bsj_rnabert_ft',      '438'),
+    ('bsj', 'RNAErnie',  'rnaernie', 'sub438_bsj_rnaernie_ft',     '438'),
+    ('bsj', 'RNAMSM',    'rnamsm',   'sub438_bsj_rnamsm_ft',       '438'),
+    ('bsj', 'RNA-FM',    'rnafm',    'sub438_bsj_rnafm_ft',        '438'),
+    ('bsj', 'CircMAC',   'circmac',  'sub438_bsj_circmac_pairing', '438'),
+    # ── sub511 BSJ ──
+    ('bsj', 'RNAErnie',  'rnaernie', 'sub511_bsj_rnaernie_ft',     '511'),
+    ('bsj', 'RNAMSM',    'rnamsm',   'sub511_bsj_rnamsm_ft',       '511'),
+    ('bsj', 'RNA-FM',    'rnafm',    'sub511_bsj_rnafm_ft',        '511'),
+    ('bsj', 'CircMAC',   'circmac',  'sub511_bsj_circmac_pairing', '511'),
+    # ── max BSJ (reuse existing) ──
+    ('bsj', 'RNAMSM',    'rnamsm',   'bsj_rnamsm_ft',              'max'),
+    ('bsj', 'RNA-FM',    'rnafm',    'bsj_rnafm_ft',               'max'),
+    ('bsj', 'CircMAC',   'circmac',  'bsj_pt_pairing',             'max'),
+]
+
 
 # ── builders ──────────────────────────────────────────────────────────────────
 
@@ -256,6 +296,41 @@ def build_disjoint(logs_dir, seeds):
     return df_raw, df_sum
 
 
+def build_lm_length_disjoint(logs_dir, seeds):
+    """
+    iso/bsj sub438/sub511/max experiments →
+    figures_paper/fig_lm_length_disjoint/fig_lm_length_disjoint_data.csv
+    (same format as fig_lm_length_comparison_data.csv)
+    """
+    raw_rows = []
+    for split, label, model_name, exp_pfx, length_group in LM_LENGTH_DISJOINT_EXPS:
+        for seed in seeds:
+            sc = load_scores(model_name, exp_pfx, seed, logs_dir)
+            if sc is None:
+                continue
+            raw_rows.append({
+                'split': split, 'model': label, 'group': length_group,
+                'seed': seed, **sc,
+            })
+
+    if not raw_rows:
+        return pd.DataFrame()
+
+    df_raw = pd.DataFrame(raw_rows)
+
+    metric_cols = [c for c in ['f1_macro', 'roc_auc', 'auprc', 'f1_pos']
+                   if c in df_raw.columns]
+    summary_rows = []
+    for (split, model, group), grp in df_raw.groupby(['split', 'model', 'group']):
+        row = {'split': split, 'model': model, 'group': group, 'n_seeds': len(grp)}
+        for m in metric_cols:
+            row[f'{m}_mean'] = round(grp[m].mean(), 4)
+            row[f'{m}_std']  = round(grp[m].std(),  4)
+        summary_rows.append(row)
+
+    return pd.DataFrame(summary_rows)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--logs_dir', default='logs',
@@ -263,7 +338,7 @@ def main():
     parser.add_argument('--seeds', nargs='+', type=int, default=SEEDS)
     parser.add_argument('--disjoint', action='store_true',
                         help='also build iso/bsj disjoint CSVs')
-    parser.add_argument('--only', choices=['pair', 'disjoint', 'all'],
+    parser.add_argument('--only', choices=['pair', 'disjoint', 'lm_length', 'all'],
                         default='all')
     args = parser.parse_args()
 
@@ -273,8 +348,9 @@ def main():
     print(f'logs_dir : {logs_dir}')
     print(f'seeds    : {seeds}')
 
-    do_pair     = args.only in ('pair', 'all')
-    do_disjoint = args.only in ('disjoint', 'all') or args.disjoint
+    do_pair      = args.only in ('pair', 'all')
+    do_disjoint  = args.only in ('disjoint', 'all') or args.disjoint
+    do_lm_length = args.only in ('lm_length', 'all')
 
     # ── Pair split figures ────────────────────────────────────────────────────
     if do_pair:
@@ -334,6 +410,35 @@ def main():
                           f"{fmt(auroc_k, auroc_s, r):>14}  "
                           f"{fmt('auprc_mean', 'auprc_std', r):>14}  "
                           f"{fmt('f1_pos_mean', 'f1_pos_std', r):>14}")
+
+    # ── LM length-stratified disjoint ────────────────────────────────────────
+    if do_lm_length:
+        print(f'\n=== lm_length (iso/bsj sub438/sub511/max) ===')
+        df_lm = build_lm_length_disjoint(logs_dir, seeds)
+        if df_lm.empty:
+            print('  WARNING: no data — run scripts/sub438_iso/, sub511_iso/, sub438_bsj/, sub511_bsj/ first')
+        else:
+            out_lm = ROOT / 'figures_paper/fig_lm_length_disjoint/fig_lm_length_disjoint_data.csv'
+            out_lm.parent.mkdir(parents=True, exist_ok=True)
+            df_lm.to_csv(out_lm, index=False)
+            print(f'  Saved {len(df_lm)} rows → {out_lm.name}')
+
+            def fmt_lm(mean_key, std_key, r):
+                m = r.get(mean_key, float('nan'))
+                s = r.get(std_key,  float('nan'))
+                if np.isnan(m): return '   —   '
+                return f'{m:.4f}±{s:.4f}'
+
+            for split in ['iso', 'bsj']:
+                sub = df_lm[df_lm['split'] == split]
+                print(f'\n  [{split.upper()} — length-stratified]')
+                print(f"  {'Model':<12}  {'Group':>5}  {'AUROC':>14}  {'AUPRC':>14}  {'F1(pos)':>14}")
+                print(f"  {'-'*60}")
+                for _, r in sub.sort_values(['group', 'model']).iterrows():
+                    print(f"  {r['model']:<12}  {r['group']:>5}  "
+                          f"{fmt_lm('roc_auc_mean', 'roc_auc_std', r):>14}  "
+                          f"{fmt_lm('auprc_mean', 'auprc_std', r):>14}  "
+                          f"{fmt_lm('f1_pos_mean', 'f1_pos_std', r):>14}")
 
 
 if __name__ == '__main__':
