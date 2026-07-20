@@ -45,6 +45,12 @@ PRED_DIR = OUT / "preds_disjoint"
 OUT.mkdir(parents=True, exist_ok=True)
 
 MAX_LEN = 1022
+LM_MAX_LEN = {
+    "rnabert":  438,
+    "rnaernie": 511,
+    "rnamsm":   1022,
+    "rnafm":    1022,
+}
 D_MODEL = 128
 N_LAYER = 6
 BS      = 32
@@ -225,12 +231,12 @@ def extract_preds_full(tensors):
 
 
 def evaluate(trainer, df_train_raw, df_test_raw, seed, device, bs=BS,
-             save_preds_path=None):
-    df_tr = df_train_raw[df_train_raw["length"] <= MAX_LEN].reset_index(drop=True)
-    df_te = df_test_raw[df_test_raw["length"]   <= MAX_LEN].reset_index(drop=True)
+             save_preds_path=None, max_len=MAX_LEN):
+    df_tr = df_train_raw[df_train_raw["length"] <= max_len].reset_index(drop=True)
+    df_te = df_test_raw[df_test_raw["length"]   <= max_len].reset_index(drop=True)
     _, _, test_ds, _ = prepare_datasets(
         df=df_tr, df_test=df_te,
-        max_len=MAX_LEN + 2, target="mirna", seed=seed, kmer=1,
+        max_len=max_len + 2, target="mirna", seed=seed, kmer=1,
     )
     trainer.set_dataloader(test_ds, part=2, batch_size=bs,
                            num_workers=WORKERS, shuffle=False)
@@ -306,7 +312,8 @@ def main():
         print(f"\n=== {split_pfx.upper()} / {label} ===")
         df_train, df_test = dfs[split_pfx]
 
-        bs = 8 if model_name in LM_MODELS else BS
+        bs      = 8 if model_name in LM_MODELS else BS
+        max_len = LM_MAX_LEN.get(model_name, MAX_LEN)
         save_preds = (not args.skip_preds) and (label in SAVE_PREDS_LABELS)
 
         for seed in args.seeds:
@@ -337,6 +344,7 @@ def main():
                 metrics = evaluate(
                     trainer, df_train, df_test, seed, args.device, bs=bs,
                     save_preds_path=pred_path if save_preds else None,
+                    max_len=max_len,
                 )
                 del trainer
             torch.cuda.empty_cache()
