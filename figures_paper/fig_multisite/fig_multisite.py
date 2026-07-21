@@ -36,27 +36,21 @@ DATA_CSV = OUT / "data_predictions.csv"
 # ── Cases ─────────────────────────────────────────────────────────────────────
 CASES = [
     dict(
-        label_m="circRPUSD4",
-        isoform_prefix="chr11|126203345",
-        mirna="hsa-miR-5008-3p",
-        n_clusters=3,
-    ),
-    dict(
-        label_m="circMGA",
-        isoform_prefix="chr15|41696075",
-        mirna="hsa-miR-3978",
-        n_clusters=2,
-    ),
-    dict(
-        label_m="circDONSON",
-        isoform_prefix="chr21|33581302",
-        mirna="hsa-miR-296-3p",
-        n_clusters=2,
-    ),
-    dict(
         label_m="circFANCA",
         isoform_prefix="chr16|89782859",
         mirna="hsa-miR-6858-5p",
+        n_clusters=2,
+    ),
+    dict(
+        label_m="circKHDRBS1",
+        isoform_prefix="chr1|32036910,32037835,32038552|32037043",
+        mirna="hsa-miR-6880-5p",
+        n_clusters=2,
+    ),
+    dict(
+        label_m="circJARID2",
+        isoform_prefix="chr6|15410224,15452006,15468542,15487307",
+        mirna="hsa-miR-608",
         n_clusters=2,
     ),
 ]
@@ -68,27 +62,30 @@ MODEL_COLORS = {
     "transformer": "#8C564B",
     "mamba":       "#D62728",
     "hymba":       "#BCBD22",
+    "rnabert":     "#9467BD",
+    "rnaernie":    "#8C8C00",
     "rnamsm":      "#2CA02C",
     "rnafm":       "#17BECF",
 }
 
+NAN_COLOR = "#cccccc"   # grey for positions beyond model max_len
 BSJ_COLOR = "#1F77B4"
 
 # (color_key, display_label, pred_col)
 GROUPS = {
     "encoder": [
-        ("lstm",        "LSTM",        "pred_lstm"),
-        ("transformer", "Transformer", "pred_transformer"),
-        ("mamba",       "Mamba",       "pred_mamba"),
-        ("hymba",       "Hymba",       "pred_hymba"),
-        ("circmac",     "CircMAC",     "pred_circmac"),
+        ("lstm",        "LSTM",           "pred_lstm"),
+        ("transformer", "Transformer",    "pred_transformer"),
+        ("mamba",       "Mamba",          "pred_mamba"),
+        ("hymba",       "Hymba",          "pred_hymba"),
+        ("circmac",     "CircMAC\n(nopt)","pred_circmac_nopt"),
     ],
     "pretrained": [
-        ("rnamsm", "RNAMSM\n(frozen)",    "pred_rnamsm_frozen"),
-        ("rnafm",  "RNA-FM\n(frozen)",    "pred_rnafm_frozen"),
-        ("rnamsm", "RNAMSM\n(fine-tuned)","pred_rnamsm_ft"),
-        ("rnafm",  "RNA-FM\n(fine-tuned)","pred_rnafm_ft"),
-        ("circmac","CircMAC",             "pred_circmac"),
+        ("rnabert",  "RNABERT",           "pred_rnabert_ft"),
+        ("rnaernie", "RNAErnie",          "pred_rnaernie_ft"),
+        ("rnamsm",   "RNAMSM",            "pred_rnamsm_ft"),
+        ("rnafm",    "RNA-FM",            "pred_rnafm_ft"),
+        ("circmac",  "CircMAC\n(nopt)",   "pred_circmac_nopt"),
     ],
 }
 
@@ -207,13 +204,15 @@ def draw_heatmap_section(fig, gs_slot, df_all, models):
         for ri, (mkey, mname, mcol) in enumerate(models):
             ax = fig.add_subplot(gs_case[ri + 1])
 
-            if mcol in df.columns:
-                pred  = df[mcol].fillna(0).values
+            if mcol in df.columns and not df[mcol].isna().all():
+                pred_raw = df[mcol].values.astype(float)
+                pred_masked = np.ma.masked_invalid(pred_raw)
                 color = MODEL_COLORS.get(mkey, "#888888")
                 cmap  = mcolors.LinearSegmentedColormap.from_list(
                     f"{mkey}_cm", ["#f7f7f7", color]
                 )
-                ax.imshow(pred[np.newaxis, :], aspect="auto",
+                cmap.set_bad(color=NAN_COLOR)
+                ax.imshow(pred_masked[np.newaxis, :], aspect="auto",
                           cmap=cmap, vmin=0, vmax=1, interpolation="nearest")
             else:
                 ax.set_facecolor("#eeeeee")
@@ -312,8 +311,8 @@ def make_figure(group_key, df_all):
 
     hm_rows   = n_models + 1
     hm_h      = hm_rows * 0.80 + 0.8
-    metrics_h = 6.0
-    fig_w     = 5.8 * n_cases
+    metrics_h = 7.5 if n_models > 6 else 6.0
+    fig_w     = 6.2 * n_cases
     fig_h     = hm_h + metrics_h + 1.0
 
     fig = plt.figure(figsize=(fig_w, fig_h))

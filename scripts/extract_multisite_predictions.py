@@ -44,6 +44,7 @@ OUT_CSV    = OUT_DIR / 'data_predictions.csv'
 MODEL_SPECS = [
     # CircMAC variants
     ('pred_circmac',         'circmac',     'v2_pt_pairing',               False),
+    ('pred_circmac_nopt',    'circmac',     'v2_abl_full',                 False),
     ('pred_circmac_mlm',     'circmac',     'v2_pt_mlm',                   False),
     # Encoders
     ('pred_lstm',            'lstm',        'v2_enc_lstm',                 False),
@@ -136,6 +137,10 @@ def setup_trainer(model_name, exp_name, seed, device, frozen_rna_lm, vocab_size)
 
 
 def run_inference(trainer, dataset, device):
+    """Run per-nucleotide inference.
+    For models with max_len < sequence length, predictions are made only for
+    the first max_len positions; the rest are filled with NaN.
+    """
     loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0)
     all_preds = []
     with torch.no_grad():
@@ -145,8 +150,11 @@ def run_inference(trainer, dataset, device):
             emb, _ = trainer.forward_cross_attention(emb, target, target_mask)
             logits = trainer.forward_task(emb, target, task='sites')
             prob = torch.softmax(logits, dim=-1)[..., 1]
-            L = int(data['length'][0].item())
-            all_preds.append(prob[0, :L].cpu().numpy())
+            L      = int(data['length'][0].item())
+            n_pred = prob.shape[1]          # actual model output length (≤ max_len)
+            result = np.full(L, np.nan)
+            result[:min(L, n_pred)] = prob[0, :min(L, n_pred)].cpu().numpy()
+            all_preds.append(result)
     return all_preds
 
 
@@ -223,9 +231,7 @@ def main():
         model_max_len = MODEL_MAX_LEN.get(model_name, MAX_LEN) + 2
         max_seq_len   = df_multi['circRNA'].apply(len).max()
         if max_seq_len > model_max_len - 2:
-            print(f'SKIP (max_seq_len={max_seq_len} > model_max={model_max_len - 2})')
-            df_out[col_name] = None
-            continue
+            print(f'(truncating: max_seq={max_seq_len} > model_max={model_max_len - 2})', end=' ', flush=True)
 
         try:
             ckpt_vocab = get_ckpt_vocab_size(model_name, exp_name, args.seed)
