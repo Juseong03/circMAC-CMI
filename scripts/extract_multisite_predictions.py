@@ -40,18 +40,26 @@ OUT_DIR    = ROOT / 'figures_paper' / 'fig_multisite'
 OUT_CSV    = OUT_DIR / 'data_predictions.csv'
 
 # Models to run: (col_name, model_name, exp_name, frozen_rna_lm)
-# Only models available in models_for_viz/
+# All models available in models_for_viz/ — use seed=3
 MODEL_SPECS = [
-    ('pred_circmac',     'circmac',     'v2_abl_full',                False),
-    ('pred_circmac_mlm', 'circmac',     'v2_pt_mlm',                  False),
-    ('pred_mamba',       'mamba',       'v2_enc_mamba',               False),
-    ('pred_lstm',        'lstm',        'v2_enc_lstm',                False),
-    ('pred_transformer', 'transformer', 'v2_enc_transformer',         False),
-    ('pred_hymba',       'hymba',       'v2_enc_hymba',               False),
-    ('pred_rnamsm_frozen','rnamsm',     'exp1_fair_frozen_rnamsm',    True),
-    ('pred_rnafm_frozen', 'rnafm',      'exp1_fair_frozen_rnafm',     True),
-    ('pred_rnamsm_ft',   'rnamsm',      'exp1_fair_trainable_rnamsm', False),
-    ('pred_rnafm_ft',    'rnafm',       'exp1_fair_trainable_rnafm',  False),
+    # CircMAC variants
+    ('pred_circmac',         'circmac',     'v2_pt_pairing',               False),
+    ('pred_circmac_mlm',     'circmac',     'v2_pt_mlm',                   False),
+    # Encoders
+    ('pred_lstm',            'lstm',        'v2_enc_lstm',                 False),
+    ('pred_transformer',     'transformer', 'v2_enc_transformer',          False),
+    ('pred_mamba',           'mamba',       'v2_enc_mamba',                False),
+    ('pred_hymba',           'hymba',       'v2_enc_hymba',                False),
+    # RNA-LMs (frozen)
+    ('pred_rnabert_frozen',  'rnabert',     'exp1_fair_frozen_rnabert',    True),
+    ('pred_rnaernie_frozen', 'rnaernie',    'exp1_fair_frozen_rnaernie',   True),
+    ('pred_rnamsm_frozen',   'rnamsm',      'exp1_fair_frozen_rnamsm',     True),
+    ('pred_rnafm_frozen',    'rnafm',       'exp1_fair_frozen_rnafm',      True),
+    # RNA-LMs (fine-tuned)
+    ('pred_rnabert_ft',      'rnabert',     'exp1_fair_trainable_rnabert', False),
+    ('pred_rnaernie_ft',     'rnaernie',    'exp1_fair_trainable_rnaernie',False),
+    ('pred_rnamsm_ft',       'rnamsm',      'exp1_fair_trainable_rnamsm',  False),
+    ('pred_rnafm_ft',        'rnafm',       'exp1_fair_trainable_rnafm',   False),
 ]
 
 

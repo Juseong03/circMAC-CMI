@@ -75,13 +75,22 @@ MODEL_COLORS = {
 BSJ_COLOR = "#1F77B4"
 
 # (color_key, display_label, pred_col)
-MODELS = [
-    ("lstm",        "LSTM",        "pred_lstm"),
-    ("transformer", "Transformer", "pred_transformer"),
-    ("mamba",       "Mamba",       "pred_mamba"),
-    ("hymba",       "Hymba",       "pred_hymba"),
-    ("circmac",     "CircMAC",     "pred_circmac"),
-]
+GROUPS = {
+    "encoder": [
+        ("lstm",        "LSTM",        "pred_lstm"),
+        ("transformer", "Transformer", "pred_transformer"),
+        ("mamba",       "Mamba",       "pred_mamba"),
+        ("hymba",       "Hymba",       "pred_hymba"),
+        ("circmac",     "CircMAC",     "pred_circmac"),
+    ],
+    "pretrained": [
+        ("rnamsm", "RNAMSM\n(frozen)",    "pred_rnamsm_frozen"),
+        ("rnafm",  "RNA-FM\n(frozen)",    "pred_rnafm_frozen"),
+        ("rnamsm", "RNAMSM\n(fine-tuned)","pred_rnamsm_ft"),
+        ("rnafm",  "RNA-FM\n(fine-tuned)","pred_rnafm_ft"),
+        ("circmac","CircMAC",             "pred_circmac"),
+    ],
+}
 
 # ── Style ─────────────────────────────────────────────────────────────────────
 plt.rcParams.update({
@@ -296,17 +305,16 @@ def draw_metrics_section(fig, gs_slot, df_all, models):
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
-def main():
-    df_all   = load_all()
-    models   = MODELS
+def make_figure(group_key, df_all):
+    models   = GROUPS[group_key]
     n_models = len(models)
     n_cases  = len(CASES)
 
-    hm_rows  = n_models + 1
-    hm_h     = hm_rows * 0.80 + 0.8
+    hm_rows   = n_models + 1
+    hm_h      = hm_rows * 0.80 + 0.8
     metrics_h = 6.0
-    fig_w    = 5.8 * n_cases
-    fig_h    = hm_h + metrics_h + 1.0
+    fig_w     = 5.8 * n_cases
+    fig_h     = hm_h + metrics_h + 1.0
 
     fig = plt.figure(figsize=(fig_w, fig_h))
     gs  = GridSpec(2, 1, figure=fig,
@@ -315,7 +323,6 @@ def main():
     draw_heatmap_section(fig, gs[0], df_all, models)
     draw_metrics_section(fig, gs[1], df_all, models)
 
-    # Panel labels
     panel_x = 0.06
     hm_frac  = hm_h / fig_h
     fig.text(panel_x, 0.985, "(A)", ha="left", va="top",
@@ -323,15 +330,23 @@ def main():
     fig.text(panel_x, hm_frac - 0.01, "(B)", ha="left", va="top",
              fontsize=13, fontweight="bold", transform=fig.transFigure)
 
-    fig.suptitle("Case study — Multi-site binding (CircMAC vs encoder models)",
-                 fontsize=12, fontweight="bold", y=1.012)
+    if group_key == "encoder":
+        title = "Case study — Multi-site binding (CircMAC vs general encoder models)"
+    else:
+        title = "Case study — Multi-site binding (CircMAC vs RNA language models)"
+    fig.suptitle(title, fontsize=12, fontweight="bold", y=1.012)
 
     for ext in ["pdf", "png"]:
-        p = OUT / f"fig_multisite.{ext}"
+        p = OUT / f"fig_multisite_{group_key}.{ext}"
         fig.savefig(p, dpi=200, bbox_inches="tight")
         print(f"Saved → {p}")
-
     plt.close(fig)
+
+
+def main():
+    df_all = load_all()
+    make_figure("encoder",    df_all)
+    make_figure("pretrained", df_all)
     print("Done.")
 
 
