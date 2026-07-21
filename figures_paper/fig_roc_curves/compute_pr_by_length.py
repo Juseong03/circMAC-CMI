@@ -31,7 +31,7 @@ import torch
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from sklearn.metrics import precision_recall_curve, average_precision_score
+from sklearn.metrics import precision_recall_curve, auc
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -152,7 +152,7 @@ def run_inference_one(model_name, exp_template, trainable_pretrained,
 
         trainer.define_model(config=cfg, model_name=model_name, pretrain=False,
                              is_cross_attention=True, interaction="cross_attention",
-                             site_head_type="conv1d", verbose=False)
+                             site_head_type="conv1d")
         if model_name in ["rnabert", "rnaernie", "rnafm", "rnamsm"] and not trainable_pretrained:
             trainer.define_pretrained_model(model_name=model_name)
         trainer.set_pretrained_target(target="mirna", rna_model="rnabert")
@@ -194,11 +194,14 @@ def mean_pr(seed_results):
     base_rec = np.linspace(0, 1, 300)
     precs, aps, prevs = [], [], []
     for r in seed_results:
-        p, rc, _ = precision_recall_curve(r["labels"], r["preds"])
+        mask   = r["labels"] != -100
+        labels = r["labels"][mask].astype(int)
+        preds  = r["preds"][mask]
+        p, rc, _ = precision_recall_curve(labels, preds)
         p, rc = p[::-1], rc[::-1]
         precs.append(np.interp(base_rec, rc, p))
-        aps.append(average_precision_score(r["labels"], r["preds"]))
-        prevs.append(r["labels"].mean())
+        aps.append(auc(rc[::-1], p[::-1]))
+        prevs.append(labels.mean())
     return (base_rec, np.mean(precs, 0), np.std(precs, 0),
             np.mean(aps), np.std(aps), np.mean(prevs))
 
