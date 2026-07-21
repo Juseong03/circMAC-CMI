@@ -41,7 +41,7 @@ CASES = [
          mirna='hsa-miR-5008-3p',  chr_label='chr11'),
     dict(label='circMGA',     gene='MGA',         isoform_prefix='chr15|41696075',
          mirna='hsa-miR-3978',     chr_label='chr15'),
-    dict(label='circDONSON',  gene='DONSON',      isoform_prefix='chr21|33945',
+    dict(label='circDONSON',  gene='DONSON',      isoform_prefix='chr21|33581302',
          mirna='hsa-miR-296-3p',   chr_label='chr21'),
     dict(label='circFANCA',   gene='FANCA',       isoform_prefix='chr16|89782859',
          mirna='hsa-miR-6858-5p',  chr_label='chr16'),
