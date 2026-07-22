@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 
 ROOT    = Path(__file__).resolve().parents[1]
-METRICS = ['f1_macro', 'roc_auc', 'auprc']
+METRICS = ['f1_macro', 'roc_auc', 'auprc', 'f1_pos', 'prec_pos', 'rec_pos', 'mcc']
 SEEDS   = [1, 2, 3]
 
 
@@ -48,10 +48,6 @@ def load_scores(model_name: str, exp_name: str, seed: int, logs_dir: Path):
         # alias: roc_auc → auroc
         if 'auroc' in scores and 'roc_auc' not in out:
             out['roc_auc'] = scores['auroc']
-        if 'f1_pos' in scores:
-            out['f1_pos'] = scores['f1_pos']
-        if 'mcc' in scores:
-            out['mcc'] = scores['mcc']
         return out
     except Exception as e:
         print(f'  [ERR] {path.relative_to(ROOT)}: {e}')
@@ -286,7 +282,7 @@ def build_disjoint(logs_dir, seeds):
     df_raw = pd.DataFrame(raw_rows)
 
     # summary: mean ± std per (split, label)
-    metric_cols = [c for c in ['f1_macro', 'roc_auc', 'auprc', 'f1_pos', 'mcc']
+    metric_cols = [c for c in ['f1_macro', 'roc_auc', 'auprc', 'f1_pos', 'prec_pos', 'rec_pos', 'mcc']
                    if c in df_raw.columns]
     summary_rows = []
     for (split, label), grp in df_raw.groupby(['split', 'label']):

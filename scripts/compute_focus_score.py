@@ -40,7 +40,7 @@ from utils_config import get_model_config
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 MAX_LEN  = 1022
-BSJ_WIN  = 40
+BSJ_WIN  = 25
 
 MODEL_MAX_LEN = {
     'rnabert':  436,
