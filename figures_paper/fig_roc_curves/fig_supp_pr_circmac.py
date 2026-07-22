@@ -47,12 +47,12 @@ SPLIT_CONFIG = {
     },
     "iso": {
         "title":    "(B) Isoform-disjoint",
-        "exp_name": "bsj_circmac_pairing",   # adjust if naming differs on server
+        "exp_name": "iso_pt_pairing",
         "model":    "circmac",
     },
     "bsj": {
         "title":    "(C) BSJ-disjoint",
-        "exp_name": "bsj_circmac_pairing",   # adjust if naming differs on server
+        "exp_name": "bsj_pt_pairing",
         "model":    "circmac",
     },
 }

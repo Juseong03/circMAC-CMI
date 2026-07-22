@@ -52,9 +52,9 @@ COLOR      = "#E05C2A"
 SPLIT_CONFIG = {
     "pair": {"exp_name": "max_circmac_pairing", "model": "circmac",
              "label": "Pair-disjoint"},
-    "iso":  {"exp_name": "bsj_circmac_pairing", "model": "circmac",
+    "iso":  {"exp_name": "iso_pt_pairing",      "model": "circmac",
              "label": "Isoform-disjoint"},
-    "bsj":  {"exp_name": "bsj_circmac_pairing", "model": "circmac",
+    "bsj":  {"exp_name": "bsj_pt_pairing",      "model": "circmac",
              "label": "BSJ-disjoint"},
 }
 
