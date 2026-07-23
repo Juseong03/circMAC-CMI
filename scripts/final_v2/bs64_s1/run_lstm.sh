@@ -1,24 +1,19 @@
 #!/bin/bash
-# Train lstm on ISO-DISJOINT x 3 seeds
-# Usage: bash scripts/final_v2/run_iso_lstm.sh <GPU>
+# LSTM — iso + bsj, batch_size=64, seed=1
+# Usage: bash scripts/final_v2/bs64_s1/run_lstm.sh <GPU>
 
 GPU=${1:-0}
-TRAIN_FILE="./data/df_train_iso_disjoint.pkl"
-TEST_FILE="./data/df_test_iso_disjoint.pkl"
+SEED=1
 
-if [ -n "${SEEDS_OVERRIDE:-}" ]; then
-    read -r -a SEEDS <<< "$SEEDS_OVERRIDE"
-else
-    SEEDS=(1 2 3)
-fi
+for SPLIT in iso bsj; do
+    TRAIN_FILE="./data/df_train_${SPLIT}_disjoint.pkl"
+    TEST_FILE="./data/df_test_${SPLIT}_disjoint.pkl"
+    EXP="${SPLIT}_lstm_bs64_s${SEED}"
 
-echo "=== ISO-DISJOINT lstm (GPU=$GPU seeds=${SEEDS[*]}) ==="
-
-for SEED in "${SEEDS[@]}"; do
-    EXP="iso_lstm_s${SEED}"
     CKPT=$(find saved_models/lstm/${EXP} -name "model.pth" 2>/dev/null | head -1)
     if [ -n "$CKPT" ]; then echo "  [SKIP] $EXP"; continue; fi
     echo "  [RUN]  $EXP"
+
     python training.py \
         --model_name lstm \
         --device $GPU \
@@ -29,10 +24,10 @@ for SEED in "${SEEDS[@]}"; do
         --batch_size 64 \
         --interaction cross_attention \
         --max_len 1022 \
-        --verbose \
         --train_file "$TRAIN_FILE" \
         --test_file  "$TEST_FILE" \
+        --verbose \
         --exp "$EXP"
 done
 
-echo "=== ISO-DISJOINT lstm done ==="
+echo "=== lstm bs64 s1 done ==="

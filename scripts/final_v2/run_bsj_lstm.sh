@@ -26,7 +26,7 @@ for SEED in "${SEEDS[@]}"; do
         --seed $SEED \
         --d_model 128 \
         --n_layer 6 \
-        --batch_size 128 \
+        --batch_size 64 \
         --interaction cross_attention \
         --max_len 1022 \
         --verbose \

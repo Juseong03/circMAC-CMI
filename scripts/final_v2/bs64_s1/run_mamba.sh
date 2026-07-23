@@ -1,24 +1,19 @@
 #!/bin/bash
-# Train mamba on BSJ-DISJOINT x 3 seeds
-# Usage: bash scripts/final_v2/run_bsj_mamba.sh <GPU>
+# Mamba — iso + bsj, batch_size=64, seed=1
+# Usage: bash scripts/final_v2/bs64_s1/run_mamba.sh <GPU>
 
 GPU=${1:-0}
-TRAIN_FILE="./data/df_train_bsj_disjoint.pkl"
-TEST_FILE="./data/df_test_bsj_disjoint.pkl"
+SEED=1
 
-if [ -n "${SEEDS_OVERRIDE:-}" ]; then
-    read -r -a SEEDS <<< "$SEEDS_OVERRIDE"
-else
-    SEEDS=(1 2 3)
-fi
+for SPLIT in iso bsj; do
+    TRAIN_FILE="./data/df_train_${SPLIT}_disjoint.pkl"
+    TEST_FILE="./data/df_test_${SPLIT}_disjoint.pkl"
+    EXP="${SPLIT}_mamba_bs64_s${SEED}"
 
-echo "=== BSJ-DISJOINT mamba (GPU=$GPU seeds=${SEEDS[*]}) ==="
-
-for SEED in "${SEEDS[@]}"; do
-    EXP="bsj_mamba_s${SEED}"
     CKPT=$(find saved_models/mamba/${EXP} -name "model.pth" 2>/dev/null | head -1)
     if [ -n "$CKPT" ]; then echo "  [SKIP] $EXP"; continue; fi
     echo "  [RUN]  $EXP"
+
     python training.py \
         --model_name mamba \
         --device $GPU \
@@ -35,4 +30,4 @@ for SEED in "${SEEDS[@]}"; do
         --exp "$EXP"
 done
 
-echo "=== BSJ-DISJOINT mamba done ==="
+echo "=== mamba bs64 s1 done ==="
