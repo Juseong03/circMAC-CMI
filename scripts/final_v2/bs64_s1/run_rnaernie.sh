@@ -7,7 +7,7 @@ GPU=${1:-0}; SEED=1
 for SPLIT in iso bsj; do
     TRAIN_FILE="./data/df_train_${SPLIT}_disjoint.pkl"
     TEST_FILE="./data/df_test_${SPLIT}_disjoint.pkl"
-    EXP="${SPLIT}_rnaernie_ft_s${SEED}"
+    EXP="${SPLIT}_rnaernie_ft_bs64_s${SEED}"
 
     if find saved_models/rnaernie/${EXP} -name "model.pth" 2>/dev/null | grep -q .; then
         echo "  [SKIP] $EXP"; continue
