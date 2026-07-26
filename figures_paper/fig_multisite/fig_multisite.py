@@ -3,13 +3,13 @@
 fig_multisite.py — Multi-Site Binding Case Study (fig9 style)
 
 Layout (same structure as fig9_heatmap_metrics.py):
-  (A) Heatmap: GT row + model rows × 4 cases
-  (B) Metrics: F1 / Recall / Precision / AUROC bar charts × 4 cases
+  (A) Heatmap: GT row + model rows × 3 cases
+  (B) Metrics: F1 / Recall / Precision / AUROC bar charts × 3 cases
 
-Cases: circRPUSD4, circMGA, circDONSON, circFANCA
-       (selected for diverse multi-site patterns: 2–3 clusters, varied spread)
+Cases: circFANCA, circKHDRBS1, circJARID2
+       (selected for diverse multi-site patterns)
 
-Output: fig_multisite.{pdf,png}
+Output: fig_multisite_{encoder,pretrained}.{pdf,png,eps}
 
 Usage:
     python figures_paper/fig_multisite/fig_multisite.py
@@ -24,7 +24,11 @@ import matplotlib.colors as mcolors
 from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 from pathlib import Path
 from sklearn.metrics import (
-    roc_auc_score, f1_score, recall_score, precision_score,
+    roc_auc_score,
+    f1_score,
+    recall_score,
+    precision_score,
+    precision_recall_curve,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -78,14 +82,14 @@ GROUPS = {
         ("transformer", "Transformer",    "pred_transformer"),
         ("mamba",       "Mamba",          "pred_mamba"),
         ("hymba",       "Hymba",          "pred_hymba"),
-        ("circmac",     "CircMAC\n(nopt)","pred_circmac_nopt"),
+        ("circmac",     "circMAC",        "pred_circmac_nopt"),
     ],
     "pretrained": [
         ("rnabert",  "RNABERT",           "pred_rnabert_ft"),
         ("rnaernie", "RNAErnie",          "pred_rnaernie_ft"),
         ("rnamsm",   "RNAMSM",            "pred_rnamsm_ft"),
         ("rnafm",    "RNA-FM",            "pred_rnafm_ft"),
-        ("circmac",  "CircMAC\n(nopt)",   "pred_circmac_nopt"),
+        ("circmac",  "circMAC",   "pred_circmac_nopt"),
     ],
 }
 
@@ -122,25 +126,95 @@ def load_case(df_all, case):
     return df
 
 
+def optimal_threshold(gt, prob):
+    """Return the F1-optimal threshold, matching the Fig. 9 code."""
+    prec, rec, thresholds = precision_recall_curve(gt, prob)
+
+    if len(thresholds) == 0:
+        return 0.5
+
+    denom = prec[:-1] + rec[:-1]
+    f1s = np.divide(
+        2 * prec[:-1] * rec[:-1],
+        denom,
+        out=np.zeros_like(denom, dtype=float),
+        where=denom > 0,
+    )
+    return float(thresholds[int(np.argmax(f1s))])
+
+
 def compute_metrics(df, models):
-    gt = df["ground_truth"].values
+    """
+    Compute per-case metrics.
+
+    Important
+    ---------
+    * A model is treated as unavailable when its prediction column is
+      missing or contains any NaN values due to an unsupported sequence length.
+    * Unavailable model-case combinations remain NaN internally; Panel B
+      displays those NaNs as 0.00 only.
+    * Valid predictions are NEVER replaced by zero.
+    * For valid predictions, use the same F1-optimal threshold as Fig. 9.
+    """
+    gt = pd.to_numeric(df["ground_truth"], errors="coerce").to_numpy(dtype=float)
+    gt_valid = np.isfinite(gt)
+
     out = {}
+
     for mkey, mname, mcol in models:
-        nan4 = dict(f1=np.nan, recall=np.nan, precision=np.nan, auroc=np.nan)
+        nan4 = dict(
+            f1=np.nan,
+            recall=np.nan,
+            precision=np.nan,
+            auroc=np.nan,
+            threshold=np.nan,
+            unavailable=True,
+        )
+
         if mcol not in df.columns:
             out[mcol] = nan4
             continue
-        p    = df[mcol].fillna(0).values
-        pred = (p >= 0.5).astype(int)
+
+        p = pd.to_numeric(df[mcol], errors="coerce").to_numpy(dtype=float)
+
+        # Length mismatch / unavailable prediction:
+        # do NOT convert these NaNs to prediction probability 0.
+        # If any NaN is present, do not compute the metric.
+        # This model-case pair will be displayed as 0.00 in Panel B only.
+        if np.isnan(p).any():
+            out[mcol] = nan4
+            continue
+
+        valid = gt_valid & np.isfinite(p)
+        if valid.sum() == 0:
+            out[mcol] = nan4
+            continue
+
+        gt_v = gt[valid].astype(int)
+        p_v = p[valid]
+
         try:
-            out[mcol] = dict(
-                f1        = f1_score(gt, pred, zero_division=0),
-                recall    = recall_score(gt, pred, zero_division=0),
-                precision = precision_score(gt, pred, zero_division=0),
-                auroc     = roc_auc_score(gt, p) if gt.sum() > 0 else np.nan,
+            thresh = optimal_threshold(gt_v, p_v)
+            pred = (p_v >= thresh).astype(int)
+
+            auroc = (
+                roc_auc_score(gt_v, p_v)
+                if np.unique(gt_v).size == 2
+                else np.nan
             )
+
+            out[mcol] = dict(
+                f1=f1_score(gt_v, pred, zero_division=0),
+                recall=recall_score(gt_v, pred, zero_division=0),
+                precision=precision_score(gt_v, pred, zero_division=0),
+                auroc=auroc,
+                threshold=thresh,
+                unavailable=False,
+            )
+
         except Exception:
             out[mcol] = nan4
+
     return out
 
 
@@ -204,18 +278,54 @@ def draw_heatmap_section(fig, gs_slot, df_all, models):
         for ri, (mkey, mname, mcol) in enumerate(models):
             ax = fig.add_subplot(gs_case[ri + 1])
 
-            if mcol in df.columns and not df[mcol].isna().all():
-                pred_raw = df[mcol].values.astype(float)
-                pred_masked = np.ma.masked_invalid(pred_raw)
+            pred_series = (
+                pd.to_numeric(df[mcol], errors="coerce")
+                if mcol in df.columns
+                else None
+            )
+
+            # IMPORTANT:
+            # If any NaN exists, treat the whole model-case combination as unavailable
+            # and render the row exactly as "N/A (seq too long)".
+            is_unavailable = (
+                pred_series is None
+                or pred_series.isna().any()
+            )
+
+            if not is_unavailable:
+                pred = pred_series.to_numpy(dtype=float)
+
                 color = MODEL_COLORS.get(mkey, "#888888")
-                cmap  = mcolors.LinearSegmentedColormap.from_list(
-                    f"{mkey}_cm", ["#f7f7f7", color]
+                cmap = mcolors.LinearSegmentedColormap.from_list(
+                    f"{mkey}_{ci}_{ri}_cm",
+                    ["#f7f7f7", color],
                 )
-                cmap.set_bad(color=NAN_COLOR)
-                ax.imshow(pred_masked[np.newaxis, :], aspect="auto",
-                          cmap=cmap, vmin=0, vmax=1, interpolation="nearest")
+
+                # Same visualization rule as Fig. 9:
+                # normalize each model by its own maximum for visual clarity.
+                pred_max = float(np.max(pred))
+                vmax_val = max(pred_max, 0.05)
+
+                ax.imshow(
+                    pred[np.newaxis, :],
+                    aspect="auto",
+                    cmap=cmap,
+                    vmin=0,
+                    vmax=vmax_val,
+                    interpolation="nearest",
+                )
             else:
                 ax.set_facecolor("#eeeeee")
+                ax.text(
+                    0.5, 0.5,
+                    "N/A (seq too long)",
+                    transform=ax.transAxes,
+                    ha="center",
+                    va="center",
+                    fontsize=7,
+                    color="#888888",
+                    style="italic",
+                )
 
             ax.set_yticks([])
             ax.set_xticks([])
@@ -260,22 +370,66 @@ def draw_metrics_section(fig, gs_slot, df_all, models):
         metrics = compute_metrics(df, models)
         mirna_short = case["mirna"].replace("hsa-", "")
 
+        print(f"\n[{case['label_m']} × {mirna_short}]")
+        for _mkey, _mname, _mcol in models:
+            mm = metrics[_mcol]
+            if mm["unavailable"]:
+                print(f"  {_mname:12s}: N/A (seq too long) -> displayed as 0.00")
+            else:
+                print(
+                    f"  {_mname:12s}: threshold={mm['threshold']:.4f}, "
+                    f"F1={mm['f1']:.3f}, Recall={mm['recall']:.3f}, "
+                    f"Precision={mm['precision']:.3f}, AUROC={mm['auroc']:.3f}"
+                )
+
         for mi, (metric_key, metric_label, ylim) in enumerate(metric_info):
             ax = fig.add_subplot(gs_inner[mi, ci])
 
             for bi, (mkey, mname, mcol) in enumerate(models):
                 val   = metrics[mcol][metric_key]
                 color = MODEL_COLORS.get(mkey, "#888888")
-                alpha = 0.92 if mkey == "circmac" else 0.78
+                alpha = 0.78
 
                 if not np.isnan(val):
-                    ax.bar(bi, val, width=bar_w, color=color,
-                           alpha=alpha, zorder=2, linewidth=0)
-                    ax.text(bi, val + 0.025, f"{val:.2f}",
-                            ha="center", va="bottom",
-                            fontsize=6, fontweight="bold", color="#222222",
-                            bbox=dict(boxstyle="round,pad=0.1",
-                                      fc="white", ec="none", alpha=0.85))
+                    # Valid prediction: plot the actual metric.
+                    ax.bar(
+                        bi, val,
+                        width=bar_w,
+                        color=color,
+                        alpha=alpha,
+                        zorder=2,
+                        linewidth=0,
+                    )
+                    ax.text(
+                        bi, min(val + 0.025, 1.075),
+                        f"{val:.2f}",
+                        ha="center",
+                        va="bottom",
+                        fontsize=6,
+                        fontweight="bold",
+                        color="#222222",
+                    )
+                else:
+                    # Only genuinely unavailable/NaN model-case combinations
+                    # are displayed as zero. Keep NaN internally so that we do
+                    # not confuse "not evaluable" with a true metric of zero.
+                    ax.bar(
+                        bi, 0.0,
+                        width=bar_w,
+                        color=color,
+                        alpha=alpha,
+                        zorder=2,
+                        linewidth=0,
+                    )
+                    ax.text(
+                        bi, 0.025,
+                        "0.00",
+                        ha="center",
+                        va="bottom",
+                        fontsize=6,
+                        fontweight="bold",
+                        color="#777777",
+                    )
 
             ax.set_xlim(-0.6, n_models - 0.4)
             ax.set_ylim(*ylim)
@@ -289,9 +443,7 @@ def draw_metrics_section(fig, gs_slot, df_all, models):
                 short_names = [m[1].split("\n")[0] for m in models]
                 ax.set_xticklabels(short_names, rotation=30, ha="right",
                                    fontsize=7.5)
-                for tick, (mkey, _, _) in zip(ax.get_xticklabels(), models):
-                    if mkey == "circmac":
-                        tick.set_fontweight("bold")
+                # Keep all model labels visually consistent.
             else:
                 ax.set_xticklabels([])
 
@@ -339,6 +491,8 @@ def make_figure(group_key, df_all):
         p = OUT / f"fig_multisite_{group_key}.{ext}"
         fig.savefig(p, dpi=200, bbox_inches="tight")
         print(f"Saved → {p}")
+    
+    plt.savefig(f"{OUT}/supp_length_filter.eps", format='eps', bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
 

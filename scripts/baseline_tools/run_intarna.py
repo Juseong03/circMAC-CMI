@@ -15,6 +15,7 @@ import argparse
 import csv
 import io
 import pickle
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -26,6 +27,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 ENERGY_THR = -5.0   # IntaRNA default, less strict than miRanda/RNAhybrid
+INTARNA = shutil.which("IntaRNA") or "/opt/miniconda3/envs/intarna_env/bin/IntaRNA"
 
 
 def run_intarna_pair(mirna_seq: str, circ_seq: str,
@@ -35,12 +37,12 @@ def run_intarna_pair(mirna_seq: str, circ_seq: str,
     circ_rna  = circ_seq.upper().replace("T", "U")
 
     cmd = [
-        "IntaRNA",
+        INTARNA,
         "-q", mirna_rna,      # query (miRNA)
         "-t", circ_rna,       # target (circRNA)
         "--outMode", "C",     # CSV output
         "--outCsvCols", "start1,end1,start2,end2,E",
-        "--pred", "S",        # single best interaction per query-target pair
+        "--outNumber", "1",   # single best interaction per query-target pair
         "--tAccW", "0",       # no accessibility window restriction
         "--tAccL", "0",
         "--qAccW", "0",
@@ -48,7 +50,7 @@ def run_intarna_pair(mirna_seq: str, circ_seq: str,
     ]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-        output = result.stdout
+        output = result.stdout if result.returncode == 0 else ""
     except (subprocess.TimeoutExpired, FileNotFoundError):
         output = ""
 
@@ -61,8 +63,9 @@ def run_intarna_pair(mirna_seq: str, circ_seq: str,
         for row in reader:
             try:
                 energy  = float(row.get("E", "0") or "0")
-                t_start = int(row.get("start2", "1") or "1") - 1  # 1-based → 0-based
-                t_end   = int(row.get("end2", "1") or "1")
+                # IntaRNA sequence 1 is the target and sequence 2 is the query.
+                t_start = int(row.get("start1", "1") or "1") - 1
+                t_end   = int(row.get("end1", "1") or "1")
                 if energy <= energy_thr:
                     hits.append({
                         "energy":  energy,

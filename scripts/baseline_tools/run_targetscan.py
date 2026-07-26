@@ -83,21 +83,27 @@ def run_targetscan_pair(mirna_id: str, mirna_seq: str,
 
         hits = []
         with open(out_file) as f:
+            header = None
             for line in f:
                 line = line.strip()
-                if not line or line.startswith("Gene"):
+                if not line:
                     continue
                 parts = line.split("\t")
-                # Output: Gene_ID | Species_ID | miRNA_family | site_type |
-                #         UTR_start | UTR_end | ...
-                if len(parts) < 6:
+                if header is None:
+                    header = {name: i for i, name in enumerate(parts)}
+                    if "UTR_start" in header and "UTR_end" in header:
+                        continue
+                    return []
+                if len(parts) <= max(header["UTR_start"], header["UTR_end"]):
                     continue
                 try:
-                    t_start = int(parts[4]) - 1  # 1-based → 0-based
-                    t_end   = int(parts[5])
-                    site_type = parts[3]
+                    t_start = int(parts[header["UTR_start"]]) - 1
+                    t_end = int(parts[header["UTR_end"]])
+                    site_type = parts[header["Site_type"]] if "Site_type" in header else "unknown"
+                    if t_start < 0 or t_end <= t_start or t_end > len(circ_rna):
+                        continue
                     hits.append({
-                        "t_start":   max(0, t_start),
+                        "t_start":   t_start,
                         "t_end":     t_end,
                         "site_type": site_type,
                     })

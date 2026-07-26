@@ -85,27 +85,38 @@ MODEL_DATASET_MAX_LEN = {
 SPECIAL_TOKEN_ALLOWANCE = 2
 
 # (display label, model_name, experiment prefix, frozen backbone)
+# (display_label, model_name, exp_prefix_pair, frozen)
+# exp_prefix_pair: used for pair split.
+# For iso/bsj, resolve_exp_candidates() maps to the bs64_s1 naming convention.
 MODEL_SPECS = [
     # circMAC
-    ("CircMAC (NoPT)",    "circmac",     "v2_abl_full",                 False),
-    ("CircMAC (MLM)",     "circmac",     "v2_pt_mlm",                   False),
-    ("CircMAC (Pairing)", "circmac",     "v2_pt_pairing",               False),
+    ("CircMAC (NoPT)",    "circmac",     "max_circmac_nopt",            False),
+    ("CircMAC (Pairing)", "circmac",     "max_circmac_pairing",         False),
     # General sequence encoders
     ("LSTM",              "lstm",        "v2_enc_lstm",                 False),
     ("Transformer",       "transformer", "v2_enc_transformer",          False),
     ("Mamba",             "mamba",       "v2_enc_mamba",                False),
     ("Hymba",             "hymba",       "v2_enc_hymba",                False),
-    # RNA LMs: frozen
-    ("RNABERT (frozen)",  "rnabert",     "exp1_fair_frozen_rnabert",    True),
-    ("RNAErnie (frozen)", "rnaernie",    "exp1_fair_frozen_rnaernie",   True),
-    ("RNAMSM (frozen)",   "rnamsm",      "exp1_fair_frozen_rnamsm",     True),
-    ("RNA-FM (frozen)",   "rnafm",       "exp1_fair_frozen_rnafm",      True),
     # RNA LMs: fine-tuned
     ("RNABERT (ft)",      "rnabert",     "exp1_fair_trainable_rnabert", False),
     ("RNAErnie (ft)",     "rnaernie",    "exp1_fair_trainable_rnaernie",False),
     ("RNAMSM (ft)",       "rnamsm",      "exp1_fair_trainable_rnamsm",  False),
     ("RNA-FM (ft)",       "rnafm",       "exp1_fair_trainable_rnafm",   False),
 ]
+
+# Short keys used with --model_filter
+MODEL_FILTER_ALIASES = {
+    "circmac_nopt":    "CircMAC (NoPT)",
+    "circmac_pairing": "CircMAC (Pairing)",
+    "lstm":            "LSTM",
+    "transformer":     "Transformer",
+    "mamba":           "Mamba",
+    "hymba":           "Hymba",
+    "rnabert":         "RNABERT (ft)",
+    "rnaernie":        "RNAErnie (ft)",
+    "rnamsm":          "RNAMSM (ft)",
+    "rnafm":           "RNA-FM (ft)",
+}
 
 SPLIT_FILES = {
     "pair": ("data/df_train_final.pkl",        "data/df_test_final.pkl"),
@@ -280,28 +291,37 @@ def compute_localization_metrics(
 
 
 def resolve_exp_candidates(exp_prefix: str, split: str) -> List[str]:
-    candidates = [
-        exp_prefix,
-        exp_prefix.replace("v2_", f"{split}_").replace("exp1_fair_", f"{split}_"),
-    ]
+    """Return a prioritised list of experiment-name candidates to search for checkpoints."""
+    candidates = [exp_prefix]
+
     if split != "pair":
-        short = (exp_prefix
-                 .replace("v2_abl_full",               f"{split}_circmac_nopt")
-                 .replace("v2_pt_mlm",                 f"{split}_circmac_mlm")
-                 .replace("v2_pt_pairing",             f"{split}_circmac_pairing")
-                 .replace("v2_enc_lstm",               f"{split}_enc_lstm")
-                 .replace("v2_enc_transformer",        f"{split}_enc_transformer")
-                 .replace("v2_enc_mamba",              f"{split}_enc_mamba")
-                 .replace("v2_enc_hymba",              f"{split}_enc_hymba")
-                 .replace("exp1_fair_frozen_rnabert",  f"{split}_rnabert_frozen")
-                 .replace("exp1_fair_frozen_rnaernie", f"{split}_rnaernie_frozen")
-                 .replace("exp1_fair_frozen_rnamsm",   f"{split}_rnamsm_frozen")
-                 .replace("exp1_fair_frozen_rnafm",    f"{split}_rnafm_frozen")
-                 .replace("exp1_fair_trainable_rnabert",  f"{split}_rnabert_ft")
-                 .replace("exp1_fair_trainable_rnaernie", f"{split}_rnaernie_ft")
-                 .replace("exp1_fair_trainable_rnamsm",   f"{split}_rnamsm_ft")
-                 .replace("exp1_fair_trainable_rnafm",    f"{split}_rnafm_ft"))
-        candidates.append(short)
+        # bs64_s1 naming convention (new iso/bsj experiments)
+        bs64 = (exp_prefix
+                .replace("max_circmac_nopt",            f"{split}_pt_nopt_bs64")
+                .replace("max_circmac_pairing",         f"{split}_pt_pairing_bs64")
+                .replace("v2_enc_lstm",                 f"{split}_lstm_bs64")
+                .replace("v2_enc_transformer",          f"{split}_transformer_bs64")
+                .replace("v2_enc_mamba",                f"{split}_mamba_bs64")
+                .replace("v2_enc_hymba",                f"{split}_hymba_bs64")
+                .replace("exp1_fair_trainable_rnabert",  f"{split}_rnabert_ft_bs64")
+                .replace("exp1_fair_trainable_rnaernie", f"{split}_rnaernie_ft_bs64")
+                .replace("exp1_fair_trainable_rnamsm",   f"{split}_rnamsm_ft_bs64")
+                .replace("exp1_fair_trainable_rnafm",    f"{split}_rnafm_ft_bs64"))
+        candidates.append(bs64)
+        # legacy naming (fallback)
+        legacy = (exp_prefix
+                  .replace("max_circmac_nopt",            f"{split}_circmac_nopt")
+                  .replace("max_circmac_pairing",         f"{split}_circmac_pairing")
+                  .replace("v2_enc_lstm",                 f"{split}_enc_lstm")
+                  .replace("v2_enc_transformer",          f"{split}_enc_transformer")
+                  .replace("v2_enc_mamba",                f"{split}_enc_mamba")
+                  .replace("v2_enc_hymba",                f"{split}_enc_hymba")
+                  .replace("exp1_fair_trainable_rnabert",  f"{split}_rnabert_ft")
+                  .replace("exp1_fair_trainable_rnaernie", f"{split}_rnaernie_ft")
+                  .replace("exp1_fair_trainable_rnamsm",   f"{split}_rnamsm_ft")
+                  .replace("exp1_fair_trainable_rnafm",    f"{split}_rnafm_ft"))
+        candidates.append(legacy)
+
     return list(dict.fromkeys(candidates))
 
 
@@ -378,7 +398,8 @@ def summarize_seed_scores(pair_scores: pd.DataFrame) -> pd.DataFrame:
                  normalized_sd_pairs=("normalized_score","std")))
 
 
-def run_split(split, seeds, device, radii, max_eval_len, out_dir) -> Optional[pd.DataFrame]:
+def run_split(split, seeds, device, radii, max_eval_len, out_dir,
+              model_filter: Optional[List[str]] = None) -> Optional[pd.DataFrame]:
     _, test_file = SPLIT_FILES[split]
     test_path = ROOT / test_file
     if not test_path.exists():
@@ -393,7 +414,12 @@ def run_split(split, seeds, device, radii, max_eval_len, out_dir) -> Optional[pd
 
     seed_summary_rows, all_pair_rows = [], []
 
-    for label, model_name, exp_prefix, frozen in MODEL_SPECS:
+    active_specs = MODEL_SPECS
+    if model_filter:
+        active_specs = [(l, m, e, f) for l, m, e, f in MODEL_SPECS
+                        if l in model_filter]
+
+    for label, model_name, exp_prefix, frozen in active_specs:
         native_limit    = MODEL_DATASET_MAX_LEN.get(model_name, MAX_DATASET_LEN)
         effective_limit = min(int(max_eval_len), int(native_limit), MAX_DATASET_LEN)
 
@@ -502,10 +528,28 @@ def main():
     parser.add_argument("--seeds",   type=int, nargs="+", default=[1, 2, 3])
     parser.add_argument("--max_eval_len", type=int, default=1000,
                         help="Global sequence-length cap; model-native limits also enforced (default: 1000)")
+    parser.add_argument("--model_filter", type=str, nargs="+", default=None,
+                        metavar="KEY",
+                        help=(
+                            "Run only the specified model(s). Use short alias keys: "
+                            + ", ".join(MODEL_FILTER_ALIASES.keys())
+                        ))
     args = parser.parse_args()
 
     if any(r < 0 for r in args.radii):
         raise ValueError("All radii must be >= 0")
+
+    # Resolve model filter: map short aliases to display labels
+    model_filter = None
+    if args.model_filter:
+        model_filter = []
+        for key in args.model_filter:
+            if key in MODEL_FILTER_ALIASES:
+                model_filter.append(MODEL_FILTER_ALIASES[key])
+            else:
+                # try matching display label directly
+                model_filter.append(key)
+        print(f"  Model filter: {model_filter}")
 
     device  = get_device(args.device)
     out_dir = ROOT / "figures_paper" / "fig_localization_focus"
@@ -515,7 +559,7 @@ def main():
     for split in splits:
         df = run_split(split=split, seeds=args.seeds, device=device,
                        radii=args.radii, max_eval_len=args.max_eval_len,
-                       out_dir=out_dir)
+                       out_dir=out_dir, model_filter=model_filter)
         if df is not None:
             all_summaries.append(df)
 

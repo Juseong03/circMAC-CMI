@@ -1,0 +1,76 @@
+% ============================================================
+% Multisite case study LaTeX tables
+% Generated from data_predictions.csv + binding_miRNA_seq.csv
+% ============================================================
+
+% TABLE 1: Metadata
+\begin{table}[ht]
+\centering
+\caption{Metadata of the three multi-site circRNA--miRNA case studies used for qualitative evaluation.
+Binding intervals are 1-based nucleotide positions on the circRNA sequence.
+\textit{BSJ-adj.}: at least one ground-truth binding site overlaps the 80-nt window centred on the back-splice junction.}
+\label{tab:multisite_meta}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llllccrrll}
+\toprule
+Case set & circRNA & miRNA & Chr & Strand & Length & Binding nt & Binding interval & Ratio (\%) & BSJ-adj. \\
+\midrule
+Main & circFANCA    & miR-6858-5p & chr16 & $-$ & 244 & 63 & 28--58, 100--131    & 25.8 & Yes \\
+Main & circKHDRBS1  & miR-6880-5p & chr1  & $+$ & 404 & 60 & 100--128, 284--314  & 14.9 & No  \\
+Main & circJARID2   & miR-608     & chr6  & $+$ & 725 & 73 & 599--635, 660--695  & 10.1 & Yes \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+
+% TABLE 2: Sequences
+\begin{table}[ht]
+\centering
+\small
+\caption{Full RNA sequences of the three multi-site case study pairs.
+CircRNA sequences begin at the BSJ site ($5'\to3'$).
+miRNA sequences are the mature guide strands (RNA).}
+\label{tab:multisite_seq}
+\begin{tabular}{@{}p{2.6cm}l@{}}
+\toprule
+Case & Sequence \\
+\midrule
+\multicolumn{1}{l}{\textbf{circFANCA}} & \\
+circRNA (244 nt) &
+  \texttt{GUGCACAUUCUCCACCCACCCCUGGUUCCCGGCAAGUACCGCUCCCUCCUCACAGACUAC}\newline
+  \texttt{AUCUCAUUGGCCAAGACACGGCUGGCCGACCUCAAGGCAAGCUGUCCCUCCAUGCCCACU}\newline
+  \texttt{CCUCACACCUGUCCCAGCAGAAACUGCUUUGUUUUCUUGUUCUCAUUCUGUGUCUUCCCU}\newline
+  \texttt{GAAGGUUUCUAUAGAAAACAUGGGACUCUACGAGGAUUUGUCAUCAGCUGGGGACAUUAC}\newline
+  \texttt{UGAG} \\[2pt]
+miRNA (22 nt) & \texttt{GUGAGGAGGGGCUGGCAGGGAC} \\
+\midrule
+\multicolumn{1}{l}{\textbf{circKHDRBS1}} & \\
+circRNA (404 nt) &
+  \texttt{GAUAUGAUGGAUGAUAUCUGUCAGGAGCAAUUUCUAGAGCUGUCCUACUUGAAUGGAGUA}\newline
+  \texttt{CCUGAACCCUCUCGUGGACGUGGGGUGCCAGUGAGAGGCCGGGGAGCUGCACCUCCUCCA}\newline
+  \texttt{CCACCUGUUCCCAGGGGCCGUGGUGUUGGACCACCUCGGGGGGCUUUGGUACGUGGUACA}\newline
+  \texttt{CCAGUAAGGGGAGCCAUCACCAGAGGUGCCACUGUGACUCGAGGCGUGCCACCCCCACCU}\newline
+  \texttt{ACUGUGAGGGGUGCUCCAGCACCAAGAGCACGGACAGCGGGCAUCCAGAGGAUACCUUUG}\newline
+  \texttt{CCUCCACCUCCUGCACCAGAAACAUAUGAAGAAUAUGGAUAUGAUGAUACAUACGCAGAA}\newline
+  \texttt{CAAAGUUACGAAGGCUACGAAGGCUAUUACAGCCAGAGUCAAGG} \\[2pt]
+miRNA (22 nt) & \texttt{UGGUGGAGGAAGAGGGCAGCUC} \\
+\midrule
+\multicolumn{1}{l}{\textbf{circJARID2}} & \\
+circRNA (725 nt) &
+  \texttt{GGCUCCUUGGUAAUGACCAGUCUAAGGGAUUAGGACCAGCAUCAGAACAGUCAGAGAAUG}\newline
+  \texttt{AAAAGGACGAUGCAUCCCAAGUGUCCUCCACUAGCAACGAUGUUAGUUCUUCAGAUUUUG}\newline
+  \texttt{AAGAAGGGCCGUCGAGGAAAAGGCCCAGGCUGCAAGCACAAAGGAAGUUUGCUCAGUCUC}\newline
+  \texttt{AGCCGAAUAGUCCCAGCACAACUCCAGUAAAGAUAGUGGAGCCAUUGCUACCCCCUCCAG}\newline
+  \texttt{CUACUCAGAUAUCAGACCUCUCUAAAAGGAAGCCUAAGACAGAAGAUUUUCUUACCUUUC}\newline
+  \texttt{UCUGCCUUCGAGGUUCUCCUGCGCUGCCCAACAGCAUGGUGUAUUUUGGAAGCUCUCAGG}\newline
+  \texttt{AUGAGGAGGAAGUCGAGGAGGAAGAUGAUGAGACAGAAGACGUCAAAACAGCCACCAACA}\newline
+  \texttt{AUGCUUCAUCUUCAUGCCAGUCGACCCCCAGGAAAGGAAAAACCCACAAACAUGUUCACA}\newline
+  \texttt{ACGGGCAUGUUUUCAAUGGUUCCAGCAGGUCAACACGGGAGAAGGAACCUGUUCAAAAAC}\newline
+  \texttt{ACAAAAGCAAAGAGGCCACUCCCGCAAAGGAGAAGCACAGCGAUCACCGGGCUGACAGCC}\newline
+  \texttt{GCCGGGAGCAGGCUUCAGCUAACCACCCCGCAGCGGCCCCCUCCACGGGUUCCUCGGCCA}\newline
+  \texttt{AGGGGCUUGCUGCCACCCAUCACCACCCCCCUCUGCAUCGGUCGGCUCAGGACUUACGGA}\newline
+  \texttt{AACAG} \\[2pt]
+miRNA (25 nt) & \texttt{AGGGGUGGUGUUGGGACAGCUCCGU} \\
+\bottomrule
+\end{tabular}
+\end{table}
