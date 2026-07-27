@@ -42,7 +42,7 @@ plt.rcParams.update({
 SPLIT_CONFIG = {
     "pair": {
         "title":    "(A) Pair-disjoint",
-        "exp_name": "v2_abl_full",
+        "exp_name": "max_circmac_pairing",
         "model":    "circmac",
     },
     "iso": {

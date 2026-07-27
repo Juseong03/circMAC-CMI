@@ -481,18 +481,18 @@ def make_figure(group_key, df_all):
     fig.text(panel_x, hm_frac - 0.01, "(B)", ha="left", va="top",
              fontsize=13, fontweight="bold", transform=fig.transFigure)
 
-    if group_key == "encoder":
-        title = "Case study — Multi-site binding (CircMAC vs general encoder models)"
-    else:
-        title = "Case study — Multi-site binding (CircMAC vs RNA language models)"
-    fig.suptitle(title, fontsize=12, fontweight="bold", y=1.012)
-
-    for ext in ["pdf", "png"]:
+    for ext in ["pdf", "png", "eps"]:
         p = OUT / f"fig_multisite_{group_key}.{ext}"
-        fig.savefig(p, dpi=200, bbox_inches="tight")
+
+        fig.savefig(
+            p,
+            dpi=200,
+            bbox_inches="tight",
+            facecolor="white"
+        )
+
         print(f"Saved → {p}")
-    
-    plt.savefig(f"{OUT}/supp_length_filter.eps", format='eps', bbox_inches="tight", facecolor="white")
+
     plt.close(fig)
 
 

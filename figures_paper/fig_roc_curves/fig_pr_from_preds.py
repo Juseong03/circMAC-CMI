@@ -48,7 +48,7 @@ PRETRAINED_MODELS = [
     ("RNAMSM (ft)",       "exp1_fair_trainable_rnamsm",   "rnamsm",   "#2CA02C", "-",  1.4),
     ("RNA-FM (ft)",       "exp1_fair_trainable_rnafm",    "rnafm",    "#17BECF", "-",  1.4),
     ("CircMAC (NoPT)",    "max_circmac_nopt",              "circmac",  "#BCBD22", "--", 1.6),
-    ("CircMAC (Pairing)", "v2_abl_full",                   "circmac",  "#E05C2A", "-",  2.4),
+    ("CircMAC (Pairing)", "max_circmac_pairing",             "circmac",  "#E05C2A", "-",  2.4),
 ]
 
 ENCODER_MODELS = [

@@ -155,13 +155,30 @@ python predict.py \
 
 ---
 
-## 출력 예시
+## 출력 예시 (실제 실행 결과)
 
+**입력:**
+```bash
+python predict.py \
+  --circRNA "GUGCACAUUCUCCACCCACCCCUGGUUCCCAAAUGCAGGAGCAGAGGGCAG..." \
+  --circRNA_id circFANCA \
+  --miRNA GUGAGGAGGGGCUGGCAGGGAC \
+  --miRNA_id hsa-miR-6858-5p \
+  --model_path saved_models/transformer/v2_enc_transformer_s1/1/train/model.pth \
+  --model_name transformer \
+  --device -1 \
+  --threshold 0.5
+```
+
+**출력 (CSV):**
 ```
 circRNA_id,miRNA_id,rank,site_start,site_end,site_length,site_score,peak_position,peak_probability,BSJ_relation,distance_to_BSJ,circRNA_site_sequence,miRNA_sequence
-circFANCA,hsa-miR-6858-5p,1,99,131,32,0.73421,112,0.91203,BSJ-adjacent,27,CACGGCUGGCCGACCUCAAGG...,GUGAGGAGGGGCUGGCAGGGAC
-circFANCA,hsa-miR-6858-5p,2,27,58,31,0.61033,41,0.84512,BSJ-adjacent,0,UCUCCACCCACCCCUGGUUCCC...,GUGAGGAGGGGCUGGCAGGGAC
+circFANCA,hsa-miR-6858-5p,1,10,214,204,0.77936,61,0.86449,BSJ-adjacent,10,UCCACCCACCCCUGGUUCCCAAAUGCAGGAGCAGAGGGCAGACUCUGCCCAGCUGUAGCCAUGAGAAGAGCAAGUCCCUGCUUGACUGUUCUGAAGAGAGCACCAGAGGCAGAGCCUCAAAGGAAGAGAGGCAGAGCAGAGCCUCACAGGAAUGUGCACAUUCUCCACCCACCCCUGGUUCCCAAAUGCAGGAGCAGAGGGCAG,GUGAGGAGGGGCUGGCAGGGAC
+circFANCA,hsa-miR-6858-5p,2,4,9,5,0.54886,7,0.56721,BSJ-adjacent,4,ACAUU,GUGAGGAGGGGCUGGCAGGGAC
+circFANCA,hsa-miR-6858-5p,3,0,2,2,0.53409,1,0.55133,BSJ-adjacent,0,GU,GUGAGGAGGGGCUGGCAGGGAC
 ```
+
+> **참고:** 위 결과는 Transformer 모델(CPU)로 실행한 것이다. CircMAC / Mamba 계열 모델은 Mamba SSM의 CUDA 필수 제약으로 인해 GPU 서버에서 `--device 0`으로 실행해야 한다.
 
 ---
 

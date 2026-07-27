@@ -40,7 +40,7 @@ LOGS_DIR  = ROOT / "logs"
 PRED_DIR  = ROOT / "eval_results" / "preds"
 DATA_TEST = ROOT / "data" / "df_test_final.pkl"
 
-EXP_TPL    = "v2_abl_full"
+EXP_TPL    = "v2_pt_pairing"
 MODEL_NAME = "circmac"
 D_MODEL    = 128
 N_LAYER    = 6
@@ -79,8 +79,10 @@ def run_seed(seed: int, device: torch.device, args_force: bool = False) -> None:
     print(f"\n[RUN]  {exp}")
     print(f"  ckpt: {ckpt}")
 
-    # Load test data
+    # Load test data — filter to binding-positive only (same as training.py for task='sites')
     df_test = pd.read_pickle(DATA_TEST)
+    df_test = df_test[df_test['binding'] == 1].reset_index(drop=True)
+    print(f"  test pairs (binding=1): {len(df_test)}")
     ds = CircRNABindingSitesDataset(df_test, max_len=MAX_LEN + 2, target_type="mirna", k=1, k_target=1)
 
     # Build trainer
