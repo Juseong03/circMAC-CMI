@@ -41,18 +41,18 @@ plt.rcParams.update({
 
 MODELS = {
     "pairing": {
-        "exp_name":  "max_circmac_pairing",
+        "exp_name":  "v2_pt_pairing",
         "model_dir": "circmac",
-        "label":     "CircMAC-BPP",
+        "label":     "CircMAC",
         "color":     "#E05C2A",
-        "suptitle":  "Supplementary Figure: CircMAC-BPP on Pair-Disjoint Split",
+        # "suptitle":  "Supplementary Figure: CircMAC-BPP on Pair-Disjoint Split",
     },
     "nopt": {
         "exp_name":  "max_circmac_nopt",
         "model_dir": "circmac",
-        "label":     "CircMAC (NoPT)",
+        "label":     "CircMAC",
         "color":     "#BCBD22",
-        "suptitle":  "Supplementary Figure: CircMAC (NoPT) on Pair-Disjoint Split",
+        # "suptitle":  "Supplementary Figure: CircMAC (NoPT) on Pair-Disjoint Split",
     },
 }
 
@@ -202,7 +202,7 @@ def make_figure(key, cfg):
     plot_noise(axes[1], all_labels, all_probs, color,
                csv_path=OUT / f"fig_supp_pr_noise_pair_{key}.csv")
 
-    fig.suptitle(cfg["suptitle"], fontsize=11, fontweight="bold", y=1.02)
+    # fig.suptitle(cfg["suptitle"], fontsize=11, fontweight="bold", y=1.02)
     fig.tight_layout()
 
     for ext in ["png", "eps"]:

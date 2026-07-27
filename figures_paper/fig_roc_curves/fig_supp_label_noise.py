@@ -50,7 +50,7 @@ SEEDS      = [1, 2, 3]
 COLOR      = "#E05C2A"
 
 SPLIT_CONFIG = {
-    "pair": {"exp_name": "max_circmac_pairing", "model": "circmac",
+    "pair": {"exp_name": "v2_pt_pairing", "model": "circmac",
              "label": "Pair-disjoint"},
     "iso":  {"exp_name": "iso_pt_pairing",      "model": "circmac",
              "label": "Isoform-disjoint"},
