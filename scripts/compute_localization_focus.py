@@ -399,7 +399,8 @@ def summarize_seed_scores(pair_scores: pd.DataFrame) -> pd.DataFrame:
 
 
 def run_split(split, seeds, device, radii, max_eval_len, out_dir,
-              model_filter: Optional[List[str]] = None) -> Optional[pd.DataFrame]:
+              model_filter: Optional[List[str]] = None,
+              file_suffix: str = "") -> Optional[pd.DataFrame]:
     _, test_file = SPLIT_FILES[split]
     test_path = ROOT / test_file
     if not test_path.exists():
@@ -501,14 +502,15 @@ def run_split(split, seeds, device, radii, max_eval_len, out_dir,
 
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    summary_df  = pd.DataFrame(seed_summary_rows)
-    summary_path = out_dir / f"localization_focus_{split}_summary.csv"
+    summary_df   = pd.DataFrame(seed_summary_rows)
+    suffix       = f"_{file_suffix}" if file_suffix else ""
+    summary_path = out_dir / f"localization_focus_{split}_summary{suffix}.csv"
     summary_df.to_csv(summary_path, index=False)
     print(f"\n  Saved summary -> {summary_path}")
 
     if all_pair_rows:
         pair_df   = pd.concat(all_pair_rows, ignore_index=True)
-        pair_path = out_dir / f"localization_focus_{split}_per_pair.csv"
+        pair_path = out_dir / f"localization_focus_{split}_per_pair{suffix}.csv"
         pair_df.to_csv(pair_path, index=False)
         print(f"  Saved per-pair  -> {pair_path}")
 
@@ -541,15 +543,17 @@ def main():
 
     # Resolve model filter: map short aliases to display labels
     model_filter = None
+    file_suffix  = ""
     if args.model_filter:
         model_filter = []
         for key in args.model_filter:
             if key in MODEL_FILTER_ALIASES:
                 model_filter.append(MODEL_FILTER_ALIASES[key])
             else:
-                # try matching display label directly
                 model_filter.append(key)
-        print(f"  Model filter: {model_filter}")
+        # Build a safe filename suffix from the filter keys
+        file_suffix = "_".join(args.model_filter)
+        print(f"  Model filter: {model_filter}  (file suffix: '{file_suffix}')")
 
     device  = get_device(args.device)
     out_dir = ROOT / "figures_paper" / "fig_localization_focus"
@@ -559,7 +563,8 @@ def main():
     for split in splits:
         df = run_split(split=split, seeds=args.seeds, device=device,
                        radii=args.radii, max_eval_len=args.max_eval_len,
-                       out_dir=out_dir, model_filter=model_filter)
+                       out_dir=out_dir, model_filter=model_filter,
+                       file_suffix=file_suffix)
         if df is not None:
             all_summaries.append(df)
 
