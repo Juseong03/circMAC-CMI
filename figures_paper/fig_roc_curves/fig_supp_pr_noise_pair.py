@@ -41,11 +41,11 @@ plt.rcParams.update({
 
 MODELS = {
     "pairing": {
-        "exp_name":  "v2_pt_pairing",
+        "exp_name":  "v2_abl_full",
         "model_dir": "circmac",
         "label":     "CircMAC",
         "color":     "#E05C2A",
-        # "suptitle":  "Supplementary Figure: CircMAC-BPP on Pair-Disjoint Split",
+        # "suptitle":  "Supplementary Figure: CircMAC on Pair-Disjoint Split",
     },
     "nopt": {
         "exp_name":  "max_circmac_nopt",

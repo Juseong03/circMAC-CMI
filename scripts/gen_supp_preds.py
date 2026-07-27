@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 """
-gen_v2pt_pairing_preds.py
-=========================
-v2_pt_pairing 모델의 test 예측을 재생성하여
-supplementary figure scripts가 읽는 두 가지 경로에 저장한다.
+gen_supp_preds.py
+=================
+v2_abl_full (CircMAC full-architecture) 모델의 test 예측을 재생성하여
+supplementary figure scripts가 읽는 경로에 저장한다.
 
-저장 경로 (우선순위 순):
-  1. logs/circmac/v2_pt_pairing_s{seed}/{seed}/best_preds/test_preds.pkl
-     (tensor format: probs_sites, labels_sites, lengths_sites)
-  2. eval_results/preds/v2_pt_pairing_s{seed}/test_preds.pkl
-     (DataFrame format: sample_idx, position, label, prob)
+저장 경로:
+  logs/circmac/v2_abl_full_s{seed}/{seed}/best_preds/test_preds.pkl
+  (tensor format: probs_sites, labels_sites, lengths_sites)
+
+Expected AUPRC (from training logs):
+  seed 1: 0.5131 / seed 2: 0.5166 / seed 3: 0.5272  (mean ≈ 0.519)
 
 Usage:
-    python scripts/gen_v2pt_pairing_preds.py --device 0
-    python scripts/gen_v2pt_pairing_preds.py --device 0 --seeds 1 2 3
+    python scripts/gen_supp_preds.py --device 0
+    python scripts/gen_supp_preds.py --device 0 --seeds 1 2 3
 """
 
 import argparse
@@ -39,7 +40,7 @@ LOGS_DIR  = ROOT / "logs"
 PRED_DIR  = ROOT / "eval_results" / "preds"
 DATA_TEST = ROOT / "data" / "df_test_final.pkl"
 
-EXP_TPL    = "v2_pt_pairing"
+EXP_TPL    = "v2_abl_full"
 MODEL_NAME = "circmac"
 D_MODEL    = 128
 N_LAYER    = 6
@@ -56,7 +57,7 @@ def _get_vocab_size(ckpt_path: Path) -> int:
     return 11
 
 
-def run_seed(seed: int, device: torch.device) -> None:
+def run_seed(seed: int, device: torch.device, args_force: bool = False) -> None:
     exp      = f"{EXP_TPL}_s{seed}"
     ckpt     = VIZ_DIR / MODEL_NAME / exp / str(seed) / "train" / "model.pth"
     logs_out = LOGS_DIR / MODEL_NAME / exp / str(seed) / "best_preds" / "test_preds.pkl"
@@ -70,9 +71,10 @@ def run_seed(seed: int, device: torch.device) -> None:
     if logs_out.exists():
         with open(logs_out, "rb") as f:
             d = pickle.load(f)
-        if "probs_sites" in d:
-            print(f"[OK]   {exp} — logs pkl already exists, skipping")
+        if "probs_sites" in d and not args_force:
+            print(f"[OK]   {exp} — logs pkl already exists, skipping (use --force to overwrite)")
             return
+        print(f"[REGEN] {exp} — overwriting existing pkl")
 
     print(f"\n[RUN]  {exp}")
     print(f"  ckpt: {ckpt}")
@@ -134,28 +136,32 @@ def run_seed(seed: int, device: torch.device) -> None:
     ap = average_precision_score(lbl_flat[valid].astype(int), prb_flat[valid].astype(float))
     print(f"  AUPRC (AP) = {ap:.4f}  (n_valid={valid.sum():,}  pos_rate={lbl_flat[valid].mean():.4f})")
 
-    # ── Format 2: DataFrame format → eval_results/preds/ ──
-    n_samples = probs.shape[0]
-    rows = []
-    for i in range(n_samples):
-        L = int(labels_no_cls.shape[1])
-        for pos in range(L):
-            lab = int(labels_no_cls[i, pos].item())
-            if lab == -100:
-                break
-            rows.append({"sample_idx": i, "position": pos,
-                         "label": lab, "prob": float(probs[i, pos].item())})
-
-    df_preds = pd.DataFrame(rows)
-    pred_out.parent.mkdir(parents=True, exist_ok=True)
-    df_preds.to_pickle(pred_out)
-    print(f"  → Saved eval pkl: {pred_out}  ({len(df_preds):,} rows)")
+    # ── Format 2: DataFrame format → eval_results/preds/ (optional) ──
+    # Only overwrite if the existing file is from a different (incorrect) evaluation
+    if not pred_out.exists() or args_force:
+        n_samples = probs.shape[0]
+        rows = []
+        lbl_np = labels_no_cls.numpy()
+        prb_np = probs.numpy()
+        for i in range(n_samples):
+            L = int(lbl_np.shape[1])
+            for pos in range(L):
+                lab = int(lbl_np[i, pos])
+                if lab == -100:
+                    break
+                rows.append({"sample_idx": i, "position": pos,
+                             "label": lab, "prob": float(prb_np[i, pos])})
+        df_preds = pd.DataFrame(rows)
+        pred_out.parent.mkdir(parents=True, exist_ok=True)
+        df_preds.to_pickle(pred_out)
+        print(f"  → Saved eval pkl: {pred_out}  ({len(df_preds):,} rows)")
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", type=int, default=0)
     parser.add_argument("--seeds",  type=int, nargs="+", default=[1, 2, 3])
+    parser.add_argument("--force",  action="store_true", help="Overwrite existing pkl files")
     args = parser.parse_args()
 
     device = get_device(args.device)
@@ -163,7 +169,7 @@ def main():
     print(f"Experiment: {EXP_TPL}  seeds={args.seeds}\n")
 
     for seed in args.seeds:
-        run_seed(seed, device)
+        run_seed(seed, device, args_force=args.force)
 
     print("\nDone. Now re-run supplementary figure scripts:")
     print("  python figures_paper/fig_roc_curves/fig_supp_pr_noise_pair.py")
